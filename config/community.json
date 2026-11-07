@@ -1,0 +1,99 @@
+{
+  "name": "Minecraft PvP Community",
+  "shortName": "PvP Community",
+  "invite": "https://discord.gg/a36rg6BxuX",
+  "modes": [
+    { "id": "sword", "name": "Sword", "icon": "⚔" },
+    { "id": "axe", "name": "Axe", "icon": "🪓" },
+    { "id": "vanilla", "name": "Crystal", "icon": "✦" },
+    { "id": "uhc", "name": "UHC", "icon": "♥" },
+    { "id": "pot", "name": "Diamond Pot", "icon": "⚗" },
+    { "id": "nethop", "name": "NethPot", "icon": "◆" },
+    { "id": "smp", "name": "SMP", "icon": "▣" },
+    { "id": "mace", "name": "Mace", "icon": "🔨" },
+    { "id": "mace_spear", "name": "Mace Spear", "icon": "↗" },
+    { "id": "mace_breach", "name": "Breach", "icon": "◈" },
+    { "id": "mace_density", "name": "Density", "icon": "▥" },
+    { "id": "cart", "name": "Cart", "icon": "▰" },
+    { "id": "bow", "name": "Bow", "icon": "➶" },
+    { "id": "diasmp", "name": "Diamond SMP", "icon": "◇" },
+    { "id": "creeper", "name": "Creeper", "icon": "▦" }
+  ],
+  "points": {
+    "HT1": 60,
+    "LT1": 45,
+    "HT2": 30,
+    "LT2": 20,
+    "HT3": 10,
+    "LT3": 6,
+    "HT4": 4,
+    "LT4": 3,
+    "HT5": 2,
+    "LT5": 1
+  },
+  "providers": [
+    {
+      "id": "community",
+      "name": "Our community",
+      "url": "https://discord.gg/a36rg6BxuX",
+      "kind": "Manual testing",
+      "description": "A new home for testing, practice partners, creators and events. First results awaiting verified tests."
+    },
+    {
+      "id": "mctiers",
+      "name": "MCTiers",
+      "url": "https://mctiers.net/",
+      "kind": "Tier rankings",
+      "description": "Mode rankings, overall points and player profiles. Public API snapshot available here."
+    },
+    {
+      "id": "pvptiers",
+      "name": "PvPTiers",
+      "url": "https://pvptiers.com/",
+      "kind": "Tier rankings",
+      "description": "High-tier results, testing feeds, regional and retired filters."
+    },
+    {
+      "id": "central",
+      "name": "Central TierList",
+      "url": "https://www.centraltierlist.com/",
+      "kind": "Tier testing",
+      "description": "Competitive 1v1 skill testing with a community onboarding guide."
+    },
+    {
+      "id": "lucnoxity",
+      "name": "Lucnoxity",
+      "url": "https://www.luctierlist.com/",
+      "kind": "Main & subtiers",
+      "description": "Separate main and submode ladders with combined and regional views."
+    },
+    {
+      "id": "pvphq",
+      "name": "PvPHQ",
+      "url": "https://pvphq.com/",
+      "kind": "Practice network",
+      "description": "Ranked play, custom kits, tournaments and post-match analysis."
+    },
+    {
+      "id": "catpvp",
+      "name": "CatPvP",
+      "url": "https://www.catpvp.net/ranked",
+      "kind": "Rating ladder",
+      "description": "Mode-specific rating ladders. Ratings are kept distinct from manually tested tiers."
+    },
+    {
+      "id": "tiery",
+      "name": "Polska Tierlista",
+      "url": "https://tiery.pl/",
+      "kind": "Regional community",
+      "description": "Polish rankings, kit guides, testing information and active versus peak tiers."
+    },
+    {
+      "id": "macesubmodes",
+      "name": "Mace Submodes",
+      "url": "https://modrinth.com/mod/submodes-tier-tagger",
+      "kind": "Specialist modes",
+      "description": "Specialist mace tier display mod. Its community rules and API still need direct verification."
+    }
+  ]
+}

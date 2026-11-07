@@ -1,0 +1,30 @@
+name: Weekly community announcement
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 16 * * 5"
+permissions:
+  contents: read
+concurrency:
+  group: community-announcement
+  cancel-in-progress: false
+jobs:
+  announcement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: node scripts/promotion.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weekly-promotion-draft
+          path: promotion/weekly-draft.txt
+      - name: Post only when an announcement channel is configured
+        env:
+          DISCORD_ANNOUNCEMENT_WEBHOOK: ${{ secrets.DISCORD_ANNOUNCEMENT_WEBHOOK }}
+        run: |
+          if [ -n "$DISCORD_ANNOUNCEMENT_WEBHOOK" ]; then
+            node scripts/promotion.mjs --send
+          fi

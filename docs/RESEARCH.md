@@ -1,0 +1,38 @@
+# Community research · 8 November 2026
+
+This is a public-source feature review, not an audit of private Discord channels. PC automation could not connect to the native pipe/browser host. The Composio Discord connection returned authorization required. No Discord messages, hidden channels or private videos were inspected, and the live server was not modified.
+
+## Reference matrix
+
+| Source                                                                                                    | Verified public features                                                                                                      | Product decision                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [MCTiers](https://mctiers.net/) / [v2 API](https://mctiers.net/docs/v2)                                   | Eight main modes, overall points, regional profiles, per-mode retired and peak fields, recent-test API endpoints              | Attributed top-50 overall snapshot, search, mode/region/status filters, player profiles and comparison. Do not imply a filtered top-50 slice is a full mode leaderboard.                                                                   |
+| [PvPTiers](https://pvptiers.com/)                                                                         | Public indexed homepage describes live and high-tier result feeds, mode information, active/retired and regional filtering    | Separate high-tier and ordinary results are a future feed; no invented tests at launch. Keep onboarding accessible from rankings.                                                                                                          |
+| [Central](https://www.centraltierlist.com/home) / [guide](https://www.centraltierlist.com/guide)          | Competitive 1v1 testing; indexed guide explains Discord channel discovery                                                     | Explicit steps from joining to testing. Guide direct fetch returned 502; detailed private rules not verified.                                                                                                                              |
+| [Lucnoxity](https://www.luctierlist.com/)                                                                 | Main and submode navigation, combined overall and regional rankings; CPvP Eval, Diamond SMP, Cart, Bow, Creeper and MaceSpear | Extend mode catalog and preserve exact source/mode provenance. Public mod description mentions 13 modes while the current website shows an additional MaceSpear mode; version claims must be verified separately.                          |
+| [PvPHQ](https://pvphq.com/) / [Lunar announcement](https://www.lunarclient.com/news/lunar-client-x-pvphq) | Ranked play, custom kits, ranked map selection, replay system, party fights, tournaments and post-match analysis              | Evidence-linked tests and events channels now; actual matchmaking/replays require a separately hosted Minecraft server and are not implemented. Avoid unofficial lookalike domains.                                                        |
+| [CatPvP](https://www.catpvp.net/ranked)                                                                   | Global and mode-specific rating ladders with named divisions                                                                  | Directory integration only. Never label rating points as HT/LT testing tiers or invent an equivalence.                                                                                                                                     |
+| [Polska Tierlista](https://tiery.pl/)                                                                     | Mode guides, point table, testing instructions, active and peak tiers, staff roles, sponsor placements                        | Explain tiers, keep peak history, add transparent sponsor page. Do not copy abusive role names or sponsor-based testing advantages.                                                                                                        |
+| [Submodes Tier Tagger](https://modrinth.com/mod/submodes-tier-tagger)                                     | Client-side Fabric tags, tablist integration, configurable position and mode cycling. Public page lists 1.21.11               | Specialist mode support in our catalog. Exact kit rules, service API and server identity need direct staff verification. Breach/Density labels in our config are proposed community modes, not a claim about this server’s official rules. |
+
+The MCTiers API was directly requested and returned 50 valid player profiles. Their actual fields include UUID, name, region, points and rankings. No other provider’s API or sharing permission was verified; other providers link out rather than simulate aggregation.
+
+## Mod review
+
+[Tier Tagger](https://modrinth.com/mod/tiertagger), source [uku3lig/TierTagger](https://github.com/uku3lig/TierTagger): selected mode, highest-tier fallback, profiles, MCTiers/SubTiers support; ukulib dependency. MPL-2.0. Its page explicitly states that bundled community icons are not licensed for reuse in forks.
+
+[Tiers](https://modrinth.com/mod/tiers), source [PvPTiers/Tiers](https://github.com/PvPTiers/Tiers): kit detection shortcut, nearest-player lookup, profile search, side positioning, cycling, provider styles, tab/chat toggles and highest-tier policies. GPL-3.0-only.
+
+Submodes Tier Tagger is all rights reserved. Do not decompile, copy its branding or redistribute its assets as our own. These are mods, not modpacks. Public descriptions and showcase captions were reviewed; no claim is made that gameplay videos were watched or the original mods were runtime-tested.
+
+Our tagger is an original small Fabric implementation: UUID snapshot lookup, selected-mode labels, opt-in highest-active fallback, explicit source/retired status, bounded dataset and asynchronous networking. It does not yet provide kit auto-detection, nearest-player UI, icon packs, chat tags, arbitrary provider aggregation or multiple Minecraft versions. It is not demonstrated to be superior to the mature reference mods.
+
+## Design direction
+
+Palette: arena navy `#101625`, panel blue `#182133`, slate `#2a354d`, periwinkle `#a5b4ff`, trophy gold `#edc478`, mint `#8cd5bc`.
+
+Type: Barlow for interface and data; Barlow Condensed for large tournament-style headings. The layout follows the reference tier sites: mode rail, dense searchable leaderboard, tier chips and community sidebar. The crossed pixel swords are original SVG geometry, not copied community assets. Left-aligned content, mobile horizontal mode navigation, visible focus and reduced-motion support.
+
+## Not yet verified
+
+Private Discord rules, exact cooldowns, staff access, Mace submode API, redistribution terms for bulk third-party data, every game version, client rendering, full visual/accessibility QA, sponsorship contracts, uptime and abuse resistance under public traffic. Do not call this project flawless or production-complete.

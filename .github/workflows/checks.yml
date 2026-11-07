@@ -1,0 +1,39 @@
+name: Platform and mod checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  platform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: node scripts/promotion.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-website-and-promotion
+          path: |
+            dist
+            promotion
+  fabric:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "26"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+      - run: gradle -p tagger build --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-tagger-experimental
+          path: tagger/build/libs/*.jar
