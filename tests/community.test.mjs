@@ -101,4 +101,5 @@ test("HTTP guards reject unauthorized writes, invalid tiers and traversal", asyn
     400,
   );
   assert.equal((await fetch(base + "/%2e%2e%5cpom.xml")).status, 403);
+  assert.equal((await fetch(base + "/%2e%2e%2fpom.xml")).status, 403);
 });

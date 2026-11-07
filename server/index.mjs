@@ -125,6 +125,7 @@ export function createApp({
       if (req.method !== "GET" && req.method !== "HEAD")
         return json(res, 405, { error: "Method not allowed" });
       let pathname = decodeURIComponent(url.pathname);
+      if (pathname.includes("\\")) return json(res, 403, { error: "Forbidden" });
       const path = resolve(
         root,
         "." + (pathname === "/" ? "/index.html" : pathname),
