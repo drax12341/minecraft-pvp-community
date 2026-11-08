@@ -1015,7 +1015,12 @@ modal.addEventListener("click", (e) => {
 try {
   [config, data, testing] = await Promise.all(
     ["community", "results", "testing"].map(async (p) => {
-      const r = await fetch(`./data/${p}.json`);
+      const cloud = "https://minecraft-pvp-community.draxion0.chatgpt.site";
+      const live =
+        location.hostname === "drax12341.github.io" && p !== "community";
+      const r = await fetch(
+        live ? `${cloud}/data/${p}.json` : `./data/${p}.json`,
+      );
       if (!r.ok) throw Error("Data unavailable");
       return r.json();
     }),
