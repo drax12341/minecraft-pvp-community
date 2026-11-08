@@ -238,8 +238,11 @@ client.on("interactionCreate", async (i) => {
     const roles = i.member.roles;
     const hasRole = (id) =>
       Array.isArray(roles) ? roles.includes(id) : roles.cache.has(id);
-    const mod = hasRole(process.env.MODERATOR_ROLE_ID),
-      tester = hasRole(process.env.TESTER_ROLE_ID);
+    const mod =
+        i.guild.ownerId === i.user.id ||
+        i.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
+        hasRole(process.env.MODERATOR_ROLE_ID),
+      tester = mod || hasRole(process.env.TESTER_ROLE_ID);
     const actor = i.user.id;
     const get = (n) => i.options.getString(n);
     let message;
@@ -407,5 +410,28 @@ client.on("interactionCreate", async (i) => {
     });
   }
 });
+const reportStatus = () =>
+  process.send?.({ type: "bot-status", ready: client.isReady() });
+client.once("clientReady", () => {
+  console.log("Community bot online and commands registered.");
+  client.user.setPresence({
+    status: "online",
+    activities: [{ name: "Minecraft PvP testing", type: 0 }],
+  });
+  reportStatus();
+});
+client.on("shardDisconnect", () =>
+  process.send?.({ type: "bot-status", ready: false }),
+);
+client.on("error", () =>
+  console.error("Discord connection error; reconnecting."),
+);
+const heartbeat = setInterval(reportStatus, 15000);
+heartbeat.unref();
+for (const signal of ["SIGTERM", "SIGINT"])
+  process.once(signal, () => {
+    clearInterval(heartbeat);
+    client.destroy();
+    process.exit(0);
+  });
 await client.login(process.env.DISCORD_TOKEN);
-console.log("Community bot connected.");

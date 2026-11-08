@@ -31,7 +31,7 @@ Open http://127.0.0.1:8787. Node 24+. The local site reads the live SQLite servi
 - Private owner-only appeals, independent reviewers, audit-preserving result revocation and recalculated ranks.
 - Public exports contain no Discord member IDs or private appeal text.
 
-[Discord activation and commands](docs/DISCORD.md). The live guild cannot be configured until PC control or a bot connection is available. No bot credentials are committed. Native Discord setup could not run because the PC helper pipe is unavailable; the connector also rejects authentication.
+[Discord activation and commands](docs/DISCORD.md). The dedicated bot is installed and the roles/channels setup has run. Existing channel permission overrides still block some onboarding panels. No bot credentials are committed. The [combined runtime and cloud deployment plan](docs/HOSTING.md) include crash recovery, private API access and persistent storage requirements.
 
 The setup now prepares colored interest/tier roles, main/submode testing channels, staff channels and rich onboarding panels. It only creates missing channels and posts its panels once. It does not delete or rename existing channels. Run the dry run first and ensure the intended guild ID is correct.
 

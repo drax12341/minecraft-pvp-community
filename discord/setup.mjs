@@ -89,6 +89,41 @@ if (!process.argv.includes("--apply")) {
     );
     const tester = guild.roles.cache.find((r) => r.name === "Tier Tester");
     const me = await guild.members.fetchMe();
+    const skipped = [];
+    for (const name of [
+      "welcome",
+      "rules",
+      "announcements",
+      "how-to-test",
+      "test-results",
+      "choose-your-modes",
+    ]) {
+      const channel = guild.channels.cache.find(
+        (c) => c.name === name && c.type === ChannelType.GuildText,
+      );
+      if (channel) {
+        try {
+          await channel.permissionOverwrites.edit(
+            me.id,
+            {
+              ViewChannel: true,
+              SendMessages: true,
+              EmbedLinks: true,
+              ReadMessageHistory: true,
+            },
+            {
+              reason:
+                "Allow community bot to publish onboarding in read-only channels",
+            },
+          );
+        } catch (error) {
+          if (error.code !== 50013) throw error;
+          console.warn(
+            `Existing #${name} permissions need a server administrator to allow this bot to send messages.`,
+          );
+        }
+      }
+    }
     for (const [category, names] of Object.entries(plan.categories)) {
       let parent = guild.channels.cache.find(
         (c) => c.name === category && c.type === ChannelType.GuildCategory,
@@ -192,6 +227,19 @@ if (!process.argv.includes("--apply")) {
         (c) => c.name === name && c.type === ChannelType.GuildText,
       );
       if (!channel) continue;
+      if (
+        !channel
+          .permissionsFor(me)
+          ?.has([
+            P.ViewChannel,
+            P.SendMessages,
+            P.EmbedLinks,
+            P.ReadMessageHistory,
+          ])
+      ) {
+        skipped.push(name);
+        continue;
+      }
       const existing = await channel.messages.fetch({ limit: 30 });
       const marker = "Minecraft PvP Tierlist · setup-v2 · " + name;
       if (
@@ -226,8 +274,12 @@ if (!process.argv.includes("--apply")) {
       });
     }
     console.log(
-      `Verified setup and onboarding panels in ${guild.name}. Configure TESTER_ROLE_ID=${tester.id} and MODERATOR_ROLE_ID=${moderator.id}.`,
+      `Roles/channels configured in ${guild.name}. Configure TESTER_ROLE_ID=${tester.id} and MODERATOR_ROLE_ID=${moderator.id}.`,
     );
+    if (skipped.length)
+      console.warn(
+        `Onboarding panels still blocked in: ${skipped.join(", ")}. Existing messages were preserved.`,
+      );
   } finally {
     client.destroy();
   }

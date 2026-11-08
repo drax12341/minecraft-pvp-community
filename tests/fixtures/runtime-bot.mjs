@@ -1,0 +1,11 @@
+import { readFile, writeFile } from "node:fs/promises";
+const path = process.env.RUNTIME_TEST_MARKER;
+const count = Number(await readFile(path, "utf8").catch(() => "0")) + 1;
+await writeFile(path, String(count));
+const response = await fetch(process.env.API_URL + "/api/health");
+if (!response.ok) process.exit(2);
+const report = () => process.send?.({ type: "bot-status", ready: true });
+report();
+setInterval(report, 100);
+if (count === 1) setTimeout(() => process.exit(1), 300);
+process.on("SIGTERM", () => process.exit(0));

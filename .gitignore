@@ -51,3 +51,4 @@ promotion/
 *.zip
 .openai/*local*
 .design-research/
+.runtime/

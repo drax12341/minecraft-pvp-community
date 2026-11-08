@@ -12,7 +12,8 @@
     "test": "node --test tests/*.test.mjs",
     "discord:plan": "node discord/setup.mjs",
     "discord:apply": "node --env-file=.env discord/setup.mjs --apply",
-    "bot": "node --env-file=.env discord/bot.mjs"
+    "bot": "node --env-file=.env discord/bot.mjs",
+    "start:community": "node --env-file-if-exists=.env server/runtime.mjs"
   },
   "dependencies": {
     "discord.js": "^14.24.0"

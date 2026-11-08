@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 export class Store {
-  constructor(path = "data/community.sqlite") {
+  constructor(path = process.env.DATABASE_PATH || "data/community.sqlite") {
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
  CREATE TABLE IF NOT EXISTS accounts(discord TEXT PRIMARY KEY,uuid TEXT UNIQUE NOT NULL,name TEXT NOT NULL,verified_by TEXT NOT NULL);

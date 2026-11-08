@@ -2,7 +2,12 @@
 
 Target guild: **1568767259168608267**. Invite: https://discord.gg/a36rg6BxuX
 
-Live changes remain blocked until PC control or a bot connection works. PC control returns a missing native pipe; the connector returns Authorization required. A public invite grants no server-management access.
+The dedicated bot is authenticated and installed. The roles/channels setup has run.
+Existing read-only channel permissions prevent panels in welcome, rules,
+how-to-test and choose-your-modes. A server administrator must allow the bot
+Send Messages there; the setup does not remove existing messages. Run setup again
+after correcting those overrides to finish the missing panels.
+For continuous hosting and the combined runtime, see [HOSTING.md](HOSTING.md).
 
 ## Install
 

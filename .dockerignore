@@ -1,0 +1,12 @@
+**
+!package.json
+!package-lock.json
+!config/
+!config/**
+!discord/
+!discord/**
+!server/
+!server/**
+!data/
+!data/results.json
+!data/testing.json
