@@ -1,35 +1,30 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
+    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#101625" />
+    <meta name="theme-color" content="#080b12" />
     <meta
       name="description"
-      content="One home for Minecraft PvP. Explore tier rankings, find your community, compare players and join testing."
+      content="The Minecraft PvP Tierlist. Earn your tier through independent testing across main modes and submodes."
     />
-    <meta property="og:title" content="Minecraft PvP Community" />
-    <meta
-      property="og:description"
-      content="Find your next fight. Explore rankings, modes and communities."
-    />
-    <title>Minecraft PvP Community • Rankings</title>
-    <link rel="icon" href="./mark.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./style.css" />
-    <script type="module" src="./app.js"></script>
+    <title>Minecraft PvP Tierlist</title>
+    <link rel="icon" href="./mark.svg" />
+    <link rel="stylesheet" href="./tierlist.css" />
+    <script type="module" src="./tierlist.js"></script>
   </head>
   <body>
-    <a class="skip" href="#main">Skip to content</a>
-    <header>
-      <a class="brand" href="#rankings"
-        ><img src="./mark.svg" width="36" height="36" alt="" /><span
-          >PvP<span class="brand-light">Community</span></span
+    <a href="#main" class="skip">Skip to content</a>
+    <header class="topbar">
+      <a href="#rankings" class="brand"
+        ><img src="./mark.svg" alt="" width="38" height="38" /><span
+          >MINECRAFT <b>PvP TIERLIST</b></span
         ></a
       >
       <nav aria-label="Main navigation">
-        <a href="#rankings">Rankings</a><a href="#communities">Communities</a
-        ><a href="#testing">Get tested</a><a href="#tagger">Tier tagger</a
-        ><a href="#sponsors">Sponsors</a>
+        <a href="#rankings">Rankings</a><a href="#testing">Testing center</a
+        ><a href="#kits">Kits & rules</a><a href="#tagger">Tier tagger</a
+        ><a href="#sponsors">Support us</a>
       </nav>
       <a
         class="button discord"
@@ -39,20 +34,32 @@
         >Join Discord <span>↗</span></a
       >
     </header>
-    <main id="main" tabindex="-1"></main>
+    <div class="site-shell">
+      <aside class="rail" aria-label="Quick links">
+        <a href="#rankings" title="Rankings">♜</a
+        ><a href="#testing" title="Testing">⚔</a
+        ><a href="#kits" title="Kits and rules">▧</a
+        ><a href="#tagger" title="Tagger">◈</a><span></span
+        ><a href="#about" title="About and privacy">?</a>
+      </aside>
+      <main id="main" tabindex="-1">
+        <div class="loading">Loading the tierlist…</div>
+      </main>
+    </div>
     <footer>
-      <a class="brand" href="#rankings">✦ PvP Community</a>
-      <p>Built for the players. Every mode. Every region.</p>
-      <p>
-        Independent community. Not affiliated with Mojang, Microsoft, or the
-        listed networks.<br />External rankings belong to their respective
-        providers. No partnerships implied.
-      </p>
-      <a href="#about">Sources, privacy & rules</a>
+      <span class="brand-footer">✦ Minecraft PvP Tierlist</span
+      ><span>One tierlist. Earned in game.</span
+      ><a href="#about">Rules & privacy</a
+      ><a
+        href="https://github.com/drax12341/minecraft-pvp-community"
+        target="_blank"
+        rel="noopener"
+        >Open source ↗</a
+      ><span>Not affiliated with Mojang or Microsoft.</span>
     </footer>
-    <dialog id="profile">
-      <button class="close" aria-label="Close profile">×</button>
-      <div id="profile-body"></div>
+    <dialog id="modal">
+      <button class="close" aria-label="Close dialog">×</button>
+      <div id="modal-body"></div>
     </dialog>
     <div id="toast" role="status" aria-live="polite"></div>
   </body>

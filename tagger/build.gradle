@@ -1,5 +1,5 @@
 plugins { id 'fabric-loom' version '1.17.21' }
-version = '0.1.0'
+version = '0.2.0'
 group = 'community.pvp'
 base { archivesName = 'community-tagger' }
 repositories { mavenCentral() }
@@ -13,4 +13,3 @@ sourceSets.main.java.srcDir '../src/main/java'
 tasks.withType(JavaCompile).configureEach { options.release = 21 }
 java { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21; withSourcesJar() }
 processResources { inputs.property 'version', project.version; filesMatching('fabric.mod.json') { expand 'version': project.version } }
-

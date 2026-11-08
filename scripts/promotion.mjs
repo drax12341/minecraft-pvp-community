@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 const config = JSON.parse(await readFile("config/community.json"));
-const snapshot = JSON.parse(await readFile("data/mctiers.json"));
-const content = `Find your next rival in Minecraft PvP Community.\n\nExplore ${snapshot.players.length} attributed MCTiers profiles, compare tiers and find communities across ${config.modes.length} modes. Community testing is preparing to launch.\n\nWebsite: https://minecraft-pvp-community.draxion0.chatgpt.site\nJoin: ${config.invite}\n\nIndependent community. External rankings are timestamped snapshots, not our own test results.`;
+
+const content = `Minecraft PvP Tierlist — one tierlist, earned in game.\n\nExplore our independent tier board, kit guides and testing center across ${config.modes.length} modes. Testing availability is announced by staff.\n\nWebsite: https://drax12341.github.io/minecraft-pvp-community/\nJoin: ${config.invite}\n\nNo imported ranks. No paid tiers.`;
 await mkdir("promotion", { recursive: true });
 await writeFile("promotion/weekly-draft.txt", content);
 if (process.argv.includes("--send")) {

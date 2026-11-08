@@ -1,53 +1,58 @@
-# Minecraft PvP Community
+﻿# Minecraft PvP Tierlist · v0.2
 
-Public website: https://minecraft-pvp-community.draxion0.chatgpt.site
+**One independent tierlist. Every placement comes from this community’s tests.**
 
-Main Discord: https://discord.gg/a36rg6BxuX
+Website: https://drax12341.github.io/minecraft-pvp-community/
+Discord: https://discord.gg/a36rg6BxuX
 
-An initial platform for a multi-mode Minecraft community, with an independent directory, timestamped MCTiers rankings, searchable profiles, comparisons, downloadable player cards, testing guidance, sponsor information, Discord setup/bot tooling, a SQLite result service and an experimental Fabric tagger.
+## Website
 
-## Run locally
-
-Use Node 24 or later:
+A redesigned five-column tier board, 15 original kit icons, overall leaderboard, search/region filtering, profiles, comparisons, player cards, testing session availability, kit rules, request summaries, sponsor page and dedicated tagger configurator. An explicit sample preview demonstrates populated states; sample players are never published as real rankings. No third-party rankings are imported.
 
 ```sh
 npm ci
-npm run refresh
 npm test
 npm run build
 npm start
 ```
 
-Open http://127.0.0.1:8787. The service binds to loopback. The public site is static and reads committed/exported JSON, while the local service reads community results from SQLite. MCTiers is a top-50 overall snapshot, not the complete ladder. Other ranking providers currently link out. Empty community results are intentional.
+Open http://127.0.0.1:8787. Node 24+. The local site reads the live SQLite service; public static hosting reads the last exported/committed data. Public GitHub Pages deploys on push and schedule. This is not a persistent bot/API host.
 
-## Discord
+## Testing operations
 
-[Setup and onboarding](docs/DISCORD.md). Run `npm run discord:plan` before activation. The live guild has not been changed by this implementation. Bot credentials must be entered locally into ignored `.env`; no personal Discord tokens. Bot/API hosting is separate from GitHub Pages.
+- Staff-verified Minecraft ownership before queue entry.
+- Tester-controlled sessions by mode and region, capacity 1–200, cooldown 0–720 hours (default 72).
+- One open entry per player/mode; no self-testing; atomic claims and results.
+- UUID-backed results, evidence links, peak history and overall scoring.
+- Private owner-only appeals, independent reviewers, audit-preserving result revocation and recalculated ranks.
+- Public exports contain no Discord member IDs or private appeal text.
 
-## Fabric tagger
+[Discord activation and commands](docs/DISCORD.md). The live guild cannot be configured until PC control or a bot connection is available. No bot credentials are committed. Native Discord setup could not run because the PC helper pipe is unavailable; the connector also rejects authentication.
 
-`tagger/` targets **Minecraft Java 1.21.1**, Fabric Loader 0.16.14+, Fabric API 0.116.6+1.21.1 and Java 21+. Build with Gradle 9.6.0 and JDK 26 (CI uses these pinned versions):
+The setup now prepares colored interest/tier roles, main/submode testing channels, staff channels and rich onboarding panels. It only creates missing channels and posts its panels once. It does not delete or rename existing channels. Run the dry run first and ensure the intended guild ID is correct.
+
+```sh
+npm run discord:plan
+# Fill ignored .env locally and install your bot, then:
+npm run discord:apply
+node --env-file=.env server/index.mjs
+npm run bot
+```
+
+After sessions/results change, the bot exports public JSON to data/. Publish those changes with `node scripts/publish-results.mjs` to update the static website. Exports must contain only shareable match evidence. A remote API deployment needs HTTPS, access controls and request throttling; the current service binds to loopback and trusts the bot’s service token.
+
+## Dedicated Fabric tagger
+
+[Experimental 0.2 release](https://github.com/drax12341/minecraft-pvp-community/releases/tag/v0.2.0-experimental). Minecraft Java **1.21.1**, Fabric Loader 0.16.14+, Fabric API 0.116.6+1.21.1, Java 21+ runtime. Build with Gradle 9.6.0/JDK 26:
 
 ```sh
 gradle -p tagger build
 ```
 
-Install the normal JAR from `tagger/build/libs/` alongside Fabric API in a 1.21.1 Fabric client. This is experimental; compilation is not a substitute for in-game rendering/mixin validation. It supports nametag and tablist labels, selected modes, highest-active fallback, a source switch and a saved config. `/communitytag` lists commands. Copy website-downloaded `community-tagger.json` into Minecraft's `config/` directory before launching. Missing config properties use defaults.
+Nametag/tablist labels load **only this tierlist’s results.json** by UUID. `/communitytag mode <id>`, `toggle`, `fallback`, `reload`. No provider switching. No copied community assets. Async polling, bounded profiles and a ten-minute failure expiry. Stable placements do not disappear merely because a test was published over two days ago. In-game rendering/mixin smoke testing remains required.
 
-Only the 50 snapshot players can have MCTiers labels; an absent player is unranked/unknown in this feed, not necessarily unranked on MCTiers. The client fetches HTTPS snapshots asynchronously every five minutes, caps parsed profiles, hides snapshots older than two days, and expires cached labels after ten minutes without a successful refresh. It never scans files, logs into Minecraft or sends server/chat history. Provider and mode remain in each label. No source or icons were copied from the reference mods.
+## Promotion and support
 
-## Free hosting and promotion
+Player cards, deep profile links, sponsor contact and a weekly promotion draft workflow are included. Posting occurs only if an own-channel announcement webhook is configured as a GitHub secret. No bought ranks, automated unsolicited outreach or claims of guaranteed growth.
 
-The GitHub Pages workflow builds and deploys the site on push and every six hours, refreshing the MCTiers snapshot. Enable Pages using GitHub Actions in repository settings if not already enabled. GitHub scheduled workflows run on a best-effort basis and may be disabled after inactivity. The Sites publication is an additional static launch snapshot; GitHub Actions does not update it automatically.
-
-Player links and SVG cards are generated in the website. `node scripts/promotion.mjs` generates a draft locally. The weekly GitHub workflow uploads a draft and sends one announcement only if you configure `DISCORD_ANNOUNCEMENT_WEBHOOK` as a repository secret pointing to your own opt-in community announcements channel. No automated outreach, mass mentions or popularity guarantees.
-
-## Safety and operation
-
-No credentials belong in public JSON or source control. SQLite stores queue identities, verified account links, evidence URLs and audit events locally; back it up and protect the file. Public exports contain player profiles and evidence links, so review them before publishing. Do not expose the write API directly: add HTTPS, network access controls, request throttling and monitoring before remote hosting. The shared service token trusts the bot to enforce staff roles. Automated verification, privacy requests, moderation actions and result-reversal UI are not implemented.
-
-## Research and remaining work
-
-[Research, feature matrix, sources and limitations](docs/RESEARCH.md). [Delivery status](docs/STATUS.md). This is a working initial implementation, not every feature from every referenced server. No payments, confirmed sponsorships, live Minecraft server, replay/matchmaking infrastructure or third-party partnerships have been created.
-
-Original code is MIT licensed. Ranking data and dependencies retain their original rights.
+[Current delivery status](docs/STATUS.md). [Design direction](docs/DESIGN-V2.md). [Historical reference research](docs/RESEARCH.md) records inspirations; those projects are not affiliated or connected.

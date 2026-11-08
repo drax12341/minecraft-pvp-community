@@ -16,6 +16,7 @@ const points = {
 };
 test("verification, unique queues, atomic claim, assigned tester and immutable completion", () => {
   const s = new Store(":memory:");
+  s.setSession("sword", "EU", "open", "90000", 30, 0);
   assert.throws(() => s.join("10000", "sword", "EU"), /verify/);
   s.verify(
     "10000",

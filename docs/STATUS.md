@@ -1,29 +1,24 @@
-# Delivery status
+﻿# Delivery status · v0.2
 
 ## Implemented
 
-- Static public site, mobile CSS, mode rail, search, region/status filters, profiles, active/peak information, comparisons, share links and SVG cards.
-- Attributed live-fetched MCTiers top-50 snapshot with a visible timestamp and scope disclosure.
-- Community directory, testing guide, sponsor contact page and privacy/source explanations.
-- Discord setup dry run and idempotent creation of missing roles/categories/channels; private Staff category and read-only announcement channels for a newly created layout.
-- Guild bot commands for staff verification, queues, claims and evidence-linked results. No privileged message-content intent.
-- SQLite transaction protection for claims/results, unique open entries, source UUIDs, audit records, peak preservation and public JSON export.
-- Experimental Fabric 1.21.1 nametag/tablist client, asynchronous snapshot cache, selected-mode and highest-active fallback, mode/source/config commands.
-- Website/mod CI, GitHub Pages deployment and weekly promotion-draft workflow with optional own-channel webhook.
+- One independent tierlist: external imports, provider switcher and community directory removed.
+- New five-tier board, original shaded pixel kit artwork, overall leaderboard, search/regions, profiles, comparisons, cards and explicit sample preview.
+- Testing center with public session snapshots, local request summaries, kit rules and recent test history.
+- Session open/pause/close, capacity limits, retest cooldowns, verified-account queues, atomic tester claims and evidence-linked results.
+- Private appeals with independent review and audit-preserving revocation/recalculated rankings.
+- Discord setup with colored roles, mode testing channels and rich onboarding panels; safe mode/region preference commands.
+- Dedicated Fabric 1.21.1 tagger using only this tierlist’s feed; no external providers.
+- Public Pages hosting, platform/mod CI and optional own-channel promotion workflow.
 
-## Activation required
+## Blocked activation
 
-- Discord bot application, installation and private credentials; confirm guild ID before applying setup.
-- 24/7 bot/API host if needed. Static website hosting cannot run these services.
-- Publish kits, account ownership verification procedure, staff responsibilities and appeals/privacy workflow before tests begin.
-- Optional own-channel announcement webhook for automatic weekly promotion.
+The live Discord has not been changed. Native PC control cannot connect to its pipe; the Discord connector rejects authentication. No bot token is available locally. Reconnect PC control or configure a dedicated bot locally; do not share tokens in chat.
 
-## Not implemented or not verified
+## Remaining limits
 
-- Full browser visual QA and in-game Fabric/mixin smoke testing.
-- All provider aggregation, complete player databases, automatic kit detection, nearest-player UI, mode icons, chat tags, multiversion/NeoForge/Quilt support.
-- Automatic Minecraft ownership verification, cooldowns, reversible moderation/results UI, confidential appeal tickets, self-service roles, tournament brackets or automated score capture.
-- A hosted Minecraft game server, anti-cheat, replays, global matchmaking or reliable cross-provider tier conversions.
-- Sponsor deals, payments, social account creation or guaranteed audience growth.
-
-Keep these gaps visible when announcing the community. The repository is a foundation for continued development, not a claim of parity with mature networks.
+- Visual browser QA and in-game Fabric/mixin smoke testing remain unavailable/unverified.
+- Discord bot must be installed and kept running alongside the API; static hosting cannot run it.
+- Staff must establish real Minecraft ownership checks, exact kit rubrics and trained testers before opening sessions.
+- Public website/tagger update from committed exports, not direct public access to private queue records.
+- No hosted Minecraft arena, anti-cheat, automatic match capture, replay infrastructure, payment processing, self-service data deletion or confirmed sponsors.

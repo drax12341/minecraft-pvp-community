@@ -40,6 +40,11 @@ export function createApp({
         return json(res, 200, { ok: true });
       if (
         req.method === "GET" &&
+        ["/api/testing", "/data/testing.json"].includes(url.pathname)
+      )
+        return json(res, 200, store.testing());
+      if (
+        req.method === "GET" &&
         (url.pathname === "/api/rankings" ||
           url.pathname === "/data/results.json")
       )
@@ -56,6 +61,8 @@ export function createApp({
           return json(res, 401, { error: "Authentication required" });
         if (req.method === "GET" && url.pathname === "/api/queue")
           return json(res, 200, store.list(url.searchParams.get("mode")));
+        if (req.method === "GET" && url.pathname === "/api/appeals")
+          return json(res, 200, store.appeals(url.searchParams.get("user")));
         if (req.method !== "POST")
           return json(res, 405, { error: "Method not allowed" });
         let body = "",
@@ -71,8 +78,29 @@ export function createApp({
         } catch {
           return json(res, 400, { error: "Invalid JSON" });
         }
+        if (!b || typeof b !== "object" || Array.isArray(b))
+          return json(res, 400, { error: "JSON object required" });
         if (!validId(b.actor))
           return json(res, 400, { error: "A Discord actor ID is required" });
+        if (url.pathname === "/api/session") {
+          if (!modes.has(b.mode) || !regions.has(b.region))
+            return json(res, 400, { error: "Invalid mode or region" });
+          store.setSession(
+            b.mode,
+            b.region,
+            b.status,
+            b.actor,
+            b.capacity ?? 30,
+            b.cooldown ?? 72,
+          );
+          return json(res, 200, { ok: true });
+        }
+        if (url.pathname === "/api/appeals/submit")
+          return json(res, 201, { id: store.appeal(b.id, b.actor, b.reason) });
+        if (url.pathname === "/api/appeals/review") {
+          store.reviewAppeal(b.id, b.actor, b.decision, b.reason);
+          return json(res, 200, { ok: true });
+        }
         if (url.pathname === "/api/verify") {
           if (
             !validId(b.user) ||
@@ -125,7 +153,8 @@ export function createApp({
       if (req.method !== "GET" && req.method !== "HEAD")
         return json(res, 405, { error: "Method not allowed" });
       let pathname = decodeURIComponent(url.pathname);
-      if (pathname.includes("\\")) return json(res, 403, { error: "Forbidden" });
+      if (pathname.includes("\\"))
+        return json(res, 403, { error: "Forbidden" });
       const path = resolve(
         root,
         "." + (pathname === "/" ? "/index.html" : pathname),
@@ -148,7 +177,11 @@ export function createApp({
       res.end(req.method === "HEAD" ? undefined : data);
     } catch (e) {
       if (e.code === "ENOENT") return json(res, 404, { error: "Not found" });
-      if (/already|claimed|verify|verification|assigned/.test(e.message))
+      if (
+        /already|claimed|verify|verification|assigned|session|cooldown|appeal|reviewer|reason|pending|own test|explanation/.test(
+          e.message,
+        )
+      )
         return json(res, 409, { error: e.message });
       console.error(e.message);
       json(res, 500, { error: "Request failed" });

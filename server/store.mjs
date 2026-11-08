@@ -9,6 +9,11 @@ export class Store {
  CREATE UNIQUE INDEX IF NOT EXISTS one_queue ON queue(user,mode) WHERE status IN ('waiting','claimed');
  CREATE TABLE IF NOT EXISTS results(sequence INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE NOT NULL,uuid TEXT NOT NULL,name TEXT NOT NULL,region TEXT NOT NULL,mode TEXT NOT NULL,tier INTEGER NOT NULL,pos INTEGER NOT NULL,tester TEXT NOT NULL,evidence TEXT NOT NULL,created TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,actor TEXT NOT NULL,action TEXT NOT NULL,subject TEXT NOT NULL,created TEXT NOT NULL);`);
+    this.db
+      .exec(`CREATE TABLE IF NOT EXISTS sessions(mode TEXT NOT NULL,region TEXT NOT NULL,status TEXT NOT NULL,capacity INTEGER NOT NULL,cooldown INTEGER NOT NULL,actor TEXT NOT NULL,updated TEXT NOT NULL,PRIMARY KEY(mode,region));
+      CREATE TABLE IF NOT EXISTS appeals(id TEXT PRIMARY KEY,result_id TEXT NOT NULL,user TEXT NOT NULL,reason TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',reviewer TEXT,decision TEXT,created TEXT NOT NULL);
+      CREATE UNIQUE INDEX IF NOT EXISTS one_pending_appeal ON appeals(result_id) WHERE status='pending';
+      CREATE TABLE IF NOT EXISTS revoked(result_id TEXT PRIMARY KEY,actor TEXT NOT NULL,reason TEXT NOT NULL,created TEXT NOT NULL);`);
   }
   verify(discord, uuid, name, actor) {
     this.db.exec("BEGIN IMMEDIATE");
@@ -38,6 +43,37 @@ export class Store {
         "Ask staff to verify your Minecraft UUID before joining a queue.",
       );
     const id = randomUUID();
+    if (
+      this.db
+        .prepare(
+          "SELECT 1 FROM queue WHERE user=? AND mode=? AND status IN ('waiting','claimed')",
+        )
+        .get(user, mode)
+    )
+      throw Error("You already have an open queue entry for this mode.");
+    const session = this.db
+      .prepare("SELECT * FROM sessions WHERE mode=? AND region=?")
+      .get(mode, region);
+    if (!session || session.status !== "open")
+      throw Error("This testing session is closed.");
+    const count = this.db
+      .prepare(
+        "SELECT count(*) AS n FROM queue WHERE mode=? AND region=? AND status IN ('waiting','claimed')",
+      )
+      .get(mode, region).n;
+    if (count >= session.capacity) throw Error("This testing session is full.");
+    const previous = this.db
+      .prepare(
+        "SELECT r.created FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE a.discord=? AND r.mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY r.sequence DESC LIMIT 1",
+      )
+      .get(user, mode);
+    if (
+      previous &&
+      Date.now() - Date.parse(previous.created) < session.cooldown * 3600000
+    )
+      throw Error(
+        `Retest cooldown: eligible ${new Date(Date.parse(previous.created) + session.cooldown * 3600000).toISOString()}`,
+      );
     try {
       this.db
         .prepare(
@@ -114,7 +150,9 @@ export class Store {
   }
   rankings(points) {
     const rows = this.db
-        .prepare("SELECT * FROM results ORDER BY sequence")
+        .prepare(
+          "SELECT * FROM results r WHERE NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence",
+        )
         .all(),
       players = new Map();
     for (const r of rows) {
@@ -158,7 +196,136 @@ export class Store {
       players: [...players.values()].sort(
         (a, b) => b.points - a.points || a.uuid.localeCompare(b.uuid),
       ),
+      recent: rows
+        .slice(-100)
+        .reverse()
+        .map(
+          ({ id, uuid, name, region, mode, tier, pos, evidence, created }) => ({
+            id,
+            uuid,
+            name,
+            region,
+            mode,
+            tier,
+            pos,
+            evidence,
+            created,
+          }),
+        ),
     };
+  }
+  setSession(mode, region, status, actor, capacity = 30, cooldown = 72) {
+    if (
+      !["open", "paused", "closed"].includes(status) ||
+      !Number.isInteger(capacity) ||
+      capacity < 1 ||
+      capacity > 200 ||
+      !Number.isInteger(cooldown) ||
+      cooldown < 0 ||
+      cooldown > 720
+    )
+      throw Error("Invalid session settings.");
+    this.db
+      .prepare(
+        "INSERT INTO sessions VALUES(?,?,?,?,?,?,?) ON CONFLICT(mode,region) DO UPDATE SET status=excluded.status,capacity=excluded.capacity,cooldown=excluded.cooldown,actor=excluded.actor,updated=excluded.updated",
+      )
+      .run(
+        mode,
+        region,
+        status,
+        capacity,
+        cooldown,
+        actor,
+        new Date().toISOString(),
+      );
+    this.audit(actor, "session-" + status, mode + "/" + region);
+  }
+  testing() {
+    return {
+      updatedAt: new Date().toISOString(),
+      activation: "active",
+      sessions: this.db
+        .prepare(
+          "SELECT mode,region,status,capacity,cooldown,updated,(SELECT count(*) FROM queue q WHERE q.mode=s.mode AND q.region=s.region AND q.status='waiting') AS waiting,(SELECT count(*) FROM queue q WHERE q.mode=s.mode AND q.region=s.region AND q.status='claimed') AS claimed FROM sessions s",
+        )
+        .all(),
+    };
+  }
+  appeal(resultId, user, reason) {
+    if (
+      typeof reason !== "string" ||
+      reason.trim().length < 10 ||
+      reason.length > 2000
+    )
+      throw Error("Appeal reason must contain 10–2000 characters.");
+    const r = this.db
+      .prepare(
+        "SELECT r.id FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE r.id=? AND a.discord=?",
+      )
+      .get(resultId, user);
+    if (!r) throw Error("You can only appeal your own test result.");
+    const id = randomUUID();
+    try {
+      this.db
+        .prepare(
+          "INSERT INTO appeals(id,result_id,user,reason,created) VALUES(?,?,?,?,?)",
+        )
+        .run(id, resultId, user, reason.trim(), new Date().toISOString());
+    } catch {
+      throw Error("An appeal is already pending for this result.");
+    }
+    this.audit(user, "appeal", id);
+    return id;
+  }
+  appeals(user) {
+    return user
+      ? this.db
+          .prepare(
+            "SELECT id,result_id,reason,status,decision,created FROM appeals WHERE user=? ORDER BY created DESC",
+          )
+          .all(user)
+      : this.db
+          .prepare(
+            "SELECT * FROM appeals WHERE status='pending' ORDER BY created",
+          )
+          .all();
+  }
+  reviewAppeal(id, actor, decision, reason) {
+    if (
+      !["uphold", "revoke"].includes(decision) ||
+      typeof reason !== "string" ||
+      reason.trim().length < 10 ||
+      reason.length > 2000
+    )
+      throw Error("A decision and 10–2000 character explanation are required.");
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const appeal = this.db
+        .prepare(
+          "SELECT a.*,r.tester FROM appeals a JOIN results r ON r.id=a.result_id WHERE a.id=? AND a.status='pending'",
+        )
+        .get(id);
+      if (!appeal) throw Error("No pending appeal found.");
+      if (actor === appeal.tester || actor === appeal.user)
+        throw Error("An independent reviewer must decide this appeal.");
+      this.db
+        .prepare("UPDATE appeals SET status=?,reviewer=?,decision=? WHERE id=?")
+        .run(decision, actor, reason.trim(), id);
+      if (decision === "revoke")
+        this.db
+          .prepare("INSERT OR IGNORE INTO revoked VALUES(?,?,?,?)")
+          .run(
+            appeal.result_id,
+            actor,
+            reason.trim(),
+            new Date().toISOString(),
+          );
+      this.audit(actor, "appeal-" + decision, id);
+      this.db.exec("COMMIT");
+    } catch (e) {
+      this.db.exec("ROLLBACK");
+      throw e;
+    }
   }
   close() {
     this.db.close();

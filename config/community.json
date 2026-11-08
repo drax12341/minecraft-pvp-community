@@ -1,23 +1,233 @@
 {
-  "name": "Minecraft PvP Community",
-  "shortName": "PvP Community",
+  "name": "Minecraft PvP Tierlist",
+  "shortName": "PvP Tierlist",
   "invite": "https://discord.gg/a36rg6BxuX",
   "modes": [
-    { "id": "sword", "name": "Sword", "icon": "⚔" },
-    { "id": "axe", "name": "Axe", "icon": "🪓" },
-    { "id": "vanilla", "name": "Crystal", "icon": "✦" },
-    { "id": "uhc", "name": "UHC", "icon": "♥" },
-    { "id": "pot", "name": "Diamond Pot", "icon": "⚗" },
-    { "id": "nethop", "name": "NethPot", "icon": "◆" },
-    { "id": "smp", "name": "SMP", "icon": "▣" },
-    { "id": "mace", "name": "Mace", "icon": "🔨" },
-    { "id": "mace_spear", "name": "Mace Spear", "icon": "↗" },
-    { "id": "mace_breach", "name": "Breach", "icon": "◈" },
-    { "id": "mace_density", "name": "Density", "icon": "▥" },
-    { "id": "cart", "name": "Cart", "icon": "▰" },
-    { "id": "bow", "name": "Bow", "icon": "➶" },
-    { "id": "diasmp", "name": "Diamond SMP", "icon": "◇" },
-    { "id": "creeper", "name": "Creeper", "icon": "▦" }
+    {
+      "id": "sword",
+      "name": "Sword",
+      "icon": "⚔",
+      "color": "#6bd7ee",
+      "group": "Main modes",
+      "kit": "Diamond sword",
+      "description": "Spacing, sprint resets, aim and trades",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "axe",
+      "name": "Axe",
+      "icon": "🪓",
+      "color": "#b8c7d6",
+      "group": "Main modes",
+      "kit": "Axe & shield",
+      "description": "Shield timing, critical hits and movement",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "vanilla",
+      "name": "Crystal",
+      "icon": "✦",
+      "color": "#b194ed",
+      "group": "Main modes",
+      "kit": "Crystal kit",
+      "description": "Crystal placement, anchors, totems and positioning",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "uhc",
+      "name": "UHC",
+      "icon": "♥",
+      "color": "#edaa78",
+      "group": "Main modes",
+      "kit": "UHC kit",
+      "description": "Resource use, healing and terrain control",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "pot",
+      "name": "Diamond Pot",
+      "icon": "⚗",
+      "color": "#de90cf",
+      "group": "Main modes",
+      "kit": "Diamond potions",
+      "description": "Potion economy, accuracy and sustained pressure",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "nethop",
+      "name": "NethPot",
+      "icon": "◆",
+      "color": "#a394e7",
+      "group": "Main modes",
+      "kit": "Netherite potions",
+      "description": "Sustained trades and healing management",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "smp",
+      "name": "SMP",
+      "icon": "▣",
+      "color": "#76c7a8",
+      "group": "Main modes",
+      "kit": "SMP kit",
+      "description": "Resource management and varied combat",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "mace",
+      "name": "Mace",
+      "icon": "🔨",
+      "color": "#8eaff5",
+      "group": "Main modes",
+      "kit": "Mace kit",
+      "description": "Wind charges, aerial movement and smash timing",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "mace_spear",
+      "name": "Mace Spear",
+      "icon": "↗",
+      "color": "#6bd7ee",
+      "group": "Submodes",
+      "kit": "Mace Spear kit",
+      "description": "Specialist mace spear combat.",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "mace_breach",
+      "name": "Breach",
+      "icon": "◈",
+      "color": "#b8c7d6",
+      "group": "Submodes",
+      "kit": "Breach kit",
+      "description": "Specialist breach combat.",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "mace_density",
+      "name": "Density",
+      "icon": "▥",
+      "color": "#b194ed",
+      "group": "Submodes",
+      "kit": "Density kit",
+      "description": "Specialist density combat.",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "cart",
+      "name": "Cart",
+      "icon": "▰",
+      "color": "#edaa78",
+      "group": "Submodes",
+      "kit": "Cart kit",
+      "description": "Specialist cart combat.",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "bow",
+      "name": "Bow",
+      "icon": "➶",
+      "color": "#de90cf",
+      "group": "Submodes",
+      "kit": "Bow kit",
+      "description": "Specialist bow combat.",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "diasmp",
+      "name": "Diamond SMP",
+      "icon": "◇",
+      "color": "#a394e7",
+      "group": "Submodes",
+      "kit": "Diamond SMP kit",
+      "description": "Specialist diamond smp combat.",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    },
+    {
+      "id": "creeper",
+      "name": "Creeper",
+      "icon": "▦",
+      "color": "#76c7a8",
+      "group": "Submodes",
+      "kit": "Creeper kit",
+      "description": "Specialist creeper combat.",
+      "rules": [
+        "Java 1.21.1; use the version agreed with your tester.",
+        "Tester confirms the approved equipment and arena before the test.",
+        "No macros, cheats, account sharing or staged results.",
+        "Record only agreed match evidence; keep personal information private."
+      ]
+    }
   ],
   "points": {
     "HT1": 60,
@@ -31,69 +241,9 @@
     "HT5": 2,
     "LT5": 1
   },
-  "providers": [
-    {
-      "id": "community",
-      "name": "Our community",
-      "url": "https://discord.gg/a36rg6BxuX",
-      "kind": "Manual testing",
-      "description": "A new home for testing, practice partners, creators and events. First results awaiting verified tests."
-    },
-    {
-      "id": "mctiers",
-      "name": "MCTiers",
-      "url": "https://mctiers.net/",
-      "kind": "Tier rankings",
-      "description": "Mode rankings, overall points and player profiles. Public API snapshot available here."
-    },
-    {
-      "id": "pvptiers",
-      "name": "PvPTiers",
-      "url": "https://pvptiers.com/",
-      "kind": "Tier rankings",
-      "description": "High-tier results, testing feeds, regional and retired filters."
-    },
-    {
-      "id": "central",
-      "name": "Central TierList",
-      "url": "https://www.centraltierlist.com/",
-      "kind": "Tier testing",
-      "description": "Competitive 1v1 skill testing with a community onboarding guide."
-    },
-    {
-      "id": "lucnoxity",
-      "name": "Lucnoxity",
-      "url": "https://www.luctierlist.com/",
-      "kind": "Main & subtiers",
-      "description": "Separate main and submode ladders with combined and regional views."
-    },
-    {
-      "id": "pvphq",
-      "name": "PvPHQ",
-      "url": "https://pvphq.com/",
-      "kind": "Practice network",
-      "description": "Ranked play, custom kits, tournaments and post-match analysis."
-    },
-    {
-      "id": "catpvp",
-      "name": "CatPvP",
-      "url": "https://www.catpvp.net/ranked",
-      "kind": "Rating ladder",
-      "description": "Mode-specific rating ladders. Ratings are kept distinct from manually tested tiers."
-    },
-    {
-      "id": "tiery",
-      "name": "Polska Tierlista",
-      "url": "https://tiery.pl/",
-      "kind": "Regional community",
-      "description": "Polish rankings, kit guides, testing information and active versus peak tiers."
-    },
-    {
-      "id": "macesubmodes",
-      "name": "Mace Submodes",
-      "url": "https://modrinth.com/mod/submodes-tier-tagger",
-      "kind": "Specialist modes",
-      "description": "Specialist mace tier display mod. Its community rules and API still need direct verification."
-    }
-  ]
+  "version": 2,
+  "testing": {
+    "cooldownHours": 72,
+    "capacity": 30
+  }
 }

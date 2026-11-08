@@ -4,6 +4,10 @@ import {
   GatewayIntentBits,
   ChannelType,
   PermissionFlagsBits as P,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } from "discord.js";
 const config = JSON.parse(
   await readFile(new URL("../config/community.json", import.meta.url)),
@@ -16,6 +20,7 @@ export const plan = {
     "Creator",
     "Supporter",
     "Member",
+    ...Object.keys(config.points),
     ...["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"],
     ...config.modes.map((m) => m.name),
   ],
@@ -35,6 +40,12 @@ export const plan = {
       "guides-and-coaching",
     ],
     Competition: ["test-queue", "test-results", "events", "looking-for-team"],
+    "Main mode testing": config.modes
+      .filter((m) => m.group === "Main modes")
+      .map((m) => m.id + "-testing"),
+    "Submode testing": config.modes
+      .filter((m) => m.group === "Submodes")
+      .map((m) => m.id + "-testing"),
     Support: ["help", "appeals", "sponsorships"],
     Staff: ["staff-chat", "test-review", "moderation-log"],
   },
@@ -59,6 +70,18 @@ if (!process.argv.includes("--apply")) {
           name,
           permissions: [],
           mentionable: false,
+          colors: {
+            primaryColor: config.modes.find((m) => m.name === name)?.color
+              ? Number.parseInt(
+                  config.modes.find((m) => m.name === name).color.slice(1),
+                  16,
+                )
+              : name === "Tier Tester"
+                ? 0x69d6ed
+                : name === "Community Moderator"
+                  ? 0xad91ef
+                  : 0x8e9ab0,
+          },
           reason: "Community setup",
         });
     const moderator = guild.roles.cache.find(
@@ -134,8 +157,76 @@ if (!process.argv.includes("--apply")) {
           });
         }
     }
+    const panels = {
+      welcome: [
+        "Welcome to Minecraft PvP Tierlist",
+        "One tierlist. Earned in game.\n\nChoose your modes, meet practice partners and earn a placement through our own testing team. All rankings belong to this community. Start with #rules and #how-to-test.",
+      ],
+      rules: [
+        "Play fair. Treat people well.",
+        "No cheating, macros, boosting, account sharing, harassment or doxxing.\n\nNever share passwords or install unknown files for a test. Agree on the kit, version, arena and evidence with your tester. Sponsors cannot buy ranks or testing advantages. Private appeals use /appeal submit.",
+      ],
+      "how-to-test": [
+        "From first match to your next tier",
+        "1. Ask staff to verify Minecraft account ownership.\n2. Choose a mode and region.\n3. Join an open session using /queue join.\n4. Wait for a tester to claim your entry.\n5. Play your test and review your evidence-linked result.\n\nDefault retest cooldown: 72 hours. Availability and kit rules must be announced before sessions open.",
+      ],
+      "test-queue": [
+        "Testing desk",
+        "Use /queue join to enter an open session, /queue list to check your entries and /queue leave to cancel a waiting entry.\n\nStaff: /session open, /session pause, /session close. Testers: /claim and /result. Never announce testing as open until staff are ready.",
+      ],
+      appeals: [
+        "Need a second review?",
+        "Use /appeal submit with your completed test ID and a clear reason. Replies are private. /appeal status shows your decisions.\n\nThe original tester cannot decide their own appeal. Do not post private information or accusations in this channel.",
+      ],
+      sponsorships: [
+        "Support the arena",
+        "Support tools, hosting or an agreed community event. Every sponsor placement is disclosed. No payments collected by the website; discuss terms with staff. Sponsors never influence tiers or appeals.",
+      ],
+      "choose-your-modes": [
+        "Choose your playstyle",
+        "Use /preferences to toggle a mode interest role or select your region after the bot is running. Mode roles only control interests; they never grant staff permissions.",
+      ],
+    };
+    for (const [name, [title, description]] of Object.entries(panels)) {
+      const channel = guild.channels.cache.find(
+        (c) => c.name === name && c.type === ChannelType.GuildText,
+      );
+      if (!channel) continue;
+      const existing = await channel.messages.fetch({ limit: 30 });
+      const marker = "Minecraft PvP Tierlist · setup-v2 · " + name;
+      if (
+        existing.some(
+          (m) =>
+            m.author.id === me.id &&
+            m.embeds.some((e) => e.footer?.text === marker),
+        )
+      )
+        continue;
+      const embed = new EmbedBuilder()
+        .setColor(0x69d6ed)
+        .setTitle(title)
+        .setDescription(description)
+        .setFooter({ text: marker });
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel("Rankings")
+          .setStyle(ButtonStyle.Link)
+          .setURL("https://drax12341.github.io/minecraft-pvp-community/"),
+        new ButtonBuilder()
+          .setLabel("Testing center")
+          .setStyle(ButtonStyle.Link)
+          .setURL(
+            "https://drax12341.github.io/minecraft-pvp-community/#testing",
+          ),
+      );
+      await channel.send({
+        embeds: [embed],
+        components: [row],
+        allowedMentions: { parse: [] },
+      });
+    }
     console.log(
-      `Verified setup in ${guild.name}. Configure TESTER_ROLE_ID=${tester.id} and MODERATOR_ROLE_ID=${moderator.id}. No messages were posted.`,
+      `Verified setup and onboarding panels in ${guild.name}. Configure TESTER_ROLE_ID=${tester.id} and MODERATOR_ROLE_ID=${moderator.id}.`,
     );
   } finally {
     client.destroy();

@@ -50,20 +50,20 @@ if (process.argv.includes("--pages")) {
   console.log(`Pages workflow dispatch status: ${run.status}`);
 }
 if (process.argv.includes("--release")) {
-  let r = await request("/releases/tags/v0.1.0-experimental");
+  let r = await request("/releases/tags/v0.2.0-experimental");
   if (r.status === 404)
     r = await request("/releases", "POST", {
-      tag_name: "v0.1.0-experimental",
+      tag_name: "v0.2.0-experimental",
       target_commitish: "main",
-      name: "Community Tier Tagger 0.1.0 — experimental Fabric 1.21.1",
+      name: "PvP Tierlist Tagger 0.2.0 — standalone Fabric 1.21.1",
       prerelease: true,
-      body: "Original community tagger for Minecraft Java 1.21.1, Fabric Loader 0.16.14+ and Fabric API 0.116.6+1.21.1. Java 21+. Nametag/tablist source-aware tier labels, asynchronous snapshots, mode/source commands and opt-in highest-active fallback.\n\nBuild and platform tests passed locally. In-game rendering and mixin compatibility have NOT been smoke-tested. Only the top-50 MCTiers snapshot and published community results are available; absent profiles are unknown in this feed. Snapshots expire. This is not a tested stable release and does not implement every feature of the reference mods. See README and docs/STATUS.md for setup and limitations.",
+      body: "A dedicated tagger for our independent Minecraft PvP Tierlist. Minecraft Java 1.21.1, Fabric Loader 0.16.14+, Fabric API 0.116.6+1.21.1, Java 21+. Only our own UUID-backed test results are loaded. External ranking providers and provider switching have been removed. Nametag/tablist labels, asynchronous snapshots, mode commands and optional highest-active fallback.\n\nCompilation and platform checks passed. In-game rendering/mixin compatibility still require smoke testing. Empty community rankings intentionally show no labels. Experimental, not a stable release. See README and docs/STATUS.md.",
     });
   if (r.status >= 400)
     throw Error(`Release returned ${r.status}: ${r.body.message}`);
   for (const name of [
-    "community-tagger-0.1.0.jar",
-    "community-tagger-0.1.0-sources.jar",
+    "community-tagger-0.2.0.jar",
+    "community-tagger-0.2.0-sources.jar",
   ]) {
     if (r.body.assets?.some((a) => a.name === name)) continue;
     const bytes = await readFile(`tagger/build/libs/${name}`);

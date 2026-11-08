@@ -115,6 +115,108 @@ const api = async (path, data) => {
   if (!res.ok) throw Error(body.error || "Service unavailable");
   return body;
 };
+const session = new SlashCommandBuilder()
+  .setName("session")
+  .setDescription("Tester: manage testing availability");
+const preferences = new SlashCommandBuilder()
+  .setName("preferences")
+  .setDescription("Choose your own mode interests and region")
+  .addStringOption((o) => mode(o).setRequired(false))
+  .addStringOption((o) =>
+    o
+      .setName("region")
+      .setDescription("Set your region interest role")
+      .addChoices(
+        ...["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"].map((v) => ({
+          name: v,
+          value: v,
+        })),
+      ),
+  );
+for (const action of ["open", "pause", "close"])
+  session.addSubcommand((s) =>
+    s
+      .setName(action)
+      .setDescription(`${action} a testing session`)
+      .addStringOption(mode)
+      .addStringOption((o) =>
+        o
+          .setName("region")
+          .setDescription("Region")
+          .setRequired(true)
+          .addChoices(
+            ...["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"].map((v) => ({
+              name: v,
+              value: v,
+            })),
+          ),
+      )
+      .addIntegerOption((o) =>
+        o
+          .setName("capacity")
+          .setDescription("Maximum open entries, 1–200")
+          .setMinValue(1)
+          .setMaxValue(200),
+      )
+      .addIntegerOption((o) =>
+        o
+          .setName("cooldown")
+          .setDescription("Retest cooldown in hours, 0–720")
+          .setMinValue(0)
+          .setMaxValue(720),
+      ),
+  );
+const appeal = new SlashCommandBuilder()
+  .setName("appeal")
+  .setDescription("Private test appeals")
+  .addSubcommand((s) =>
+    s
+      .setName("submit")
+      .setDescription("Appeal your test result privately")
+      .addStringOption((o) =>
+        o
+          .setName("id")
+          .setDescription("Your completed test ID")
+          .setRequired(true),
+      )
+      .addStringOption((o) =>
+        o
+          .setName("reason")
+          .setDescription(
+            "Explain the appeal without private personal information",
+          )
+          .setRequired(true)
+          .setMinLength(10)
+          .setMaxLength(2000),
+      ),
+  )
+  .addSubcommand((s) =>
+    s.setName("status").setDescription("View your own appeal status"),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName("review")
+      .setDescription("Moderator: review pending appeals or decide one")
+      .addStringOption((o) =>
+        o.setName("id").setDescription("Appeal ID; omit to list pending"),
+      )
+      .addStringOption((o) =>
+        o
+          .setName("decision")
+          .setDescription("Review outcome")
+          .addChoices(
+            { name: "Uphold result", value: "uphold" },
+            { name: "Revoke result", value: "revoke" },
+          ),
+      )
+      .addStringOption((o) =>
+        o
+          .setName("reason")
+          .setDescription("Explain your decision")
+          .setMinLength(10)
+          .setMaxLength(2000),
+      ),
+  );
 await new REST()
   .setToken(process.env.DISCORD_TOKEN)
   .put(
@@ -122,7 +224,11 @@ await new REST()
       process.env.DISCORD_CLIENT_ID,
       process.env.DISCORD_GUILD_ID,
     ),
-    { body: [queue, claim, result, verify].map((c) => c.toJSON()) },
+    {
+      body: [queue, claim, result, verify, session, appeal, preferences].map(
+        (c) => c.toJSON(),
+      ),
+    },
   );
 client.on("interactionCreate", async (i) => {
   if (!i.isChatInputCommand() || i.guildId !== process.env.DISCORD_GUILD_ID)
@@ -137,7 +243,95 @@ client.on("interactionCreate", async (i) => {
     const actor = i.user.id;
     const get = (n) => i.options.getString(n);
     let message;
-    if (i.commandName === "queue") {
+    if (i.commandName === "preferences") {
+      const member = await i.guild.members.fetch(actor);
+      await i.guild.roles.fetch();
+      const changes = [];
+      if (get("mode")) {
+        const name = config.modes.find((m) => m.id === get("mode")).name;
+        const role = i.guild.roles.cache.find((r) => r.name === name);
+        if (!role || role.permissions.bitfield !== 0n)
+          throw Error(
+            "The interest role is missing or has unsafe permissions. Ask staff to review setup.",
+          );
+        if (member.roles.cache.has(role.id)) {
+          await member.roles.remove(role);
+          changes.push(name + " removed");
+        } else {
+          await member.roles.add(role);
+          changes.push(name + " added");
+        }
+      }
+      if (get("region")) {
+        const all = ["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"];
+        const target = i.guild.roles.cache.find(
+          (r) => r.name === get("region"),
+        );
+        if (!target || target.permissions.bitfield !== 0n)
+          throw Error("The region role is missing or has unsafe permissions.");
+        for (const r of member.roles.cache.values())
+          if (all.includes(r.name) && r.id !== target.id)
+            await member.roles.remove(r);
+        await member.roles.add(target);
+        changes.push("Region " + get("region"));
+      }
+      message = changes.join(" · ") || "Choose a mode or region.";
+    } else if (i.commandName === "session") {
+      if (!tester && !mod)
+        throw Error("Only testers and moderators can manage sessions.");
+      const status = { open: "open", pause: "paused", close: "closed" }[
+        i.options.getSubcommand()
+      ];
+      await api("session", {
+        actor,
+        mode: get("mode"),
+        region: get("region"),
+        status,
+        capacity: i.options.getInteger("capacity") ?? 30,
+        cooldown: i.options.getInteger("cooldown") ?? 72,
+      });
+      message = `${get("mode")} / ${get("region")} session ${status}.`;
+    } else if (i.commandName === "appeal") {
+      const sub = i.options.getSubcommand();
+      if (sub === "submit") {
+        const r = await api("appeals/submit", {
+          actor,
+          id: get("id"),
+          reason: get("reason"),
+        });
+        message = `Private appeal recorded: ${r.id}. An independent moderator must review it.`;
+      } else if (sub === "status") {
+        const rows = await api("appeals?user=" + actor);
+        message = rows.length
+          ? rows
+              .map(
+                (r) =>
+                  `${r.id} · ${r.status}${r.decision ? " · " + r.decision : ""}`,
+              )
+              .join("\n")
+          : "You have no appeals.";
+      } else {
+        if (!mod) throw Error("Only moderators can review appeals.");
+        if (!get("id")) {
+          const rows = await api("appeals");
+          message = rows.length
+            ? rows
+                .slice(0, 10)
+                .map((r) => `${r.id} · result ${r.result_id} · ${r.reason}`)
+                .join("\n")
+            : "No pending appeals.";
+        } else {
+          await api("appeals/review", {
+            actor,
+            id: get("id"),
+            decision: get("decision"),
+            reason: get("reason"),
+          });
+          message =
+            "Appeal decision saved. Revoked results are excluded from current rankings.";
+        }
+      }
+    } else if (i.commandName === "queue") {
       const sub = i.options.getSubcommand();
       if (sub === "list") {
         const rows = (await api("queue")).filter(
@@ -189,8 +383,21 @@ client.on("interactionCreate", async (i) => {
       message =
         "Result saved with evidence and tester attribution. It is available on the local API; publish the static export to update the public site.";
     }
+    if (
+      ["session", "result", "appeal", "queue", "claim"].includes(i.commandName)
+    ) {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(
+        new URL("../data/results.json", import.meta.url),
+        JSON.stringify(await api("rankings"), null, 2),
+      );
+      await writeFile(
+        new URL("../data/testing.json", import.meta.url),
+        JSON.stringify(await api("testing"), null, 2),
+      );
+    }
     await i.editReply({
-      content: message || "Unknown command.",
+      content: (message || "Unknown command.").slice(0, 1900),
       allowedMentions: { parse: [] },
     });
   } catch (e) {
