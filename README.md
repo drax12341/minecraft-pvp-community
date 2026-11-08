@@ -4,6 +4,8 @@
 
 **One independent tierlist. Every placement comes from this community’s tests.**
 
+The new [Eclipse-inspired presentation](docs/ECLIPSE-INSPIRATION.md) adds a violet orbital homepage and matching visual styling. [Open rankings directly](https://drax12341.github.io/minecraft-pvp-community/#rankings).
+
 Website: https://drax12341.github.io/minecraft-pvp-community/
 Discord: https://discord.gg/a36rg6BxuX
 

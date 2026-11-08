@@ -12,9 +12,9 @@ const player = {
     sword: { tier: 3, pos: 0, peak_tier: 3, peak_pos: 0, retired: false },
   },
 };
-async function website(players = [], sessions = []) {
+async function website(players = [], sessions = [], route = "rankings") {
   const dom = new JSDOM(await readFile("web/index.html", "utf8"), {
-      url: "https://example.com/",
+      url: "https://example.com/" + (route ? "#" + route : ""),
       runScripts: "outside-only",
     }),
     w = dom.window;
@@ -52,6 +52,36 @@ test("standalone board has five tiers, explicit sample preview, and no external 
   assert.equal(d.querySelectorAll("[data-player]").length, 10);
   d.querySelector("#exit-preview").click();
   assert.equal(d.querySelectorAll("[data-player]").length, 0);
+  dom.window.close();
+});
+
+test("inspired homepage has functional scene controls, walkthrough and kit entry points", async () => {
+  const dom = await website([], [], ""),
+    w = dom.window,
+    d = w.document;
+  assert.equal(d.body.dataset.page, "home");
+  assert.ok(d.querySelector(".night-wordmark"));
+  assert.equal(d.querySelectorAll(".home-faq details").length, 5);
+  assert.match(d.querySelector(".launch-pill").textContent, /preparation/);
+  d.querySelector('[data-sky="stars"]').click();
+  assert.ok(d.querySelector(".night-hero").classList.contains("stars-only"));
+  assert.equal(
+    d.querySelector('[data-sky="arena"]').getAttribute("aria-pressed"),
+    "false",
+  );
+  d.querySelector('[data-journey="2"]').click();
+  assert.match(
+    d.querySelector("#journey-detail").textContent,
+    /independent moderator/,
+  );
+  assert.equal(
+    d.querySelector('[data-journey="2"]').getAttribute("aria-pressed"),
+    "true",
+  );
+  d.querySelector('[data-home-mode="bow"]').click();
+  await new Promise((r) => w.setTimeout(r, 10));
+  assert.equal(d.body.dataset.page, "rankings");
+  assert.match(d.querySelector(".kit-title h2").textContent, /Bow/);
   dom.window.close();
 });
 

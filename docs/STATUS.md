@@ -2,6 +2,8 @@
 
 ## Implemented
 
+- Eclipse-inspired homepage: orbital identity, floating violet navigation, background controls, feature grid, interactive walkthrough and FAQ. Existing rankings and testing routes remain available.
+
 - One independent tierlist: external imports, provider switcher and community directory removed.
 - New five-tier board, original shaded pixel kit artwork, overall leaderboard, search/regions, profiles, comparisons, cards and explicit sample preview.
 - Testing center with public session snapshots, local request summaries, kit rules and recent test history.

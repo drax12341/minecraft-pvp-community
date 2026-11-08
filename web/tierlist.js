@@ -86,17 +86,25 @@ const selectModes = (id) =>
   `<select id="${id}">${config.modes.map((m) => `<option value="${m.id}" ${mode === m.id ? "selected" : ""}>${m.name}</option>`).join("")}</select>`;
 function render() {
   document.querySelector(".compare-dock")?.remove();
-  const route = location.hash.slice(1).split("?")[0] || "rankings";
+  const route = location.hash.slice(1).split("?")[0] || "home";
   document.querySelectorAll("nav a").forEach((a) => {
     a.classList.toggle("active", a.hash === "#" + route);
     if (a.hash === "#" + route) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
-  document.title = `${{ rankings: "Rankings", testing: "Testing center", kits: "Kits & rules", tagger: "Tier tagger", sponsors: "Support us", about: "Rules & privacy", staff: "Staff console" }[route] || "Rankings"} · Minecraft PvP Tierlist`;
+  document.body.dataset.page = route;
+  document.title = `${{ home: "Home", rankings: "Rankings", testing: "Testing center", kits: "Kits & rules", tagger: "Tier tagger", sponsors: "Support us", about: "Rules & privacy", staff: "Staff console" }[route] || "Rankings"} · Minecraft PvP Tierlist`;
   (
-    ({ rankings, testing: testingPage, kits, tagger, sponsors, about, staff })[
-      route
-    ] || rankings
+    ({
+      home,
+      rankings,
+      testing: testingPage,
+      kits,
+      tagger,
+      sponsors,
+      about,
+      staff,
+    })[route] || rankings
   )();
   const id = new URLSearchParams(location.hash.split("?")[1]).get("player");
   if (id) {
@@ -104,6 +112,194 @@ function render() {
     if (p) profile(p);
     else toast("This player does not have a published tier here yet.");
   }
+}
+function home() {
+  main.innerHTML =
+    '<section class="night-hero" aria-labelledby="night-title"><div class="night-sky" aria-hidden="true"><div class="sky-stars"></div><div class="sky-haze"></div></div><div class="night-content"><span class="launch-pill"><i></i> Founding community · Testing launch in preparation</span><div class="orbital-mark" aria-hidden="true"><div class="orbital-track"></div><div class="orbital-track second"></div><div class="moon-medallion"><img src="./mark.svg" alt=""></div><span class="orbital-spark"></span></div><h1 id="night-title" class="night-wordmark">PvP<span>TIERLIST</span></h1><p class="night-tagline">Your next tier starts with a real test.<br>One independent Minecraft community. Every playstyle welcome.</p><div class="night-actions"><a class="button night-primary" href="#testing">Start your tier test <span aria-hidden="true">↗</span></a><a class="button secondary" href="#rankings">Explore rankings</a></div><p class="night-meta">Java 1.21.1 · Independent results · Free to join</p></div><div class="sky-controls" role="group" aria-label="Hero background"><button data-sky="arena" class="active" aria-pressed="true">Arena</button><button data-sky="stars" aria-pressed="false">Night sky</button></div><button class="discover-scroll" id="discover" aria-label="Discover the tierlist"><span></span>Discover the community</button></section>' +
+    '<div class="kit-ribbon" aria-label="Explore game modes">' +
+    config.modes
+      .map(
+        (m) =>
+          '<button data-home-mode="' +
+          m.id +
+          '">' +
+          art(m.id) +
+          "<span>" +
+          m.name +
+          "</span></button>",
+      )
+      .join("") +
+    "</div>" +
+    '<section class="home-metrics" aria-label="Tierlist structure"><div><strong>' +
+    config.modes.length +
+    "</strong><span>Game modes</span></div><div><strong>10</strong><span>Tier bands per mode</span></div><div><strong>1</strong><span>Independent community</span></div><div><strong>" +
+    data.players.length +
+    "</strong><span>Published ranked players</span></div></section>" +
+    '<section class="home-section" id="home-features"><div class="home-section-head"><span class="section-kicker">Built around the fight</span><h2>Find your place. Make your mark.</h2><p>From your first sword test to specialist mace kits. Your progress has a home.</p></div><div class="home-bento"><article class="home-tile kit-tile"><span class="tile-label">Choose your discipline</span><div class="mini-kit-grid">' +
+    config.modes
+      .slice(0, 8)
+      .map(
+        (m) =>
+          '<button data-home-mode="' +
+          m.id +
+          '">' +
+          art(m.id) +
+          "<span>" +
+          m.name +
+          "</span></button>",
+      )
+      .join("") +
+    '</div><h3>A ladder for every playstyle.</h3><p>Main modes and submodes, with individual placements and clear rules for each kit.</p><a href="#kits" class="home-text-link">Meet the kits ↗</a></article><article class="home-tile tag-tile"><span class="tile-label">Take it in game</span><div class="home-tag-preview"><span>[Sword HT3]</span> YourName<small>Illustrative nametag preview</small></div><h3>Your placement, wherever you play.</h3><p>Our dedicated experimental Fabric tagger displays this tierlist’s published results.</p><a href="#tagger" class="home-text-link">Explore the tagger ↗</a></article><article class="home-tile review-tile"><span class="tile-label">A fair process</span><div class="review-visual" aria-hidden="true"><span>Verified account <b>✓</b></span><span>Assigned tester <b>✓</b></span><span>Evidence-linked result <b>✓</b></span></div><h3>A result you can review.</h3><p>Account checks, evidence and independent appeal review are part of the testing system.</p><a href="#testing" class="home-text-link">How testing works ↗</a></article><article class="home-tile progress-tile"><span class="tile-label">Earn every placement</span><div class="tier-journey" aria-label="Tier progression from LT5 to HT1">' +
+    [5, 4, 3, 2, 1]
+      .map(
+        (t) =>
+          '<div><img src="./assets/tier-' +
+          t +
+          '.svg" alt=""><span>' +
+          (t === 1 ? "HT1" : "LT" + t) +
+          "</span></div>",
+      )
+      .join("") +
+    '</div><h3>The climb belongs to you.</h3><p>Sponsors never buy tiers, queue priority or appeal decisions. Every placement comes from our own tests.</p><a href="#rankings" class="home-text-link">See the board ↗</a></article></div></section>' +
+    '<section class="home-section journey-section"><div class="home-section-head"><span class="section-kicker">From joining to placing</span><h2>Your next chapter, in three steps.</h2><p>A clear path into the community. Testing opens when staff are ready.</p></div><div class="journey-layout"><div class="journey-buttons" role="group" aria-label="Testing walkthrough">' +
+    [
+      ["Choose your kit", "Find your preferred mode and read its rules."],
+      ["Play your test", "Verify ownership and join an open session."],
+      ["Review your result", "Check your placement and evidence."],
+    ]
+      .map(
+        ([t, p], i) =>
+          '<button data-journey="' +
+          i +
+          '" class="' +
+          (i === 0 ? "active" : "") +
+          '" aria-pressed="' +
+          (i === 0) +
+          '"><span class="journey-number">0' +
+          (i + 1) +
+          "</span><span><strong>" +
+          t +
+          "</strong><small>" +
+          p +
+          "</small></span></button>",
+      )
+      .join("") +
+    '</div><div class="journey-window"><div class="window-chrome"><i></i><i></i><i></i><span>Testing walkthrough</span></div><div id="journey-detail" aria-live="polite"></div></div></div></section>' +
+    '<section class="home-section home-faq"><div class="home-section-head"><span class="section-kicker">Before you join</span><h2>A few things to know.</h2></div>' +
+    [
+      [
+        "Is this connected to another tierlist?",
+        "No. Every published placement belongs to this community. We do not import another network’s tiers or rating points.",
+      ],
+      [
+        "Can I get tested right now?",
+        testing.activation === "active"
+          ? "Check the testing center for published sessions and confirm availability in Discord."
+          : "The live Discord testing setup is awaiting activation. You can read kit rules and prepare a request, but the website does not reserve a queue position.",
+      ],
+      [
+        "How do I get a tier?",
+        "Staff verify your Minecraft account ownership, then you join an open testing session. An assigned tester records your result with agreed match evidence.",
+      ],
+      [
+        "Is the tagger ready to use?",
+        "A compiled experimental Fabric 1.21.1 build is available. It uses only this tierlist’s results and still requires in-game compatibility testing.",
+      ],
+      [
+        "Can sponsors pay for better placements?",
+        "No. Sponsors cannot buy a rank, priority testing or appeal outcomes.",
+      ],
+    ]
+      .map(
+        ([q, a]) =>
+          "<details><summary>" +
+          q +
+          '<span aria-hidden="true">+</span></summary><p>' +
+          a +
+          "</p></details>",
+      )
+      .join("") +
+    "</section>" +
+    '<section class="home-final"><div class="final-orbit" aria-hidden="true"></div><span class="section-kicker">Make your next move</span><h2>Your name belongs on the board.</h2><p>Join the founding community. Help build a better place to compete.</p><div class="night-actions"><a href="' +
+    config.invite +
+    '" target="_blank" rel="noopener" class="button night-primary">Join the community ↗</a><a href="#testing" class="button secondary">Explore testing</a></div></section>';
+  main.querySelectorAll("[data-home-mode]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        mode = b.dataset.homeMode;
+        modeGroup = kit(mode).group === "Main modes" ? "main" : "sub";
+        view = "board";
+        location.hash = "rankings";
+      }),
+  );
+  main.querySelector("#discover").onclick = () =>
+    main.querySelector("#home-features").scrollIntoView?.({
+      behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "start",
+    });
+  main.querySelectorAll("[data-sky]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        main
+          .querySelector(".night-hero")
+          .classList.toggle("stars-only", b.dataset.sky === "stars");
+        main.querySelectorAll("[data-sky]").forEach((x) => {
+          x.classList.toggle("active", x === b);
+          x.setAttribute("aria-pressed", String(x === b));
+        });
+      }),
+  );
+  const stages = [
+    [
+      "Your discipline. Your rules.",
+      "Start with a kit you enjoy. Read the version, equipment and evidence rules before requesting a test.",
+      "Browse kits",
+      "#kits",
+      "sword",
+    ],
+    [
+      "A fair match starts here.",
+      "Account ownership must be verified before an open session accepts your entry. A tester claims your place when available.",
+      "Find testing sessions",
+      "#testing",
+      "mace",
+    ],
+    [
+      "More than a label.",
+      "Your result includes match evidence. If something went wrong, an independent moderator can review your appeal.",
+      "Read the testing rules",
+      "#about",
+      "axe",
+    ],
+  ];
+  const stage = (index) => {
+    const [t, p, a, url, id] = stages[index];
+    main.querySelector("#journey-detail").innerHTML =
+      '<span class="preview-caption">Interface walkthrough · No live test</span>' +
+      art(id) +
+      "<h3>" +
+      t +
+      "</h3><p>" +
+      p +
+      '</p><a href="' +
+      url +
+      '" class="button secondary">' +
+      a +
+      " ↗</a>";
+    main.querySelectorAll("[data-journey]").forEach((b) => {
+      b.classList.toggle("active", Number(b.dataset.journey) === index);
+      b.setAttribute(
+        "aria-pressed",
+        String(Number(b.dataset.journey) === index),
+      );
+    });
+  };
+  main
+    .querySelectorAll("[data-journey]")
+    .forEach((b) => (b.onclick = () => stage(Number(b.dataset.journey))));
+  stage(0);
 }
 function rankings() {
   const visibleModes = config.modes.filter(
@@ -851,3 +1047,15 @@ document.addEventListener("keydown", (e) => {
     }
   }
 });
+
+window.addEventListener(
+  "scroll",
+  () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const progress =
+      max > 0 ? Math.max(0, Math.min(1, window.scrollY / max)) : 0;
+    document.querySelector(".reading-progress").style.transform =
+      "scaleX(" + progress + ")";
+  },
+  { passive: true },
+);
