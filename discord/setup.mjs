@@ -38,6 +38,7 @@ export const plan = {
       "find-a-duel",
       "clips-and-highlights",
       "guides-and-coaching",
+      "tester-recruitment",
     ],
     Competition: ["test-queue", "test-results", "events", "looking-for-team"],
     "Main mode testing": config.modes

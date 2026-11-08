@@ -742,7 +742,7 @@ function testingPage() {
       ],
       [
         "Join a session",
-        "Use /queue join with your mode and region. Sessions have a capacity limit and a retest cooldown.",
+        "Use /availability with optional mode and region filters, then /queue join. /queue status mode region privately shows verification, waiting position, your latest valid result ID and the session’s retest cooldown. Positions exclude claimed tests and do not predict waiting time.",
       ],
       [
         "Play your test",
@@ -750,7 +750,7 @@ function testingPage() {
       ],
       [
         "Review and appeal",
-        "Your result is recorded with evidence. A different reviewer handles an appeal.",
+        "Find your result ID and evidence with /queue status mode region, then /appeal submit id reason. /appeal status shows your private decisions. A different reviewer handles the appeal. Use /guide appeals for help.",
       ],
     ]
       .map(

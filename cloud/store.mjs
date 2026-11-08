@@ -108,6 +108,60 @@ export class CloudStore {
       "SELECT id,user,mode,region,status,created FROM queue WHERE status IN ('waiting','claimed') ORDER BY created,id",
     );
   }
+  async status(user, mode, region) {
+    const account = await this.one(
+      "SELECT name FROM accounts WHERE discord=?",
+      user,
+    );
+    const session = await this.one(
+      "SELECT status,capacity,cooldown FROM sessions WHERE mode=? AND region=?",
+      mode,
+      region,
+    );
+    const entry = await this.one(
+      "SELECT id,status,region,created,tester FROM queue WHERE user=? AND mode=? AND status IN ('waiting','claimed')",
+      user,
+      mode,
+    );
+    const latest = await this.one(
+      `SELECT r.id,r.created,r.tier,r.pos,r.evidence FROM results r JOIN accounts a ON a.uuid=r.uuid
+      WHERE a.discord=? AND r.mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY r.sequence DESC LIMIT 1`,
+      user,
+      mode,
+    );
+    const counts = await this.one(
+      "SELECT count(*) AS occupied FROM queue WHERE mode=? AND region=? AND status IN ('waiting','claimed')",
+      mode,
+      region,
+    );
+    let position = null;
+    if (entry?.status === "waiting")
+      position = (
+        await this.one(
+          `SELECT count(*)+1 AS position FROM queue WHERE mode=? AND region=? AND status='waiting' AND (created<? OR (created=? AND id<?))`,
+          mode,
+          entry.region,
+          entry.created,
+          entry.created,
+          entry.id,
+        )
+      ).position;
+    const eligibleAt =
+      latest && session
+        ? new Date(
+            Date.parse(latest.created) + session.cooldown * 3600000,
+          ).toISOString()
+        : null;
+    return {
+      account,
+      session,
+      entry,
+      latest,
+      position,
+      occupied: counts.occupied,
+      eligibleAt,
+    };
+  }
   async claim(id, actor) {
     const outcomes = await this.db.batch([
       this.statement(

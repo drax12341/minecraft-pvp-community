@@ -48,6 +48,46 @@ export async function runCommand(interaction, env, store, request = fetch) {
     return response.status === 204 ? undefined : response.json();
   };
   switch (data.name) {
+    case "guide": {
+      const topics = {
+        start:
+          "One independent tierlist. 1. Read #rules and the kit guidance. 2. /preferences mode region chooses interests, not a ranking. 3. Ask moderators to verify Minecraft ownership. 4. /availability shows real sessions. 5. /queue join mode region enters an open session. /queue status explains your progress. Never share passwords or install files for a test.",
+        testing:
+          "Before playing, agree the kit/version, arena, allowed mods, scoring rubric and publishable evidence with your tester. /queue list shows your IDs; /queue leave cancels a waiting entry. Claimed entries need your assigned tester. No guaranteed waiting time or placement. Sessions stay closed until real staff and rubrics are ready.",
+        appeals:
+          "Use /queue status mode region to find your latest result ID and evidence, then /appeal submit id reason. /appeal status shows your private decisions. Only the result owner can submit; an independent moderator reviews it. Never put personal details or accusations in public channels.",
+        staff:
+          "Trusted staff: verify actual Minecraft ownership before /verify-account. Publish mode-specific kit and scoring rules before /session open. /queue list identifies players privately. /claim assigns one tester; only that tester can /result with shareable HTTPS evidence. Review appeals independently. Tester applications start in #tester-recruitment; interest roles never grant staff access.",
+        practice:
+          "Use #find-a-duel for mode, region, version, server and UTC availability. Use #guides-and-coaching for one specific question and an optional consented clip. Practice/coaching is separate from official placements. Events are announced only when a real host and rules are confirmed.",
+      };
+      const topic = get("topic") || "start";
+      if (!Object.hasOwn(topics, topic))
+        throw Error("Choose a valid guide topic.");
+      return (
+        topics[topic] +
+        "\nhttps://drax12341.github.io/minecraft-pvp-community/#testing"
+      );
+    }
+    case "availability": {
+      if (get("mode")) mode();
+      if (get("region")) region();
+      const rows = (await store.testing()).sessions.filter(
+        (s) =>
+          (!get("mode") || s.mode === get("mode")) &&
+          (!get("region") || s.region === get("region")),
+      );
+      return rows.length
+        ? rows
+            .slice(0, 12)
+            .map(
+              (s) =>
+                `${s.mode} / ${s.region}: ${s.status} · ${s.waiting} waiting, ${s.claimed} claimed · capacity ${s.capacity} · cooldown ${s.cooldown}h`,
+            )
+            .join("\n") +
+            "\nSnapshot only; /queue join checks capacity again. No waiting-time guarantee. More: https://drax12341.github.io/minecraft-pvp-community/#testing"
+        : "No published sessions match. Testing is not open for this selection. Read /guide testing or find practice in #find-a-duel; do not join a different region unless you can play there.";
+    }
     case "preferences": {
       const changes = [];
       const allRoles = await discord(`/guilds/${env.DISCORD_GUILD_ID}/roles`);
@@ -128,6 +168,36 @@ export async function runCommand(interaction, env, store, request = fetch) {
       return `${get("mode")} / ${get("region")} session ${status}. The public testing page updates automatically.`;
     }
     case "queue": {
+      if (sub?.name === "status") {
+        const m = mode(),
+          r = region(),
+          state = await store.status(actor, m, r);
+        const lines = [
+          `${m} / ${r}`,
+          state.account
+            ? `Verified account: ${state.account.name}`
+            : "Account ownership is not verified. Ask moderators; a username alone is not proof.",
+          state.session
+            ? `Session ${state.session.status} · ${state.occupied}/${state.session.capacity} occupied · cooldown ${state.session.cooldown}h`
+            : "No session published for this mode/region.",
+        ];
+        if (state.entry)
+          lines.push(
+            `Your entry: ${state.entry.id} · ${state.entry.status} · ${state.entry.region}${state.position ? ` · waiting position ${state.position} (claimed tests excluded; no ETA)` : " · coordinate with your assigned tester"}`,
+          );
+        else lines.push("No open entry for this mode.");
+        if (state.latest)
+          lines.push(
+            `Latest valid result: ${state.latest.id} · ${state.latest.pos === 0 ? "HT" : "LT"}${state.latest.tier}\nEvidence: ${state.latest.evidence}`,
+          );
+        if (state.eligibleAt)
+          lines.push(
+            Date.parse(state.eligibleAt) > Date.now()
+              ? `Retest cooldown ends <t:${Math.ceil(Date.parse(state.eligibleAt) / 1000)}:F> for this session's settings.`
+              : "Retest cooldown has elapsed for this session's settings.",
+          );
+        return lines.join("\n");
+      }
       if (sub?.name === "join")
         return (
           "Queue entry created: " +
@@ -145,7 +215,10 @@ export async function runCommand(interaction, env, store, request = fetch) {
       return rows.length
         ? rows
             .slice(0, 15)
-            .map((r) => `${r.mode} / ${r.region} / ${r.status} / ${r.id}`)
+            .map(
+              (r) =>
+                `${r.mode} / ${r.region} / ${r.status} / ${r.id}${tester ? ` / player <@${r.user}>` : ""}`,
+            )
             .join("\n")
         : "You have no open entries.";
     }
