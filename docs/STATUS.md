@@ -29,10 +29,15 @@ maintain the green Discord online indicator. Existing hosting access, quotas and
 service availability still apply. See [the cloud deployment](FREE-CLOUD.md).
 Docker/Railway and the combined local runtime remain optional fallback paths.
 
+Verification on 2026-11-08: published Sites version 7, stopped the prior local
+runtime and its bot child, confirmed the local port is offline, then received HTTP
+200 from cloud health with `pcRequired: false`. Website, artwork and public feeds
+also returned HTTP 200. All 14 automated tests passed.
+
 ## Remaining limits
 
 - Visual browser QA and in-game Fabric/mixin smoke testing remain unavailable/unverified.
 - All seven commands are registered. Discord's real signed endpoint validation succeeded; individual live player testing flows still need staff-run acceptance testing. Automated tests cover the command/SQL/security logic.
 - Staff must establish real Minecraft ownership checks, exact kit rubrics and trained testers before opening sessions.
-- Public website/tagger update from committed exports, not direct public access to private queue records.
+- The public websites read live cloud result/session feeds. The existing experimental tagger release still reads committed exports and needs a later client update for live cloud data. Private queues and appeals are never public feeds.
 - No hosted Minecraft arena, anti-cheat, automatic match capture, replay infrastructure, payment processing, self-service data deletion or confirmed sponsors.
