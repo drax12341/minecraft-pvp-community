@@ -21,17 +21,18 @@ Existing permission rules still block panels in welcome, rules, how-to-test and 
 a server administrator must grant the bot Send Messages in those channels. Existing messages were preserved.
 Role IDs and credentials are stored only in ignored local .env.
 
-The runtime now starts the API and bot together, recovers bot crashes with backoff,
-and exposes health/public feeds while retaining the administrative API on loopback.
-Docker and Railway configurations are prepared with sleeping disabled and one replica.
-Railway startup requires a persistent volume. Cloud deployment is not yet activated:
-the Railway account connection and any hosting billing authorization are outstanding.
-See [hosting instructions](HOSTING.md). A local runtime needs the PC to remain on.
+The cloud HTTP Worker and persistent D1 database are deployed on the existing Sites
+project. Discord validated and saved its interactions endpoint. Commands and cloud
+rankings/testing storage no longer require a local gateway process or a running PC.
+No separate Railway/Cloudflare subscription was created. The cloud HTTP app does not
+maintain the green Discord online indicator. Existing hosting access, quotas and
+service availability still apply. See [the cloud deployment](FREE-CLOUD.md).
+Docker/Railway and the combined local runtime remain optional fallback paths.
 
 ## Remaining limits
 
 - Visual browser QA and in-game Fabric/mixin smoke testing remain unavailable/unverified.
-- The local bot/API runtime is online and all seven Discord commands are registered. Cloud hosting is not active yet; static hosting cannot run it.
+- All seven commands are registered. Discord's real signed endpoint validation succeeded; individual live player testing flows still need staff-run acceptance testing. Automated tests cover the command/SQL/security logic.
 - Staff must establish real Minecraft ownership checks, exact kit rubrics and trained testers before opening sessions.
 - Public website/tagger update from committed exports, not direct public access to private queue records.
 - No hosted Minecraft arena, anti-cheat, automatic match capture, replay infrastructure, payment processing, self-service data deletion or confirmed sponsors.

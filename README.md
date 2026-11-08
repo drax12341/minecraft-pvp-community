@@ -33,6 +33,11 @@ Open http://127.0.0.1:8787. Node 24+. The local site reads the live SQLite servi
 
 [Discord activation and commands](docs/DISCORD.md). The dedicated bot is installed and the roles/channels setup has run. Existing channel permission overrides still block some onboarding panels. No bot credentials are committed. The [combined runtime and cloud deployment plan](docs/HOSTING.md) include crash recovery, private API access and persistent storage requirements.
 
+The [cloud HTTP deployment](docs/FREE-CLOUD.md) now receives commands without a
+running PC, using the existing Sites project and persistent D1 storage. Discord
+validated its signed interactions endpoint. No separate paid hosting subscription
+was created. The HTTP app does not maintain a green online indicator.
+
 The setup now prepares colored interest/tier roles, main/submode testing channels, staff channels and rich onboarding panels. It only creates missing channels and posts its panels once. It does not delete or rename existing channels. Run the dry run first and ensure the intended guild ID is correct.
 
 ```sh

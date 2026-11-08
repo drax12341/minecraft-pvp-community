@@ -1,5 +1,9 @@
 # Continuous Discord hosting
 
+The active no-PC deployment uses the community's existing Sites Worker and D1
+database. See [FREE-CLOUD.md](FREE-CLOUD.md). No Railway subscription is required.
+The Railway instructions below describe an optional gateway-hosting alternative.
+
 GitHub stores and builds code. GitHub-hosted Actions jobs have a six-hour limit;
 they are not a continuous bot host. Making a repository private does not change this.
 

@@ -156,8 +156,10 @@ export default {
       return json({ error: "Not found" }, 404);
     const upstream = await fetch(website + path, {
       method: request.method,
-      redirect: "error",
+      redirect: "manual",
     });
+    if (upstream.status >= 300 && upstream.status < 400)
+      return json({ error: "Website temporarily unavailable" }, 502);
     const headers = new Headers(upstream.headers);
     headers.set("X-Content-Type-Options", "nosniff");
     headers.set("Referrer-Policy", "strict-origin-when-cross-origin");

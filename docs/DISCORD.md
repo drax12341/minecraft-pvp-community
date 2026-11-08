@@ -7,7 +7,9 @@ Existing read-only channel permissions prevent panels in welcome, rules,
 how-to-test and choose-your-modes. A server administrator must allow the bot
 Send Messages there; the setup does not remove existing messages. Run setup again
 after correcting those overrides to finish the missing panels.
-For continuous hosting and the combined runtime, see [HOSTING.md](HOSTING.md).
+Commands now use the deployed [cloud HTTP endpoint and D1 storage](FREE-CLOUD.md),
+so a local runtime is not required. The gateway install instructions below remain
+an optional fallback; do not run them expecting to replace cloud command delivery.
 
 ## Install
 

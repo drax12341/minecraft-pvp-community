@@ -315,3 +315,43 @@ test("cloud endpoint verifies Ed25519 signatures, rejects replay/tampering and d
     sql.close();
   }
 });
+
+test("cloud site proxy preserves pages without forwarding credentials and uses edge-compatible redirects", async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async (url, options) => {
+      assert.equal(
+        url,
+        "https://drax12341.github.io/minecraft-pvp-community/index.html",
+      );
+      assert.equal(options.redirect, "manual");
+      assert.equal(options.headers, undefined);
+      return new Response("<html>Minecraft community</html>", {
+        headers: { "Content-Type": "text/html" },
+      });
+    };
+    const response = await worker.fetch(
+      new Request("https://example.com/", {
+        headers: {
+          Cookie: "private=do-not-forward",
+          Authorization: "Bearer do-not-forward",
+        },
+      }),
+      {},
+      {},
+    );
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /Minecraft community/);
+    globalThis.fetch = async () =>
+      new Response(null, {
+        status: 302,
+        headers: { Location: "https://unrelated.example/" },
+      });
+    assert.equal(
+      (await worker.fetch(new Request("https://example.com/"), {}, {})).status,
+      502,
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
