@@ -17,7 +17,11 @@ let config,
   search = "",
   view = "board",
   preview = false,
-  selected = new Set();
+  selected = new Set(),
+  modeGroup = "main",
+  compact = false,
+  sessionRegion = "all",
+  sessionStatus = "all";
 const kit = (id) => config.modes.find((m) => m.id === id),
   art = (id) => `<img src="./assets/${esc(id)}.svg" alt="">`,
   label = (r) => (r.pos === 0 ? "HT" : "LT") + r.tier,
@@ -102,13 +106,157 @@ function render() {
   }
 }
 function rankings() {
+  const visibleModes = config.modes.filter(
+    (m) =>
+      modeGroup === "all" ||
+      (modeGroup === "main"
+        ? m.group === "Main modes"
+        : m.group === "Submodes"),
+  );
   main.innerHTML =
     intro(
-      "Every tier. Earned.",
-      "The independent Minecraft PvP tierlist. Find your competition. Get tested. Make your mark.",
+      "The arena is yours.",
+      "Independent Minecraft PvP testing. Choose your kit. Earn your place.",
     ) +
-    `<div class="banner">${art("sword")}<div><strong>Your next tier starts in the arena.</strong><p>One community. Independent testing across ${config.modes.length} modes.</p></div><a class="button" href="#testing">Request a tier test <span>↗</span></a></div><div class="modes" role="group" aria-label="Game mode">${[{ id: "overall", name: "Overall" }, ...config.modes].map((m) => `<button class="mode ${mode === m.id ? "active" : ""}" data-mode="${m.id}" aria-pressed="${mode === m.id}">${m.id === "overall" ? '<span class="overall-symbol">♜</span>' : art(m.id)}${m.name}</button>`).join("")}</div><div class="workspace"><section><div class="filters"><div class="search"><span>⌕</span><input id="search" type="search" aria-label="Search players" placeholder="Search a player…" value="${esc(search)}"></div><select id="region" aria-label="Region">${["all", "EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"].map((r) => `<option value="${r}" ${region === r ? "selected" : ""}>${r === "all" ? "All regions" : r}</option>`).join("")}</select><div class="segmented" aria-label="Ranking view"><button data-view="board" class="${view === "board" ? "active" : ""}" aria-pressed="${view === "board"}">Tier board</button><button data-view="list" class="${view === "list" ? "active" : ""}" aria-pressed="${view === "list"}">Leaderboard</button></div></div><div id="preview-label"></div><div id="rankings-content"></div><div class="rank-note"><span id="rank-count"></span><span>${data.updatedAt ? "Published " + esc(new Date(data.updatedAt).toLocaleString()) : "Awaiting our first verified tests"} · <button id="preview-toggle">${preview ? "Exit preview" : "Preview the layout"}</button></span></div><div class="section-heading"><h2>Latest results</h2><a href="#testing">Testing center ↗</a></div>${activity()}</section><aside class="sidebar"><div class="side-card testing"><div class="label"><span class="light"></span>${testing.activation === "active" ? "Testing sessions" : "Community launch"}</div><h3>Step into the arena.</h3><p>Choose your kit and region. Play a fair test with an assigned tester. Every published tier belongs to this tierlist.</p><div class="mini-stat">Ranked players <b>${data.players.length}</b></div><div class="mini-stat">Game modes <b>${config.modes.length}</b></div><div class="mini-stat">Open sessions <b>${testing.sessions.filter((s) => s.status === "open").length}</b></div><a href="#testing" class="button">Find a testing session ↗</a></div><div class="side-card"><h3>The tier system</h3><p>High and low bands, from HT1 to LT5. Each kit has its own ranking.</p>${[1, 2, 3, 4, 5].map((t) => `<div class="mini-stat">${chip({ tier: t, pos: 0 })} ${chip({ tier: t, pos: 1 })}<b>Tier ${t}</b></div>`).join("")}<a class="link-row" href="#kits">Read the kit rules <span>↗</span></a></div></aside></div>`;
-  main.querySelector(".page-title").classList.add("arena-hero");
+    '<section class="rankings-hub"><div class="mode-toolbar"><div class="segmented" aria-label="Mode category">' +
+    [
+      ["main", "Main modes"],
+      ["sub", "Submodes"],
+      ["all", "All modes"],
+    ]
+      .map(
+        ([id, name]) =>
+          '<button data-mode-group="' +
+          id +
+          '" class="' +
+          (modeGroup === id ? "active" : "") +
+          '" aria-pressed="' +
+          (modeGroup === id) +
+          '">' +
+          name +
+          "</button>",
+      )
+      .join("") +
+    '</div><button class="text-button" id="browse-modes">Browse kits <kbd>Ctrl / ⌘ K</kbd></button></div>' +
+    '<div class="modes" role="group" aria-label="Game mode">' +
+    [{ id: "overall", name: "Overall" }, ...visibleModes]
+      .map(
+        (m) =>
+          '<button class="mode ' +
+          (mode === m.id ? "active" : "") +
+          '" data-mode="' +
+          m.id +
+          '" aria-pressed="' +
+          (mode === m.id) +
+          '">' +
+          (m.id === "overall"
+            ? '<span class="overall-symbol" aria-hidden="true">♜</span>'
+            : art(m.id)) +
+          m.name +
+          "</button>",
+      )
+      .join("") +
+    "</div></section>" +
+    '<div class="workspace"><section class="competition-panel"><div class="kit-heading"><div class="kit-title">' +
+    (mode === "overall" ? '<span class="overall-symbol">♜</span>' : art(mode)) +
+    "<div><h2>" +
+    (mode === "overall" ? "Overall rankings" : kit(mode).name + " rankings") +
+    "</h2><p>" +
+    (mode === "overall"
+      ? "Combined points from active placements."
+      : kit(mode).description) +
+    '</p></div></div><a href="#testing" class="button secondary">Get tested</a></div>' +
+    '<div class="filters"><div class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" aria-label="Search players" placeholder="Find a player…" value="' +
+    esc(search) +
+    '"><kbd>/</kbd></div><select id="region" aria-label="Region">' +
+    ["all", "EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"]
+      .map(
+        (r) =>
+          '<option value="' +
+          r +
+          '" ' +
+          (region === r ? "selected" : "") +
+          ">" +
+          (r === "all" ? "All regions" : r) +
+          "</option>",
+      )
+      .join("") +
+    '</select><div class="segmented" aria-label="Ranking view"><button data-view="board" class="' +
+    (view === "board" ? "active" : "") +
+    '" aria-pressed="' +
+    (view === "board") +
+    '">Tier board</button><button data-view="list" class="' +
+    (view === "list" ? "active" : "") +
+    '" aria-pressed="' +
+    (view === "list") +
+    '">Leaderboard</button></div><button id="density" class="density-button" aria-label="Toggle compact rows" aria-pressed="' +
+    compact +
+    '">' +
+    (compact ? "Comfortable" : "Compact") +
+    '</button></div><div id="preview-label"></div><div id="rankings-content"></div><div class="rank-note"><span id="rank-count"></span><span>' +
+    (data.updatedAt
+      ? "Published " + esc(new Date(data.updatedAt).toLocaleString())
+      : "First verified results coming after testing opens") +
+    ' · <button id="preview-toggle">' +
+    (preview ? "Exit preview" : "Preview the layout") +
+    '</button></span></div><div class="section-heading"><h2>Latest placements</h2><a href="#testing">Testing center ↗</a></div>' +
+    activity() +
+    "</section>" +
+    '<aside class="sidebar"><div class="side-card testing"><div class="label"><span class="light"></span>' +
+    (testing.activation === "active"
+      ? "Testing availability"
+      : "Preparing for launch") +
+    '</div><h3>Ready for your placement?</h3><p>Get matched with a tester in your mode and region. Your first tier starts with a fair test.</p><div class="testing-totals"><div><strong>' +
+    data.players.length +
+    "</strong><span>Ranked players</span></div><div><strong>" +
+    testing.sessions.filter((s) => s.status === "open").length +
+    '</strong><span>Open sessions</span></div></div><a href="#testing" class="button">Find a session ↗</a><p class="fine">' +
+    (testing.activation === "active"
+      ? "Confirm current availability in Discord."
+      : "Sessions open when the testing team is ready.") +
+    '</p></div><div class="side-card"><h3>Know the tiers</h3><p>Each tier has a high and low band. HT1 is the highest placement.</p><div class="tier-legend">' +
+    [1, 2, 3, 4, 5]
+      .map(
+        (t) =>
+          '<div><img src="./assets/tier-' +
+          t +
+          '.svg" alt=""><span>Tier ' +
+          t +
+          "</span>" +
+          chip({ tier: t, pos: 0 }) +
+          chip({ tier: t, pos: 1 }) +
+          "</div>",
+      )
+      .join("") +
+    '</div><a class="link-row" href="#kits">Kits & testing rules <span>↗</span></a></div></aside></div>';
+  const hero = main.querySelector(".page-title");
+  hero.classList.add("arena-hero");
+  hero
+    .querySelector("div")
+    .insertAdjacentHTML(
+      "beforeend",
+      '<div class="hero-actions"><a class="button" href="#testing">Start your tier test</a><a class="hero-secondary" href="#kits">Explore the kits</a></div>',
+    );
+  main.querySelectorAll("[data-mode-group]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        modeGroup = b.dataset.modeGroup;
+        if (
+          mode !== "overall" &&
+          !config.modes
+            .filter(
+              (m) =>
+                modeGroup === "all" ||
+                (modeGroup === "main"
+                  ? m.group === "Main modes"
+                  : m.group === "Submodes"),
+            )
+            .some((m) => m.id === mode)
+        )
+          mode = modeGroup === "sub" ? "mace_spear" : "sword";
+        rankings();
+      }),
+  );
   main.querySelectorAll("[data-mode]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -117,6 +265,7 @@ function rankings() {
         rankings();
       }),
   );
+  main.querySelector("#browse-modes").onclick = browseModes;
   main.querySelector("#search").oninput = (e) => {
     search = e.target.value;
     renderBoard();
@@ -129,16 +278,62 @@ function rankings() {
     (b) =>
       (b.onclick = () => {
         view = b.dataset.view;
-        if (mode === "overall" && view === "board") mode = "sword";
+        if (mode === "overall" && view === "board") {
+          mode = "sword";
+          modeGroup = "main";
+        }
         rankings();
       }),
   );
+  main.querySelector("#density").onclick = () => {
+    compact = !compact;
+    rankings();
+  };
   main.querySelector("#preview-toggle").onclick = () => {
     preview = !preview;
     selected.clear();
     rankings();
   };
+  main.querySelector(".competition-panel").classList.toggle("compact", compact);
   renderBoard();
+}
+function browseModes() {
+  show(
+    '<h2>Choose your kit</h2><p class="fine">Main modes and specialist submodes belong to this tierlist.</p><label class="field">Search kits<input type="search" id="kit-search" placeholder="Sword, Mace, Bow…" autocomplete="off"></label><div class="kit-picker" id="kit-picker"></div>',
+  );
+  const draw = () => {
+    const q = body.querySelector("#kit-search").value.toLowerCase();
+    body.querySelector("#kit-picker").innerHTML =
+      config.modes
+        .filter((m) => m.name.toLowerCase().includes(q))
+        .map(
+          (m) =>
+            '<button data-pick="' +
+            m.id +
+            '">' +
+            art(m.id) +
+            "<span><strong>" +
+            m.name +
+            "</strong><small>" +
+            m.group +
+            '</small></span><span aria-hidden="true">↗</span></button>',
+        )
+        .join("") || '<p class="fine">No matching kits. Try another name.</p>';
+    body.querySelectorAll("[data-pick]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          mode = b.dataset.pick;
+          modeGroup = kit(mode).group === "Main modes" ? "main" : "sub";
+          view = "board";
+          modal.close();
+          if (location.hash !== "#rankings") location.hash = "rankings";
+          else rankings();
+        }),
+    );
+  };
+  body.querySelector("#kit-search").oninput = draw;
+  draw();
+  body.querySelector("#kit-search").focus();
 }
 function renderBoard() {
   const rows = source()
@@ -167,10 +362,12 @@ function renderBoard() {
     `${rows.length} ${preview ? "sample" : "ranked"} players · ${mode === "overall" ? "Overall" : kit(mode).name}`;
   let html;
   if (view === "board" && mode !== "overall")
-    html = `<div class="board">${[1, 2, 3, 4, 5]
+    html = `<div class="board" tabindex="0" aria-label="Five tier columns; scroll horizontally on narrow screens">${[
+      1, 2, 3, 4, 5,
+    ]
       .map(
         (t) =>
-          `<section class="tier-column"><div class="tier-heading"><span class="tier-number">${t === 1 ? "♛" : "◆"} Tier ${t}</span><span class="count">${rows.filter((p) => p.rankings[mode].tier === t).length}</span></div>${[
+          `<section class="tier-column"><div class="tier-heading"><span class="tier-number"><img src="./assets/tier-${t}.svg" alt=""> Tier ${t}</span><span class="count">${rows.filter((p) => p.rankings[mode].tier === t).length}</span></div>${[
             0, 1,
           ]
             .map(
@@ -187,7 +384,7 @@ function renderBoard() {
                         `<button class="player-entry" data-player="${p.uuid}">${avatar(p)}<span><strong>${esc(p.name)}</strong><small>${p.region}${p.demo ? " · Preview" : ""}</small></span></button>`,
                     )
                     .join("") ||
-                  `<div class="empty-band">${art(mode)}No placements yet</div>`
+                  `<div class="empty-band"><span aria-hidden="true">—</span> No placements</div>`
                 }`,
             )
             .join("")}</section>`,
@@ -198,7 +395,7 @@ function renderBoard() {
       ? `<div class="table-wrap"><table><thead><tr><th>Rank</th><th>Player</th><th>Region</th><th>${mode === "overall" ? "Tiers" : "Tier"}</th><th>Points</th><th>Compare</th></tr></thead><tbody>${rows
           .map(
             (p, i) =>
-              `<tr><td>${i + 1}</td><td><button class="table-player" data-player="${p.uuid}">${avatar(p)}<span>${esc(p.name)}<small>${p.demo ? "Sample player" : "Verified test results"}</small></span></button></td><td>${p.region}</td><td><div class="chips">${Object.entries(
+              `<tr class="placement-${Math.min(i + 1, 4)}"><td><span class="rank-position">${i + 1}</span></td><td><button class="table-player" data-player="${p.uuid}">${avatar(p)}<span>${esc(p.name)}<small>${p.demo ? "Sample player" : "Verified test results"}</small></span></button></td><td>${p.region}</td><td><div class="chips">${Object.entries(
                 p.rankings,
               )
                 .filter(
@@ -215,7 +412,16 @@ function renderBoard() {
           )
           .join("")}</tbody></table></div>`
       : `<div class="big-empty">${art("sword")}<h3>The next name could be yours.</h3><p>No published results match this view. Earn a placement through our testing system.</p><a href="#testing" class="button">Explore testing ↗</a></div>`;
-  main.querySelector("#rankings-content").innerHTML = html;
+  const filteredEmpty = rows.length === 0 && (search || region !== "all");
+  const filterNotice = filteredEmpty
+    ? '<div class="filter-empty"><strong>No matching players</strong><span>Try another name or region.</span><button id="clear-filters">Clear filters</button></div>'
+    : "";
+  main.querySelector("#rankings-content").innerHTML = filterNotice + html;
+  main.querySelector("#clear-filters")?.addEventListener("click", () => {
+    search = "";
+    region = "all";
+    rankings();
+  });
   main
     .querySelectorAll("[data-player]")
     .forEach(
@@ -358,17 +564,110 @@ function testingPage() {
       .join(
         "",
       )}</section></div><div class="section-heading"><h2>Recent testing results</h2></div>${activity()}`;
-  main.querySelectorAll("[data-request]").forEach(
-    (a) =>
-      (a.onclick = (e) => {
-        e.preventDefault();
-        main.querySelector("#request-mode").value = a.dataset.request;
-        main
-          .querySelector("#request")
-          .scrollIntoView?.({ behavior: "smooth", block: "center" });
-        main.querySelector("input[name=name]").focus();
-      }),
+  const sessions = main.querySelector(".sessions");
+  sessions.insertAdjacentHTML(
+    "beforebegin",
+    '<div class="section-heading"><h2>Find a testing session</h2><span class="badge">Published availability</span></div><div class="session-filters filters"><label>Region <select id="session-region">' +
+      ["all", "EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"]
+        .map(
+          (r) =>
+            '<option value="' +
+            r +
+            '" ' +
+            (sessionRegion === r ? "selected" : "") +
+            ">" +
+            (r === "all" ? "All regions" : r) +
+            "</option>",
+        )
+        .join("") +
+      '</select></label><label>Availability <select id="session-status"><option value="all">All sessions</option><option value="open">Open now</option><option value="paused">Paused</option></select></label><span id="session-count" class="fine"></span></div>',
   );
+  main.querySelector("#session-status").value = sessionStatus;
+  const drawSessions = () => {
+    let count = 0;
+    sessions.innerHTML =
+      config.modes
+        .map((m) => {
+          const matches = testing.sessions.filter(
+            (s) =>
+              s.mode === m.id &&
+              (sessionRegion === "all" || s.region === sessionRegion),
+          );
+          const eligible =
+            sessionStatus === "all"
+              ? matches
+              : matches.filter((s) => s.status === sessionStatus);
+          if (sessionStatus !== "all" && !eligible.length) return "";
+          const session =
+            eligible.find((s) => s.status === "open") ||
+            eligible.find((s) => s.status === "paused") ||
+            eligible[0];
+          count++;
+          const state =
+            session?.status === "open"
+              ? "open"
+              : session?.status === "paused"
+                ? "paused"
+                : "closed";
+          return (
+            '<article class="session session-' +
+            state +
+            '">' +
+            art(m.id) +
+            "<small>" +
+            m.group +
+            "</small><h3>" +
+            m.name +
+            '</h3><span class="badge ' +
+            (state === "open" ? "open" : "") +
+            '">' +
+            (state === "open"
+              ? "Open · " + esc(session.region)
+              : state === "paused"
+                ? "Paused · " + esc(session.region)
+                : "Not scheduled") +
+            "</span><p>" +
+            (session
+              ? (session.waiting || 0) +
+                " waiting · " +
+                (session.claimed || 0) +
+                " in testing"
+              : "Staff announce availability before queues open.") +
+            '</p><a href="#request" data-request="' +
+            m.id +
+            '" data-request-region="' +
+            (session?.region || "") +
+            '">Prepare request <span>↗</span></a></article>'
+          );
+        })
+        .join("") ||
+      '<div class="activity-empty session-empty">No ' +
+        (sessionStatus === "open" ? "open" : "matching") +
+        " sessions in this region. Choose another filter or prepare a request below.</div>";
+    main.querySelector("#session-count").textContent = count + " kits shown";
+    sessions.querySelectorAll("[data-request]").forEach(
+      (a) =>
+        (a.onclick = (e) => {
+          e.preventDefault();
+          main.querySelector("#request-mode").value = a.dataset.request;
+          if (a.dataset.requestRegion)
+            main.querySelector("[name=region]").value = a.dataset.requestRegion;
+          main
+            .querySelector("#request")
+            .scrollIntoView?.({ behavior: "smooth", block: "center" });
+          main.querySelector("input[name=name]").focus();
+        }),
+    );
+  };
+  main.querySelector("#session-region").onchange = (e) => {
+    sessionRegion = e.target.value;
+    drawSessions();
+  };
+  main.querySelector("#session-status").onchange = (e) => {
+    sessionStatus = e.target.value;
+    drawSessions();
+  };
+  drawSessions();
   main.querySelector("form").onsubmit = (e) => {
     e.preventDefault();
     const f = new FormData(e.target),
@@ -532,3 +831,23 @@ try {
     '<div class="big-empty"><h1>The tierlist could not load.</h1><p>Refresh the page or visit Discord.</p><a class="button" href="https://discord.gg/a36rg6BxuX">Open Discord ↗</a></div>';
   console.error(e);
 }
+
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    if (config) browseModes();
+    return;
+  }
+  if (
+    e.key === "/" &&
+    !modal.open &&
+    !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)
+  ) {
+    e.preventDefault();
+    if (main.querySelector("#search")) main.querySelector("#search").focus();
+    else {
+      location.hash = "rankings";
+      setTimeout(() => main.querySelector("#search")?.focus(), 0);
+    }
+  }
+});

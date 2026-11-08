@@ -50,3 +50,4 @@ promotion/
 *.tar.gz
 *.zip
 .openai/*local*
+.design-research/

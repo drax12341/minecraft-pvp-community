@@ -1,4 +1,6 @@
-﻿# Minecraft PvP Tierlist · v0.2
+# Minecraft PvP Tierlist · v0.2
+
+[Design study](docs/DESIGN-STUDY.md): 18 reference projects, six visually inspected screenshots/concepts, and the resulting navigation, ranking and testing refinements. Evidence limits are recorded in the study.
 
 **One independent tierlist. Every placement comes from this community’s tests.**
 
