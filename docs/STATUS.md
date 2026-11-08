@@ -1,5 +1,7 @@
 ﻿# Delivery status · v0.2
 
+Latest additive Discord upgrade: see [DISCORD-UPGRADE-STATUS.md](DISCORD-UPGRADE-STATUS.md) and [DISCORD-RESEARCH.md](DISCORD-RESEARCH.md). Sites version 8 adds cloud `/guide`, `/availability` and private `/queue status`; all nine commands registered, 15 tests passing. Older verification below describes the previous delivery checkpoint.
+
 ## Implemented
 
 - Eclipse-inspired homepage: orbital identity, floating violet navigation, background controls, feature grid, interactive walkthrough and FAQ. Existing rankings and testing routes remain available.

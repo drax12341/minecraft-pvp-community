@@ -23,6 +23,9 @@ an optional fallback; do not run them expecting to replace cloud command deliver
 
 ## Commands
 
+- `/guide topic`: private onboarding, testing, appeals, staff and practice instructions (cloud).
+- `/availability mode region`: optional filters; real session states, counts, capacity and cooldown (cloud).
+- `/queue status mode region`: your private account verification, mode entry, deterministic waiting position, latest valid result ID/evidence and session-specific retest time (cloud). Positions exclude claimed tests and are not an ETA.
 - `/preferences mode region`: toggle a safe zero-permission mode role and set a region role.
 - `/verify-account user uuid name`: moderators record independently verified ownership. A UUID/name alone is not proof; agree a real ownership verification process before launch.
 - `/session open|pause|close mode region capacity cooldown`: tester/moderator controls. Default capacity 30 and cooldown 72 hours. Optional settings replace the session values.
@@ -35,7 +38,11 @@ an optional fallback; do not run them expecting to replace cloud command deliver
 - `/appeal status`: private status of the member’s appeals.
 - `/appeal review`: moderator lists pending appeals; add id, decision and reason to decide one. The original tester and appellant cannot review it. Revoke preserves audit records and removes the result from rank calculations.
 
-All command replies are ephemeral and suppress mentions. Setup embeds use public website links. Interest roles never grant staff permissions. This application’s guild slash commands are replaced on bot startup, so use a dedicated application.
+All command replies are ephemeral and suppress mentions. Setup embeds use public website links. Interest roles never grant staff permissions. This application’s guild slash commands are replaced on registration, so use a dedicated application.
+
+Register the cloud command schema without starting a gateway: `node --env-file=.env discord/bot.mjs --register-only`. The new guide, availability and queue-status commands run in the cloud Worker; the optional legacy gateway does not implement those additions. Do not start it as a hosting dependency.
+
+Run `node --env-file=.env discord/upgrade.mjs` for a read-only plan and add `--apply` for the repeatable topic/panel upgrade. It checks Staff privacy, creates only a missing tester-recruitment channel and only edits its own upgrade-v3 panels. It does not remove existing messages, change roles or open sessions. #help is the command desk while older Start here channel permission overrides still block bot panels. See [upgrade verification](DISCORD-UPGRADE-STATUS.md).
 
 ## Publishing & privacy
 

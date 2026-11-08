@@ -217,6 +217,52 @@ const appeal = new SlashCommandBuilder()
           .setMaxLength(2000),
       ),
   );
+queue.addSubcommand((s) =>
+  s
+    .setName("status")
+    .setDescription("Private account, queue position, result and retest status")
+    .addStringOption(mode)
+    .addStringOption((o) =>
+      o
+        .setName("region")
+        .setDescription("Session region")
+        .setRequired(true)
+        .addChoices(
+          ...["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"].map((value) => ({
+            name: value,
+            value,
+          })),
+        ),
+    ),
+);
+const guide = new SlashCommandBuilder()
+  .setName("guide")
+  .setDescription("Private community help and next steps")
+  .addStringOption((o) =>
+    o
+      .setName("topic")
+      .setDescription("What do you need?")
+      .addChoices(
+        ...["start", "testing", "appeals", "staff", "practice"].map(
+          (value) => ({ name: value, value }),
+        ),
+      ),
+  );
+const availability = new SlashCommandBuilder()
+  .setName("availability")
+  .setDescription("See real testing sessions, capacity and cooldowns")
+  .addStringOption((o) => mode(o).setRequired(false))
+  .addStringOption((o) =>
+    o
+      .setName("region")
+      .setDescription("Filter sessions by region")
+      .addChoices(
+        ...["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"].map((value) => ({
+          name: value,
+          value,
+        })),
+      ),
+  );
 await new REST()
   .setToken(process.env.DISCORD_TOKEN)
   .put(
@@ -225,11 +271,26 @@ await new REST()
       process.env.DISCORD_GUILD_ID,
     ),
     {
-      body: [queue, claim, result, verify, session, appeal, preferences].map(
-        (c) => c.toJSON(),
-      ),
+      body: [
+        queue,
+        claim,
+        result,
+        verify,
+        session,
+        appeal,
+        preferences,
+        guide,
+        availability,
+      ].map((c) => c.toJSON()),
     },
   );
+// Register cloud commands without starting the legacy local gateway.
+if (process.argv.includes("--register-only")) {
+  console.log(
+    "Registered nine guild commands, including private guide, availability and queue status. No gateway started.",
+  );
+  process.exit(0);
+}
 client.on("interactionCreate", async (i) => {
   if (!i.isChatInputCommand() || i.guildId !== process.env.DISCORD_GUILD_ID)
     return;

@@ -228,6 +228,101 @@ test("cloud commands authorize server owner, reject ordinary members and update 
   }
 });
 
+test("private status scopes account, entry, position, latest evidence and cooldown to the actor", async () => {
+  const { sql, store } = await database();
+  try {
+    await store.verify(
+      "60000",
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "PlayerOne",
+      "30000",
+    );
+    await store.verify(
+      "60001",
+      "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "PlayerTwo",
+      "30000",
+    );
+    await store.session("sword", "EU", "open", "30000", 3, 72);
+    const first = await store.join("60001", "sword", "EU");
+    // Equal timestamps exercise the same deterministic created/id ordering as list().
+    const own = await store.join("60000", "sword", "EU");
+    sql
+      .prepare("UPDATE queue SET created=? WHERE id=?")
+      .run("2026-01-01T00:00:00.000Z", first);
+    assert.equal((await store.status("60000", "sword", "EU")).position, 2);
+    await store.claim(first, "70000");
+    assert.equal((await store.status("60000", "sword", "EU")).position, 1);
+    const command = interaction("60000", "queue", "status", {
+      mode: "sword",
+      region: "EU",
+    });
+    const reply = await runCommand(command, env, store);
+    assert.ok(reply.includes(own));
+    assert.ok(!reply.includes(first));
+    assert.ok(!reply.includes("PlayerTwo"));
+    assert.ok(!reply.includes("60001"));
+    await store.claim(own, "70000");
+    await store.result(own, 3, 0, "https://example.com/own-evidence", "70000");
+    const completed = await runCommand(command, env, store);
+    assert.match(completed, /Latest valid result/);
+    assert.match(completed, /https:\/\/example.com\/own-evidence/);
+    assert.match(completed, /cooldown ends/);
+    const appeal = await store.appeal(
+      own,
+      "60000",
+      "Please review this evidence.",
+    );
+    await store.review(
+      appeal,
+      "80000",
+      "revoke",
+      "Evidence does not support the result.",
+    );
+    assert.equal((await store.status("60000", "sword", "EU")).latest, null);
+    const other = await store.status("60002", "sword", "EU");
+    assert.equal(other.account, null);
+    assert.equal(other.entry, null);
+    assert.equal(other.latest, null);
+    const listings = await runCommand(
+      interaction("60002", "availability", null, {
+        mode: "sword",
+        region: "EU",
+      }),
+      env,
+      store,
+    );
+    assert.match(listings, /capacity 3/);
+    assert.ok(!listings.includes("60001"));
+    await assert.rejects(
+      runCommand(
+        interaction("60002", "availability", null, { region: "invalid" }),
+        env,
+        store,
+      ),
+      /valid region/,
+    );
+    assert.match(
+      await runCommand(
+        interaction("60002", "guide", null, { topic: "appeals" }),
+        env,
+        store,
+      ),
+      /independent moderator/,
+    );
+    await assert.rejects(
+      runCommand(
+        interaction("60002", "guide", null, { topic: "__proto__" }),
+        env,
+        store,
+      ),
+      /valid guide/,
+    );
+  } finally {
+    sql.close();
+  }
+});
+
 test("cloud endpoint verifies Ed25519 signatures, rejects replay/tampering and duplicate commands produce one private response", async () => {
   const { sql, store, adapter } = await database();
   try {
