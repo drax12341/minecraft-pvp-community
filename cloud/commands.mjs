@@ -48,6 +48,96 @@ export async function runCommand(interaction, env, store, request = fetch) {
     return response.status === 204 ? undefined : response.json();
   };
   switch (data.name) {
+    case "practice": {
+      if (sub?.name === "create")
+        return (
+          "Practice post created: " +
+          (await store.practiceCreate(actor, mode(), region(), get("note"))) +
+          ". Members can find it with /practice list for 24 hours. Practice never awards a tier. Close it when you are done."
+        );
+      if (sub?.name === "close") {
+        await store.practiceClose(get("id"), actor, mod);
+        return "Practice post closed; its record is retained.";
+      }
+      if (sub?.name !== "list") throw Error("Choose create, list or close.");
+      if (get("mode")) mode();
+      if (get("region")) region();
+      const posts = await store.practiceList(get("mode"), get("region"));
+      return posts.length
+        ? posts
+            .map(
+              (p) =>
+                `${p.mode} / ${p.region} · <@${p.user}>\n${p.note}\nID ${p.id}`,
+            )
+            .join("\n\n")
+        : "No active practice posts match. Create one with /practice create; choose your mode, region, kit and UTC availability. Practice does not create a testing queue entry.";
+    }
+    case "tester-apply": {
+      if (sub?.name === "submit")
+        return (
+          "Private tester application saved: " +
+          (await store.applyTester(
+            actor,
+            mode(),
+            region(),
+            get("experience"),
+            get("availability"),
+          )) +
+          ". /tester-apply status shows the decision. No staff role has been granted."
+        );
+      if (sub?.name === "status") {
+        const rows = await store.testerApplications(actor);
+        return rows.length
+          ? rows
+              .map(
+                (r) =>
+                  `${r.id} · ${r.mode} / ${r.region} · ${r.status}${r.decision ? "\n" + r.decision : ""}`,
+              )
+              .join("\n\n")
+          : "You have no tester applications.";
+      }
+      requireMod();
+      if (sub?.name !== "review")
+        throw Error("Choose submit, status or review.");
+      if (get("id")) {
+        await store.reviewTester(
+          get("id"),
+          actor,
+          get("decision"),
+          get("reason"),
+        );
+        return "Application reviewed privately. Arrange supervised rubric training before any manual staff-role assignment.";
+      }
+      const rows = await store.testerApplications();
+      return rows.length
+        ? rows
+            .map(
+              (r) =>
+                `${r.id} · <@${r.user}> · ${r.mode} / ${r.region}\n${r.experience.slice(0, 350)}\nAvailability: ${r.availability}`,
+            )
+            .join("\n\n")
+        : "No pending tester applications.";
+    }
+    case "profile": {
+      const name = get("name");
+      if (typeof name !== "string" || !/^\w{3,16}$/.test(name))
+        throw Error(
+          "Enter a Minecraft username, 3–16 letters, numbers or underscores.",
+        );
+      const p = (await store.rankings(config.points)).players.find(
+        (p) => p.name.toLowerCase() === name.toLowerCase(),
+      );
+      return p
+        ? `${p.name} · ${p.region} · ${p.points} points\n` +
+            Object.entries(p.rankings)
+              .map(
+                ([m, r]) =>
+                  `${config.modes.find((k) => k.id === m)?.name || m}: ${r.pos === 0 ? "HT" : "LT"}${r.tier} · peak ${r.peak_pos === 0 ? "HT" : "LT"}${r.peak_tier}`,
+              )
+              .join("\n") +
+            `\nhttps://drax12341.github.io/minecraft-pvp-community/#rankings?player=${encodeURIComponent(p.uuid)}`
+        : "No published placement for that player on our tierlist. /guide start explains how to get tested.";
+    }
     case "guide": {
       const topics = {
         start:
@@ -224,6 +314,12 @@ export async function runCommand(interaction, env, store, request = fetch) {
     }
     case "claim":
       requireTester();
+      if (get("action") === "release") {
+        await store.release(get("id"), actor);
+        return "Entry returned to waiting with its original queue time. No result was changed.";
+      }
+      if (get("action") && get("action") !== "claim")
+        throw Error("Choose claim or release.");
       await store.claim(get("id"), actor);
       return "Test claimed. Agree on the kit, server and rules with the player.";
     case "result": {

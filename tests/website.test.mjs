@@ -12,7 +12,12 @@ const player = {
     sword: { tier: 3, pos: 0, peak_tier: 3, peak_pos: 0, retired: false },
   },
 };
-async function website(players = [], sessions = [], route = "rankings") {
+async function website(
+  players = [],
+  sessions = [],
+  route = "rankings",
+  recent = [],
+) {
   const dom = new JSDOM(await readFile("web/index.html", "utf8"), {
       url: "https://example.com/" + (route ? "#" + route : ""),
       runScripts: "outside-only",
@@ -25,7 +30,7 @@ async function website(players = [], sessions = [], route = "rankings") {
         ? config
         : url.endsWith("testing.json")
           ? { sessions, activation: sessions.length ? "active" : "pending" }
-          : { updatedAt: null, players, recent: [] },
+          : { updatedAt: null, players, recent },
   });
   w.HTMLDialogElement.prototype.showModal = function () {
     this.open = true;
@@ -187,5 +192,126 @@ test("community profile, search, navigation, request summary and tag preview wor
       assert.match(d.querySelector("#tag-label").textContent, /Mace HT3/);
     }
   }
+  dom.window.close();
+});
+
+test("shared ranking scope, profile deep links, saved players and retired filtering work together", async () => {
+  const retired = {
+    ...player,
+    uuid: "00000000-0000-0000-0000-000000000002",
+    name: "RetiredPlayer",
+    rankings: { sword: { ...player.rankings.sword, retired: true } },
+  };
+  const dom = await website(
+      [player, retired],
+      [],
+      "rankings?mode=sword&region=EU&view=list&status=all&player=" +
+        player.uuid,
+    ),
+    w = dom.window,
+    d = w.document;
+  assert.equal(d.querySelector("dialog").open, true);
+  assert.match(d.querySelector("#modal-body").textContent, /TestPlayer/);
+  d.querySelector("#save-player").click();
+  assert.equal(
+    JSON.parse(w.localStorage.getItem("pvp:savedPlayers"))[0],
+    player.uuid,
+  );
+  d.querySelector(".close").click();
+  d.querySelector("#saved-only").click();
+  assert.equal(d.querySelectorAll("tbody [data-player]").length, 1);
+  assert.match(w.location.hash, /saved=1/);
+  d.querySelector("#reset-view").click();
+  assert.equal(d.querySelectorAll("[data-player]").length, 1);
+  d.querySelector("#rank-status").value = "retired";
+  d.querySelector("#rank-status").dispatchEvent(new w.Event("change"));
+  assert.match(
+    d.querySelector("#rankings-content").textContent,
+    /RetiredPlayer/,
+  );
+  assert.match(d.querySelector("#rankings-content").textContent, /HT3/);
+  assert.match(w.location.hash, /status=retired/);
+  d.querySelector("#calm-view").click();
+  assert.ok(d.body.classList.contains("calm-view"));
+  assert.equal(w.localStorage.getItem("pvp:calm"), "true");
+  dom.window.close();
+});
+
+test("leaderboards paginate without hiding filter scope and result feeds enforce HT3 cutoff", async () => {
+  const ps = Array.from({ length: 56 }, (_, i) => ({
+    ...player,
+    uuid: String(i),
+    name: "Player" + String(i).padStart(3, "0"),
+  }));
+  const dom = await website(ps, [], "rankings?mode=overall&view=list"),
+    w = dom.window,
+    d = w.document;
+  assert.equal(d.querySelectorAll("tbody tr").length, 50);
+  d.querySelector("#next-page").click();
+  assert.equal(d.querySelectorAll("tbody tr").length, 6);
+  assert.equal(d.querySelector(".rank-position").textContent, "51");
+  d.querySelector("#prev-page").click();
+  assert.equal(d.querySelector(".rank-position").textContent, "1");
+  dom.window.close();
+  const recent = [
+    {
+      ...player,
+      mode: "sword",
+      tier: 3,
+      pos: 0,
+      evidence: "https://example.com/evidence",
+      created: "2026-11-08T00:00:00Z",
+    },
+    {
+      ...player,
+      name: "LowPlayer",
+      mode: "sword",
+      tier: 3,
+      pos: 1,
+      evidence: "https://example.com/low",
+      created: "2026-11-08T00:00:00Z",
+    },
+  ];
+  const resultDom = await website([], [], "results", recent),
+    rd = resultDom.window.document;
+  assert.equal(rd.querySelectorAll(".result-card").length, 2);
+  rd.querySelector("[data-result-scope=high]").click();
+  assert.equal(rd.querySelectorAll(".result-card").length, 1);
+  assert.match(rd.querySelector("#results-feed").textContent, /TestPlayer/);
+  assert.doesNotMatch(
+    rd.querySelector("#results-feed").textContent,
+    /LowPlayer/,
+  );
+  resultDom.window.close();
+});
+
+test("community summaries are local and refresh failure retains useful content", async () => {
+  const dom = await website([], [], "community"),
+    w = dom.window,
+    d = w.document;
+  d.querySelector("[name=practice-note]").value =
+    "Saturday 16 UTC, sword kit, spacing practice.";
+  d.querySelector("#practice-draft").dispatchEvent(
+    new w.Event("submit", { cancelable: true }),
+  );
+  assert.equal(d.querySelector("dialog").open, true);
+  assert.match(
+    d.querySelector("#modal-body").textContent,
+    /nothing has been posted/,
+  );
+  d.querySelector(".close").click();
+  w.fetch = async () => {
+    throw Error("Simulated outage");
+  };
+  d.querySelector("#refresh-public").click();
+  await new Promise((r) => w.setTimeout(r, 10));
+  assert.match(
+    d.querySelector("#data-status").textContent,
+    /last loaded snapshot/,
+  );
+  assert.equal(
+    d.querySelector("[name=practice-note]").value,
+    "Saturday 16 UTC, sword kit, spacing practice.",
+  );
   dom.window.close();
 });

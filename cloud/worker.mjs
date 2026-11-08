@@ -133,7 +133,15 @@ export default {
       try {
         if (["/healthz", "/api/health"].includes(url.pathname)) {
           await store.one("SELECT count(*) AS n FROM sessions");
-          return json({ ok: true, runtime: "cloud-http", pcRequired: false });
+          await store.one("SELECT 1 FROM tester_applications LIMIT 1");
+          await store.one("SELECT 1 FROM practice_posts LIMIT 1");
+          return json({
+            ok: true,
+            runtime: "cloud-http",
+            pcRequired: false,
+            release: "arena-v3",
+            commands: 12,
+          });
         }
         return json(
           url.pathname.includes("testing")

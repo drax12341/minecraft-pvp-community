@@ -2,7 +2,23 @@
 
 Work performed directly in `C:\Users\garbo\IdeaProjects\Minecraft PvP Community`. Target guild remains `1568767259168608267`. This is **one independent tierlist**; no imported placements, additional guilds or purchased ranking advantages.
 
-## Applied and read back in the live server
+## Follow-up: arena interface and player workflows
+
+Implementation completed locally on 8 November 2026; live publication/read-back is recorded below when verified. [Design evidence](WEBSITE-DESIGN-UPGRADE.md) reviews PvPTiers, MCTiers, tiery.pl, Lucnoxity, PvPHQ and CatPvP with explicit access limits.
+
+- Replaced the orbital landing design with a compact illustrated arena introduction and consistent navy/amethyst UI throughout rankings, kits, testing, profiles, dialogs, results and community pages. Existing original art reused; no reference artwork copied.
+- Added saved players (browser-local), shareable mode/region/status/search scopes, 50-row leaderboards, status filters, all/high-tier result feeds (HT3 and above), evidence/profile links, copyable testing/community commands, practice summaries, calm view, public-data refresh and stale-snapshot feedback. Existing previews remain visibly marked, and request summaries do not publish or reserve places.
+- `/practice create|list|close`: persistent D1 listings, 24-hour expiry, one active listing per mode and at most three per member, owner/moderator closure, private command replies with member-visible listings. Practice records are not exposed on public website feeds.
+- `/tester-apply submit|status|review`: verified ownership required; private applications and applicant-only status; independent moderators choose interview/declined with feedback; no staff roles automatically granted. One pending application per mode/member.
+- `/profile name` finds this tierlist's published placements; `/claim action:release` lets only the assigned tester release an unfinished claim, retaining original queue order. Completed results cannot be released.
+- Appended schema-only `drizzle/0001_player_workflows.sql` and journal entry; applied migration 0000 remains unchanged. Cloud HTTP/D1 architecture, secrets, audience, rankings and audit data preserved.
+- **21/21 tests passed**, Worker/static build and syntax checks passed, Git diff checks passed. New coverage includes concurrent practice limits/expiry/ownership, application privacy/independent review/no role grants, claim release, deep links/saved/status filters, pagination, high-tier cutoff, and stale refresh preserving form input.
+- Browser origin approval blocked both PvPTiers rendering and local preview. No workaround used; rendered screenshot/mobile visual QA remains unverified. Existing and new automated DOM behavior tests passed. No PC-dependent bot was started; only a temporary static preview server was used for preparation.
+- Publication status: prepared; final live deployment, command and panel results will be appended after verification.
+
+The earlier version-8 delivery record below remains historical. Four read-only onboarding channels still have the previously recorded HTTP 403 overwrite blocker; public #help remains the command desk. Exact kit/scoring rubrics and real-player test acceptance are still staff launch prerequisites. Retired filters read existing published status; a retirement-management engine, scheduled events, new tagger release and hosted Minecraft arena were not added.
+
+## Applied and read back in the live server (version 8)
 
 - Updated and individually re-fetched **13 channel topics**: welcome, rules, how-to-test, choose-your-modes, test-queue, test-results, find-a-duel, guides-and-coaching, events, help, appeals, sponsorships and tester-recruitment. Removed the stale welcome claim that commands are inactive.
 - Added **tester-recruitment** (`1568986240068362271`), with an honest volunteer interest template, private staff review and supervised testing before any staff role. No automatic promotion.

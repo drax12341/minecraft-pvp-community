@@ -5,6 +5,145 @@ export class CloudStore {
   statement(sql, ...args) {
     return this.db.prepare(sql).bind(...args);
   }
+  async practiceCreate(user, mode, region, note) {
+    if (
+      typeof note !== "string" ||
+      note.trim().length < 10 ||
+      note.length > 180
+    )
+      throw Error(
+        "Describe your kit, UTC availability and practice goal in 10–180 characters. Do not include private information.",
+      );
+    const id = crypto.randomUUID(),
+      now = new Date().toISOString();
+    const expires = new Date(Date.now() + 24 * 3600000).toISOString();
+    const r = await this.statement(
+      `INSERT INTO practice_posts(id,user,mode,region,note,created,expires)
+      SELECT ?,?,?,?,?,?,? WHERE (SELECT count(*) FROM practice_posts WHERE user=? AND status='open' AND expires>?)<3
+      AND NOT EXISTS(SELECT 1 FROM practice_posts WHERE user=? AND mode=? AND status='open' AND expires>?)`,
+      id,
+      user,
+      mode,
+      region,
+      note.trim(),
+      now,
+      expires,
+      user,
+      now,
+      user,
+      mode,
+      now,
+    ).run();
+    if (!r.meta.changes)
+      throw Error(
+        "You already have an active post for this mode, or three active posts. Close an old post first.",
+      );
+    return id;
+  }
+  async practiceList(mode, region) {
+    return this.all(
+      "SELECT id,user,mode,region,note,expires FROM practice_posts WHERE status='open' AND expires>? AND (?='' OR mode=?) AND (?='' OR region=?) ORDER BY created DESC LIMIT 5",
+      new Date().toISOString(),
+      mode || "",
+      mode || "",
+      region || "",
+      region || "",
+    );
+  }
+  async practiceClose(id, actor, moderator = false) {
+    const r = await this.db.batch([
+      this.statement(
+        "UPDATE practice_posts SET status='closed' WHERE id=? AND status='open' AND (user=? OR ?=1)",
+        id,
+        actor,
+        moderator ? 1 : 0,
+      ),
+      this.audit(actor, "practice-close-attempt", id),
+    ]);
+    if (!r[0].meta.changes)
+      throw Error("Only the post owner or a moderator can close an open post.");
+  }
+  async applyTester(user, mode, region, experience, availability) {
+    if (
+      typeof experience !== "string" ||
+      experience.trim().length < 30 ||
+      experience.length > 800 ||
+      typeof availability !== "string" ||
+      availability.trim().length < 5 ||
+      availability.length > 100
+    )
+      throw Error(
+        "Use 30–800 characters of testing experience and 5–100 characters of UTC availability. Do not include private personal information.",
+      );
+    if (!(await this.one("SELECT 1 FROM accounts WHERE discord=?", user)))
+      throw Error(
+        "Ask staff to verify your Minecraft ownership before applying.",
+      );
+    const id = crypto.randomUUID();
+    const r = await this.statement(
+      `INSERT INTO tester_applications(id,user,mode,region,experience,availability,created)
+      SELECT ?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM tester_applications WHERE user=? AND mode=? AND status='pending')`,
+      id,
+      user,
+      mode,
+      region,
+      experience.trim(),
+      availability.trim(),
+      new Date().toISOString(),
+      user,
+      mode,
+    ).run();
+    if (!r.meta.changes)
+      throw Error("You already have a pending application for this mode.");
+    return id;
+  }
+  async testerApplications(user) {
+    return user
+      ? this.all(
+          "SELECT id,mode,region,status,decision FROM tester_applications WHERE user=? ORDER BY created DESC LIMIT 6",
+          user,
+        )
+      : this.all(
+          "SELECT id,user,mode,region,experience,availability FROM tester_applications WHERE status='pending' ORDER BY created LIMIT 3",
+        );
+  }
+  async reviewTester(id, actor, decision, reason) {
+    this.reason(reason);
+    if (!["interview", "declined"].includes(decision))
+      throw Error(
+        "Choose interview or declined. Interviews do not grant staff roles.",
+      );
+    const r = await this.db.batch([
+      this.statement(
+        "UPDATE tester_applications SET status=?,reviewer=?,decision=? WHERE id=? AND status='pending' AND user<>?",
+        decision,
+        actor,
+        reason.trim(),
+        id,
+        actor,
+      ),
+      this.audit(actor, "tester-review-attempt", id),
+    ]);
+    if (!r[0].meta.changes)
+      throw Error(
+        "A pending application and an independent moderator are required.",
+      );
+  }
+  async release(id, actor) {
+    const r = await this.db.batch([
+      this.statement(
+        "UPDATE queue SET status='waiting',tester=NULL WHERE id=? AND status='claimed' AND tester=? AND NOT EXISTS(SELECT 1 FROM results WHERE id=?)",
+        id,
+        actor,
+        id,
+      ),
+      this.audit(actor, "release-attempt", id),
+    ]);
+    if (!r[0].meta.changes)
+      throw Error(
+        "Only the assigned tester can release an unfinished claimed entry.",
+      );
+  }
   async one(sql, ...args) {
     return this.statement(sql, ...args).first();
   }

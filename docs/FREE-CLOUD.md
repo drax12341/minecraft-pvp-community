@@ -12,8 +12,8 @@ It validates Discord's Ed25519 signature, rejects stale requests and other guild
 acknowledges privately, deduplicates retries, executes the command and edits the
 private reply. It does not maintain a Discord gateway connection/online indicator.
 
-Nine commands are implemented: preferences, verify-account, session,
-queue (including private status), claim, result, appeal, guide and availability. The owner and administrators can use staff commands;
+Twelve commands are implemented: preferences, verify-account, session,
+queue (including private status), claim (including assigned-tester release), result, appeal, guide, availability, practice, tester-apply and profile. The owner and administrators can use staff commands;
 testers/moderators retain their explicit role checks. Interest roles must grant no
 permissions. Test capacity/cooldowns, assigned testers and independent appeals are
 enforced in SQL; related statements use transactional D1 batches.

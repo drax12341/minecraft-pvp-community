@@ -61,6 +61,15 @@ const claim = new SlashCommandBuilder()
   .setDescription("Tester: claim a queue entry")
   .addStringOption((o) =>
     o.setName("id").setDescription("Queue entry ID").setRequired(true),
+  )
+  .addStringOption((o) =>
+    o
+      .setName("action")
+      .setDescription("Claim an entry or release your unfinished claim")
+      .addChoices(
+        { name: "Claim", value: "claim" },
+        { name: "Release", value: "release" },
+      ),
   );
 const result = new SlashCommandBuilder()
   .setName("result")
@@ -263,6 +272,122 @@ const availability = new SlashCommandBuilder()
         })),
       ),
   );
+const regionOption = (o) =>
+  o
+    .setName("region")
+    .setDescription("Your playing region")
+    .setRequired(true)
+    .addChoices(
+      ...["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"].map((value) => ({
+        name: value,
+        value,
+      })),
+    );
+const practice = new SlashCommandBuilder()
+  .setName("practice")
+  .setDescription("Find practice partners in this community")
+  .addSubcommand((s) =>
+    s
+      .setName("create")
+      .setDescription("Publish a practice listing for 24 hours")
+      .addStringOption(mode)
+      .addStringOption(regionOption)
+      .addStringOption((o) =>
+        o
+          .setName("note")
+          .setDescription(
+            "Public kit, UTC availability and goal; no personal details",
+          )
+          .setRequired(true)
+          .setMinLength(10)
+          .setMaxLength(180),
+      ),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName("list")
+      .setDescription("Browse active practice listings")
+      .addStringOption((o) => mode(o).setRequired(false))
+      .addStringOption((o) => regionOption(o).setRequired(false)),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName("close")
+      .setDescription(
+        "Close your post; moderators can close inappropriate posts",
+      )
+      .addStringOption((o) =>
+        o.setName("id").setDescription("Practice listing ID").setRequired(true),
+      ),
+  );
+const testerApply = new SlashCommandBuilder()
+  .setName("tester-apply")
+  .setDescription("Apply to volunteer as a tester, privately")
+  .addSubcommand((s) =>
+    s
+      .setName("submit")
+      .setDescription(
+        "Submit private testing experience after account verification",
+      )
+      .addStringOption(mode)
+      .addStringOption(regionOption)
+      .addStringOption((o) =>
+        o
+          .setName("experience")
+          .setDescription(
+            "Testing, scoring and impartiality experience; no personal information",
+          )
+          .setRequired(true)
+          .setMinLength(30)
+          .setMaxLength(800),
+      )
+      .addStringOption((o) =>
+        o
+          .setName("availability")
+          .setDescription("Days and times in UTC")
+          .setRequired(true)
+          .setMinLength(5)
+          .setMaxLength(100),
+      ),
+  )
+  .addSubcommand((s) =>
+    s.setName("status").setDescription("View only your application decisions"),
+  )
+  .addSubcommand((s) =>
+    s
+      .setName("review")
+      .setDescription("Moderator: list or independently review applications")
+      .addStringOption((o) =>
+        o.setName("id").setDescription("Application ID; omit to list pending"),
+      )
+      .addStringOption((o) =>
+        o
+          .setName("decision")
+          .setDescription("Outcome; never automatically grants roles")
+          .addChoices(
+            { name: "Invite to interview", value: "interview" },
+            { name: "Decline", value: "declined" },
+          ),
+      )
+      .addStringOption((o) =>
+        o
+          .setName("reason")
+          .setDescription("Private feedback for the applicant")
+          .setMinLength(10)
+          .setMaxLength(1000),
+      ),
+  );
+const playerProfile = new SlashCommandBuilder()
+  .setName("profile")
+  .setDescription("Find a published player profile from this tierlist")
+  .addStringOption((o) =>
+    o
+      .setName("name")
+      .setDescription("Minecraft username")
+      .setRequired(true)
+      .setMinLength(3)
+      .setMaxLength(16),
+  );
 await new REST()
   .setToken(process.env.DISCORD_TOKEN)
   .put(
@@ -281,13 +406,16 @@ await new REST()
         preferences,
         guide,
         availability,
+        practice,
+        testerApply,
+        playerProfile,
       ].map((c) => c.toJSON()),
     },
   );
 // Register cloud commands without starting the legacy local gateway.
 if (process.argv.includes("--register-only")) {
   console.log(
-    "Registered nine guild commands, including private guide, availability and queue status. No gateway started.",
+    "Registered twelve guild commands, including practice, private tester applications and player profiles. No gateway started.",
   );
   process.exit(0);
 }

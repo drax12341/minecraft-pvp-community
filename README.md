@@ -4,6 +4,8 @@
 
 **One independent tierlist. Every placement comes from this community’s tests.**
 
+The arena interface adds shareable ranking filters, saved players, paginated leaderboards, evidence-linked result feeds, refreshed public data and a Community hub. Cloud `/practice`, `/tester-apply` and `/profile` commands support real partner listings, private volunteer reviews and player lookups; assigned testers can release unfinished claims. [Design evidence and scope](docs/WEBSITE-DESIGN-UPGRADE.md).
+
 [Discord upgrade results](docs/DISCORD-UPGRADE-STATUS.md) and [verified Discord research](docs/DISCORD-RESEARCH.md). Cloud commands add private `/guide`, filtered `/availability` and `/queue status mode region` for verification, waiting position, latest result and cooldown.
 
 The new [Eclipse-inspired presentation](docs/ECLIPSE-INSPIRATION.md) adds a violet orbital homepage and matching visual styling. [Open rankings directly](https://drax12341.github.io/minecraft-pvp-community/#rankings).

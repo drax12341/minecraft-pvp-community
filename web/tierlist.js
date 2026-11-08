@@ -21,7 +21,67 @@ let config,
   modeGroup = "main",
   compact = false,
   sessionRegion = "all",
-  sessionStatus = "all";
+  sessionStatus = "all",
+  rankStatus = "active",
+  savedOnly = false,
+  rankPage = 1,
+  dataStale = false,
+  refreshBusy = false,
+  lastChecked = new Date();
+const storedPlayers = readPreference("savedPlayers", []);
+const savedPlayers = new Set(
+  Array.isArray(storedPlayers)
+    ? storedPlayers.filter((v) => typeof v === "string").slice(0, 500)
+    : [],
+);
+function readPreference(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem("pvp:" + key)) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+function writePreference(key, value) {
+  try {
+    localStorage.setItem("pvp:" + key, JSON.stringify(value));
+  } catch {}
+}
+function rankingParams() {
+  return new URLSearchParams({
+    mode,
+    region,
+    view,
+    status: rankStatus,
+    ...(search ? { q: search } : {}),
+    ...(savedOnly ? { saved: "1" } : {}),
+  });
+}
+function saveRankingScope() {
+  history.replaceState(null, "", "#rankings?" + rankingParams());
+}
+function readRankingScope() {
+  const p = new URLSearchParams(location.hash.split("?")[1]);
+  if (p.has("mode"))
+    mode =
+      p.get("mode") === "overall" || kit(p.get("mode"))
+        ? p.get("mode")
+        : "sword";
+  if (p.has("region"))
+    region = ["all", "EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"].includes(
+      p.get("region"),
+    )
+      ? p.get("region")
+      : "all";
+  if (p.has("view")) view = p.get("view") === "list" ? "list" : "board";
+  if (p.has("status"))
+    rankStatus = ["active", "all", "retired"].includes(p.get("status"))
+      ? p.get("status")
+      : "active";
+  if (p.has("q")) search = p.get("q").slice(0, 64);
+  savedOnly = p.get("saved") === "1";
+  if (mode !== "overall")
+    modeGroup = kit(mode).group === "Main modes" ? "main" : "sub";
+}
 const kit = (id) => config.modes.find((m) => m.id === id),
   art = (id) => `<img src="./assets/${esc(id)}.svg" alt="">`,
   label = (r) => (r.pos === 0 ? "HT" : "LT") + r.tier,
@@ -85,6 +145,9 @@ const intro = (title, description) =>
 const selectModes = (id) =>
   `<select id="${id}">${config.modes.map((m) => `<option value="${m.id}" ${mode === m.id ? "selected" : ""}>${m.name}</option>`).join("")}</select>`;
 function render() {
+  const requestedPlayer = new URLSearchParams(location.hash.split("?")[1]).get(
+    "player",
+  );
   document.querySelector(".compare-dock")?.remove();
   const route = location.hash.slice(1).split("?")[0] || "home";
   document.querySelectorAll("nav a").forEach((a) => {
@@ -92,8 +155,9 @@ function render() {
     if (a.hash === "#" + route) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
+  if (route === "rankings") readRankingScope();
   document.body.dataset.page = route;
-  document.title = `${{ home: "Home", rankings: "Rankings", testing: "Testing center", kits: "Kits & rules", tagger: "Tier tagger", sponsors: "Support us", about: "Rules & privacy", staff: "Staff console" }[route] || "Rankings"} · Minecraft PvP Tierlist`;
+  document.title = `${{ home: "Home", rankings: "Rankings", testing: "Testing center", kits: "Kits & rules", tagger: "Tier tagger", sponsors: "Support us", about: "Rules & privacy", staff: "Staff console", results: "Results", community: "Community" }[route] || "Rankings"} · Minecraft PvP Tierlist`;
   (
     ({
       home,
@@ -104,9 +168,12 @@ function render() {
       sponsors,
       about,
       staff,
+      results: resultsPage,
+      community: communityPage,
     })[route] || rankings
   )();
-  const id = new URLSearchParams(location.hash.split("?")[1]).get("player");
+  decoratePage();
+  const id = requestedPlayer;
   if (id) {
     const p = data.players.find((p) => p.uuid === id);
     if (p) profile(p);
@@ -114,30 +181,17 @@ function render() {
   }
 }
 function home() {
+  const open = testing.sessions.filter((s) => s.status === "open");
   main.innerHTML =
-    '<section class="night-hero" aria-labelledby="night-title"><div class="night-sky" aria-hidden="true"><div class="sky-stars"></div><div class="sky-haze"></div></div><div class="night-content"><span class="launch-pill"><i></i> Founding community · Testing launch in preparation</span><div class="orbital-mark" aria-hidden="true"><div class="orbital-track"></div><div class="orbital-track second"></div><div class="moon-medallion"><img src="./mark.svg" alt=""></div><span class="orbital-spark"></span></div><h1 id="night-title" class="night-wordmark">PvP<span>TIERLIST</span></h1><p class="night-tagline">Your next tier starts with a real test.<br>One independent Minecraft community. Every playstyle welcome.</p><div class="night-actions"><a class="button night-primary" href="#testing">Start your tier test <span aria-hidden="true">↗</span></a><a class="button secondary" href="#rankings">Explore rankings</a></div><p class="night-meta">Java 1.21.1 · Independent results · Free to join</p></div><div class="sky-controls" role="group" aria-label="Hero background"><button data-sky="arena" class="active" aria-pressed="true">Arena</button><button data-sky="stars" aria-pressed="false">Night sky</button></div><button class="discover-scroll" id="discover" aria-label="Discover the tierlist"><span></span>Discover the community</button></section>' +
-    '<div class="kit-ribbon" aria-label="Explore game modes">' +
-    config.modes
-      .map(
-        (m) =>
-          '<button data-home-mode="' +
-          m.id +
-          '">' +
-          art(m.id) +
-          "<span>" +
-          m.name +
-          "</span></button>",
-      )
-      .join("") +
-    "</div>" +
-    '<section class="home-metrics" aria-label="Tierlist structure"><div><strong>' +
+    '<section class="night-hero arena-intro"><div class="intro-copy"><span class="launch-pill"><i></i>' +
+    (open.length
+      ? open.length + " testing sessions open"
+      : "Testing launch in preparation") +
+    '</span><h1 class="night-wordmark">Earn your place.</h1><p>A real fight. A fair result.<br>Your own path through Minecraft PvP.</p><div class="hero-actions"><a class="button" href="#rankings">Explore rankings</a><a class="button secondary" href="#testing">Get tested</a></div><div class="hero-facts"><span>' +
     config.modes.length +
-    "</strong><span>Game modes</span></div><div><strong>10</strong><span>Tier bands per mode</span></div><div><strong>1</strong><span>Independent community</span></div><div><strong>" +
-    data.players.length +
-    "</strong><span>Published ranked players</span></div></section>" +
-    '<section class="home-section" id="home-features"><div class="home-section-head"><span class="section-kicker">Built around the fight</span><h2>Find your place. Make your mark.</h2><p>From your first sword test to specialist mace kits. Your progress has a home.</p></div><div class="home-bento"><article class="home-tile kit-tile"><span class="tile-label">Choose your discipline</span><div class="mini-kit-grid">' +
+    ' modes</span><span>Java 1.21.1</span><span>One independent tierlist</span></div></div><div class="arena-art" role="img" aria-label="Illustrated Minecraft duel arena"><img src="./assets/arena-v2.png" alt="" fetchpriority="high"><div class="arena-caption"><img src="./assets/sword.svg" alt=""><span>Every placement starts<br><strong>in the arena.</strong></span></div></div><div class="sky-controls" aria-label="Arena atmosphere"><button data-sky="arena" class="active" aria-pressed="true">Arena</button><button data-sky="stars" aria-pressed="false">Quiet</button></div></section>' +
+    '<section class="playstyle-section" id="home-features"><div class="section-heading"><div><h2>Find your discipline</h2><p class="fine">Main modes and specialist kits. All in one community.</p></div><a href="#kits">Kit guide</a></div><div class="kit-ribbon">' +
     config.modes
-      .slice(0, 8)
       .map(
         (m) =>
           '<button data-home-mode="' +
@@ -149,33 +203,31 @@ function home() {
           "</span></button>",
       )
       .join("") +
-    '</div><h3>A ladder for every playstyle.</h3><p>Main modes and submodes, with individual placements and clear rules for each kit.</p><a href="#kits" class="home-text-link">Meet the kits ↗</a></article><article class="home-tile tag-tile"><span class="tile-label">Take it in game</span><div class="home-tag-preview"><span>[Sword HT3]</span> YourName<small>Illustrative nametag preview</small></div><h3>Your placement, wherever you play.</h3><p>Our dedicated experimental Fabric tagger displays this tierlist’s published results.</p><a href="#tagger" class="home-text-link">Explore the tagger ↗</a></article><article class="home-tile review-tile"><span class="tile-label">A fair process</span><div class="review-visual" aria-hidden="true"><span>Verified account <b>✓</b></span><span>Assigned tester <b>✓</b></span><span>Evidence-linked result <b>✓</b></span></div><h3>A result you can review.</h3><p>Account checks, evidence and independent appeal review are part of the testing system.</p><a href="#testing" class="home-text-link">How testing works ↗</a></article><article class="home-tile progress-tile"><span class="tile-label">Earn every placement</span><div class="tier-journey" aria-label="Tier progression from LT5 to HT1">' +
-    [5, 4, 3, 2, 1]
-      .map(
-        (t) =>
-          '<div><img src="./assets/tier-' +
-          t +
-          '.svg" alt=""><span>' +
-          (t === 1 ? "HT1" : "LT" + t) +
-          "</span></div>",
-      )
-      .join("") +
-    '</div><h3>The climb belongs to you.</h3><p>Sponsors never buy tiers, queue priority or appeal decisions. Every placement comes from our own tests.</p><a href="#rankings" class="home-text-link">See the board ↗</a></article></div></section>' +
-    '<section class="home-section journey-section"><div class="home-section-head"><span class="section-kicker">From joining to placing</span><h2>Your next chapter, in three steps.</h2><p>A clear path into the community. Testing opens when staff are ready.</p></div><div class="journey-layout"><div class="journey-buttons" role="group" aria-label="Testing walkthrough">' +
+    "</div></section>" +
+    '<section class="arena-live-grid"><div class="panel"><div class="section-heading"><h2>Latest placements</h2><a href="#results">All results</a></div>' +
+    activity() +
+    '</div><div class="panel next-session"><span class="availability-dot"></span><h2>' +
+    (open.length
+      ? "The next session is ready."
+      : "Your next match starts here.") +
+    "</h2><p>" +
+    (open.length
+      ? "Choose a mode and region, check your eligibility and join in Discord."
+      : "Read the kit guide, meet practice partners and get ready. Staff will publish sessions when the testing team is prepared.") +
+    '</p><div class="actions"><a class="button secondary" href="#testing">Testing center</a><a class="text-button" href="#community">Find practice</a></div></div></section>' +
+    '<section class="home-section"><div class="section-heading"><div><h2>From first test to your next tier</h2><p class="fine">A clear process, with evidence and a second opinion when you need it.</p></div></div><div class="journey-layout"><div class="journey-buttons">' +
     [
-      ["Choose your kit", "Find your preferred mode and read its rules."],
-      ["Play your test", "Verify ownership and join an open session."],
-      ["Review your result", "Check your placement and evidence."],
+      ["Choose your kit", "Find your mode and learn the rules."],
+      ["Play your test", "Verify ownership. Join an open session."],
+      ["Review your result", "Your placement, evidence and next step."],
     ]
       .map(
         ([t, p], i) =>
           '<button data-journey="' +
           i +
-          '" class="' +
-          (i === 0 ? "active" : "") +
           '" aria-pressed="' +
           (i === 0) +
-          '"><span class="journey-number">0' +
+          '"><span class="journey-number">' +
           (i + 1) +
           "</span><span><strong>" +
           t +
@@ -184,61 +236,54 @@ function home() {
           "</small></span></button>",
       )
       .join("") +
-    '</div><div class="journey-window"><div class="window-chrome"><i></i><i></i><i></i><span>Testing walkthrough</span></div><div id="journey-detail" aria-live="polite"></div></div></div></section>' +
-    '<section class="home-section home-faq"><div class="home-section-head"><span class="section-kicker">Before you join</span><h2>A few things to know.</h2></div>' +
+    '</div><div class="journey-window" id="journey-detail" aria-live="polite"></div></div></section>' +
+    '<section class="home-faq"><h2>Before you queue</h2>' +
     [
       [
         "Is this connected to another tierlist?",
-        "No. Every published placement belongs to this community. We do not import another network’s tiers or rating points.",
+        "Every placement comes from our own tests. We do not import other communities’ rankings.",
       ],
       [
-        "Can I get tested right now?",
-        testing.activation === "active"
-          ? "Check the testing center for published sessions and confirm availability in Discord."
-          : "The live Discord testing setup is awaiting activation. You can read kit rules and prepare a request, but the website does not reserve a queue position.",
+        "Can I get tested now?",
+        open.length
+          ? "Published sessions are open. Check capacity in the testing center and join through Discord."
+          : "No sessions are open right now. You can prepare your request or find a practice partner.",
       ],
       [
         "How do I get a tier?",
-        "Staff verify your Minecraft account ownership, then you join an open testing session. An assigned tester records your result with agreed match evidence.",
+        "Staff verify ownership, a tester claims your entry and you play under the agreed kit rubric.",
       ],
       [
-        "Is the tagger ready to use?",
-        "A compiled experimental Fabric 1.21.1 build is available. It uses only this tierlist’s results and still requires in-game compatibility testing.",
+        "What does the tagger use?",
+        "The experimental Fabric release reads this community’s committed result exports. In-game compatibility testing remains required.",
       ],
       [
-        "Can sponsors pay for better placements?",
-        "No. Sponsors cannot buy a rank, priority testing or appeal outcomes.",
+        "Can I buy a better rank?",
+        "No. Support never buys a tier, queue priority or an appeal outcome.",
       ],
     ]
       .map(
         ([q, a]) =>
           "<details><summary>" +
           q +
-          '<span aria-hidden="true">+</span></summary><p>' +
+          "<span>+</span></summary><p>" +
           a +
           "</p></details>",
       )
       .join("") +
-    "</section>" +
-    '<section class="home-final"><div class="final-orbit" aria-hidden="true"></div><span class="section-kicker">Make your next move</span><h2>Your name belongs on the board.</h2><p>Join the founding community. Help build a better place to compete.</p><div class="night-actions"><a href="' +
+    '</section><section class="community-invite"><img src="./mark.svg" alt=""><div><h2>Bring your playstyle.</h2><p>Compete, practice and build the founding community.</p></div><a class="button" href="' +
     config.invite +
-    '" target="_blank" rel="noopener" class="button night-primary">Join the community ↗</a><a href="#testing" class="button secondary">Explore testing</a></div></section>';
+    '" target="_blank" rel="noopener">Join Discord</a></section>';
   main.querySelectorAll("[data-home-mode]").forEach(
     (b) =>
       (b.onclick = () => {
         mode = b.dataset.homeMode;
         modeGroup = kit(mode).group === "Main modes" ? "main" : "sub";
         view = "board";
+        preview = false;
         location.hash = "rankings";
       }),
   );
-  main.querySelector("#discover").onclick = () =>
-    main.querySelector("#home-features").scrollIntoView?.({
-      behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-        ? "auto"
-        : "smooth",
-      block: "start",
-    });
   main.querySelectorAll("[data-sky]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -253,47 +298,39 @@ function home() {
   );
   const stages = [
     [
-      "Your discipline. Your rules.",
-      "Start with a kit you enjoy. Read the version, equipment and evidence rules before requesting a test.",
-      "Browse kits",
+      "Know your kit",
+      "Check the version, allowed equipment, scoring rules and evidence agreement before a test.",
       "#kits",
-      "sword",
+      "Read kit guidance",
     ],
     [
-      "A fair match starts here.",
-      "Account ownership must be verified before an open session accepts your entry. A tester claims your place when available.",
-      "Find testing sessions",
+      "Find a session",
+      "Verify Minecraft ownership with staff. /availability finds real sessions; /queue status keeps your progress private.",
       "#testing",
-      "mace",
+      "Prepare for testing",
     ],
     [
-      "More than a label.",
-      "Your result includes match evidence. If something went wrong, an independent moderator can review your appeal.",
-      "Read the testing rules",
-      "#about",
-      "axe",
+      "A result you can review",
+      "Review your evidence. An independent moderator handles an appeal through private Discord commands.",
+      "#results",
+      "Browse results",
     ],
   ];
-  const stage = (index) => {
-    const [t, p, a, url, id] = stages[index];
+  const stage = (i) => {
+    const [t, p, url, a] = stages[i];
     main.querySelector("#journey-detail").innerHTML =
-      '<span class="preview-caption">Interface walkthrough · No live test</span>' +
-      art(id) +
-      "<h3>" +
+      '<span class="preview-caption">How testing works</span><h3>' +
       t +
       "</h3><p>" +
       p +
-      '</p><a href="' +
+      '</p><a class="button secondary" href="' +
       url +
-      '" class="button secondary">' +
+      '">' +
       a +
-      " ↗</a>";
+      "</a>";
     main.querySelectorAll("[data-journey]").forEach((b) => {
-      b.classList.toggle("active", Number(b.dataset.journey) === index);
-      b.setAttribute(
-        "aria-pressed",
-        String(Number(b.dataset.journey) === index),
-      );
+      b.classList.toggle("active", Number(b.dataset.journey) === i);
+      b.setAttribute("aria-pressed", String(Number(b.dataset.journey) === i));
     });
   };
   main
@@ -311,8 +348,8 @@ function rankings() {
   );
   main.innerHTML =
     intro(
-      "The arena is yours.",
-      "Independent Minecraft PvP testing. Choose your kit. Earn your place.",
+      "The rankings",
+      "Earned placements. Our players. One independent tierlist.",
     ) +
     '<section class="rankings-hub"><div class="mode-toolbar"><div class="segmented" aria-label="Mode category">' +
     [
@@ -425,14 +462,7 @@ function rankings() {
       )
       .join("") +
     '</div><a class="link-row" href="#kits">Kits & testing rules <span>↗</span></a></div></aside></div>';
-  const hero = main.querySelector(".page-title");
-  hero.classList.add("arena-hero");
-  hero
-    .querySelector("div")
-    .insertAdjacentHTML(
-      "beforeend",
-      '<div class="hero-actions"><a class="button" href="#testing">Start your tier test</a><a class="hero-secondary" href="#kits">Explore the kits</a></div>',
-    );
+  main.querySelector(".page-title").classList.add("rankings-title");
   main.querySelectorAll("[data-mode-group]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -464,10 +494,14 @@ function rankings() {
   main.querySelector("#browse-modes").onclick = browseModes;
   main.querySelector("#search").oninput = (e) => {
     search = e.target.value;
+    rankPage = 1;
+    saveRankingScope();
     renderBoard();
   };
   main.querySelector("#region").onchange = (e) => {
     region = e.target.value;
+    rankPage = 1;
+    saveRankingScope();
     renderBoard();
   };
   main.querySelectorAll("[data-view]").forEach(
@@ -491,6 +525,49 @@ function rankings() {
     rankings();
   };
   main.querySelector(".competition-panel").classList.toggle("compact", compact);
+  main
+    .querySelector(".filters")
+    .insertAdjacentHTML(
+      "afterend",
+      '<div class="ranking-tools"><label>Status <select id="rank-status"><option value="active">Active placements</option><option value="all">All placements</option><option value="retired">Retired placements</option></select></label><button id="saved-only" class="text-button" aria-pressed="' +
+        savedOnly +
+        '">Saved players' +
+        (savedOnly ? " · on" : "") +
+        '</button><button id="share-view" class="text-button">Copy this view</button><button id="reset-view" class="text-button">Reset filters</button><span class="scope-note">' +
+        (mode === "overall"
+          ? "Points count active placements only"
+          : "HT1 is highest · LT5 is entry tier") +
+        "</span></div>",
+    );
+  main.querySelector("#rank-status").value = rankStatus;
+  main.querySelector("#rank-status").onchange = (e) => {
+    rankStatus = e.target.value;
+    rankPage = 1;
+    saveRankingScope();
+    renderBoard();
+  };
+  main.querySelector("#saved-only").onclick = () => {
+    savedOnly = !savedOnly;
+    rankPage = 1;
+    saveRankingScope();
+    rankings();
+  };
+  main.querySelector("#reset-view").onclick = () => {
+    search = "";
+    region = "all";
+    rankStatus = "active";
+    savedOnly = false;
+    rankPage = 1;
+    saveRankingScope();
+    rankings();
+  };
+  main.querySelector("#share-view").onclick = () =>
+    copyText(
+      location.href.split("#")[0] + "#rankings?" + rankingParams(),
+      "View link copied.",
+    );
+  rankPage = 1;
+  saveRankingScope();
   renderBoard();
 }
 function browseModes() {
@@ -537,7 +614,18 @@ function renderBoard() {
       (p) =>
         (region === "all" || p.region === region) &&
         p.name.toLowerCase().includes(search.toLowerCase()) &&
-        (mode === "overall" || (p.rankings[mode] && !p.rankings[mode].retired)),
+        (!savedOnly || savedPlayers.has(p.uuid)) &&
+        (mode === "overall"
+          ? Object.values(p.rankings).some(
+              (r) =>
+                rankStatus === "all" ||
+                (rankStatus === "retired" ? r.retired : !r.retired),
+            )
+          : p.rankings[mode] &&
+            (rankStatus === "all" ||
+              (rankStatus === "retired"
+                ? p.rankings[mode].retired
+                : !p.rankings[mode].retired))),
     )
     .sort((a, b) =>
       mode === "overall"
@@ -556,6 +644,7 @@ function renderBoard() {
   });
   main.querySelector("#rank-count").textContent =
     `${rows.length} ${preview ? "sample" : "ranked"} players · ${mode === "overall" ? "Overall" : kit(mode).name}`;
+  const pageRows = rows.slice((rankPage - 1) * 50, rankPage * 50);
   let html;
   if (view === "board" && mode !== "overall")
     html = `<div class="board" tabindex="0" aria-label="Five tier columns; scroll horizontally on narrow screens">${[
@@ -588,15 +677,17 @@ function renderBoard() {
       .join("")}</div>`;
   else
     html = rows.length
-      ? `<div class="table-wrap"><table><thead><tr><th>Rank</th><th>Player</th><th>Region</th><th>${mode === "overall" ? "Tiers" : "Tier"}</th><th>Points</th><th>Compare</th></tr></thead><tbody>${rows
+      ? `<div class="table-wrap"><table><thead><tr><th>Rank</th><th>Player</th><th>Region</th><th>${mode === "overall" ? "Tiers" : "Tier"}</th><th>Points</th><th>Compare</th></tr></thead><tbody>${pageRows
           .map(
             (p, i) =>
-              `<tr class="placement-${Math.min(i + 1, 4)}"><td><span class="rank-position">${i + 1}</span></td><td><button class="table-player" data-player="${p.uuid}">${avatar(p)}<span>${esc(p.name)}<small>${p.demo ? "Sample player" : "Verified test results"}</small></span></button></td><td>${p.region}</td><td><div class="chips">${Object.entries(
+              `<tr class="placement-${Math.min(i + 1, 4)}"><td><span class="rank-position">${(rankPage - 1) * 50 + i + 1}</span></td><td><button class="table-player" data-player="${p.uuid}">${avatar(p)}<span>${esc(p.name)}<small>${p.demo ? "Sample player" : "Verified test results"}</small></span></button></td><td>${p.region}</td><td><div class="chips">${Object.entries(
                 p.rankings,
               )
                 .filter(
                   ([id, r]) =>
-                    !r.retired && (mode === "overall" || mode === id),
+                    (rankStatus === "all" ||
+                      (rankStatus === "retired" ? r.retired : !r.retired)) &&
+                    (mode === "overall" || mode === id),
                 )
                 .map(
                   ([id, r]) =>
@@ -608,14 +699,29 @@ function renderBoard() {
           )
           .join("")}</tbody></table></div>`
       : `<div class="big-empty">${art("sword")}<h3>The next name could be yours.</h3><p>No published results match this view. Earn a placement through our testing system.</p><a href="#testing" class="button">Explore testing ↗</a></div>`;
-  const filteredEmpty = rows.length === 0 && (search || region !== "all");
+  if (view === "list" && rows.length > 50)
+    html += `<div class="pagination"><button id="prev-page" ${rankPage === 1 ? "disabled" : ""}>Previous</button><span>Page ${rankPage} of ${Math.ceil(rows.length / 50)}</span><button id="next-page" ${rankPage * 50 >= rows.length ? "disabled" : ""}>Next</button></div>`;
+  const filteredEmpty =
+    rows.length === 0 &&
+    (search || region !== "all" || savedOnly || rankStatus !== "active");
   const filterNotice = filteredEmpty
     ? '<div class="filter-empty"><strong>No matching players</strong><span>Try another name or region.</span><button id="clear-filters">Clear filters</button></div>'
     : "";
   main.querySelector("#rankings-content").innerHTML = filterNotice + html;
+  main.querySelector("#prev-page")?.addEventListener("click", () => {
+    rankPage--;
+    renderBoard();
+  });
+  main.querySelector("#next-page")?.addEventListener("click", () => {
+    rankPage++;
+    renderBoard();
+  });
   main.querySelector("#clear-filters")?.addEventListener("click", () => {
     search = "";
     region = "all";
+    rankStatus = "active";
+    savedOnly = false;
+    saveRankingScope();
     rankings();
   });
   main
@@ -661,6 +767,7 @@ function compareDock() {
     );
 }
 function profile(p) {
+  if (!p) return;
   show(
     `<div class="player-profile">${avatar(p)}<div><h2>${esc(p.name)}</h2><p class="fine">${p.region} · ${points(p)} points${p.demo ? " · Sample player, not a real placement" : ""}</p></div></div><div class="profile-grid">${Object.entries(
       p.rankings,
@@ -671,7 +778,7 @@ function profile(p) {
       )
       .join(
         "",
-      )}</div><div class="actions"><button class="button" id="share" ${p.demo ? "disabled" : ""}>Copy profile link</button><button class="button secondary" id="card">Download player card</button></div><h2 style="margin-top:25px">Test history</h2>${
+      )}</div><div class="actions"><button class="button" id="share" ${p.demo ? "disabled" : ""}>Copy profile link</button><button class="button secondary" id="card">Download player card</button><button class="button quiet" id="save-player" ${p.demo ? "disabled" : ""} aria-pressed="${savedPlayers.has(p.uuid)}">${savedPlayers.has(p.uuid) ? "Saved player" : "Save player"}</button></div><h2 style="margin-top:25px">Test history</h2>${
       (data.recent || [])
         .filter((r) => r.uuid === p.uuid)
         .map(
@@ -681,6 +788,13 @@ function profile(p) {
         .join("") || '<p class="fine">No public test history available.</p>'
     }`,
   );
+  body.querySelector("#save-player").onclick = () => {
+    savedPlayers.has(p.uuid)
+      ? savedPlayers.delete(p.uuid)
+      : savedPlayers.add(p.uuid);
+    writePreference("savedPlayers", [...savedPlayers]);
+    profile(p);
+  };
   body.querySelector("#share").onclick = async () => {
     try {
       await navigator.clipboard.writeText(
@@ -805,6 +919,11 @@ function testingPage() {
               : session?.status === "paused"
                 ? "paused"
                 : "closed";
+          const occupied = (session?.waiting || 0) + (session?.claimed || 0);
+          const full =
+            state === "open" &&
+            Number.isFinite(session?.capacity) &&
+            occupied >= session.capacity;
           return (
             '<article class="session session-' +
             state +
@@ -818,7 +937,7 @@ function testingPage() {
             (state === "open" ? "open" : "") +
             '">' +
             (state === "open"
-              ? "Open · " + esc(session.region)
+              ? (full ? "Full · " : "Open · ") + esc(session.region)
               : state === "paused"
                 ? "Paused · " + esc(session.region)
                 : "Not scheduled") +
@@ -827,7 +946,13 @@ function testingPage() {
               ? (session.waiting || 0) +
                 " waiting · " +
                 (session.claimed || 0) +
-                " in testing"
+                " in testing" +
+                (Number.isFinite(session.capacity)
+                  ? " · " + occupied + "/" + session.capacity + " places"
+                  : "") +
+                (Number.isFinite(session.cooldown)
+                  ? " · " + session.cooldown + "h retest cooldown"
+                  : "")
               : "Staff announce availability before queues open.") +
             '</p><a href="#request" data-request="' +
             m.id +
@@ -989,7 +1114,7 @@ function about() {
       )
       .join(
         " ",
-      )}</div><h2 style="margin-top:25px">Testing & appeals</h2><p>Sessions open by mode and region. Account ownership must be verified by staff. A tester cannot claim their own test. Results require evidence. Appeals are private staff records and cannot be reviewed by the original tester. Revoked results remain in the audit trail and are excluded from rankings.</p><p>Do not install unknown files, share passwords or expose personal information for a test. No cheating, boosting, harassment or account sharing.</p></section><section class="panel"><h2>Privacy & freshness</h2><p>The public site reads the last published export; it is not a live queue unless the operating service is connected. No Discord member IDs or private appeal text appear in that export. No sign-in or analytics run on this static website.</p><p>Google Fonts and mc-heads.net serve fonts and avatars and receive normal network requests. Local request forms stay in your browser until you choose to copy, download or share them. Preview players are visibly marked and never become test records.</p><p>Ask staff in Discord for corrections, appeals or deletion. No affiliation with Mojang or Microsoft.</p><a class="button secondary" href="${config.invite}" target="_blank" rel="noopener">Contact staff ↗</a></section></div>`;
+      )}</div><h2 style="margin-top:25px">Testing & appeals</h2><p>Sessions open by mode and region. Account ownership must be verified by staff. A tester cannot claim their own test. Results require evidence. Appeals are private staff records and cannot be reviewed by the original tester. Revoked results remain in the audit trail and are excluded from rankings.</p><p>Do not install unknown files, share passwords or expose personal information for a test. No cheating, boosting, harassment or account sharing.</p></section><section class="panel"><h2>Privacy & freshness</h2><p>The website refreshes this community’s live public cloud rankings and session counts. If refresh fails, the last loaded snapshot is clearly marked. Discord account IDs, practice-post owners and private application or appeal text are never published in these feeds. No sign-in or analytics run on this static website.</p><p>Google Fonts and mc-heads.net serve fonts and avatars and receive normal network requests. Saved players and your calm-view preference are stored only in this browser. Request forms stay in the page until you choose to copy, download or share them. Preview players are visibly marked and never become test records.</p><p>Ask staff in Discord for corrections, appeals or deletion. No affiliation with Mojang or Microsoft.</p><a class="button secondary" href="${config.invite}" target="_blank" rel="noopener">Contact staff ↗</a></section></div>`;
 }
 function staff() {
   main.innerHTML =
@@ -1000,6 +1125,11 @@ function staff() {
     `<div class="panel"><h2>Commands</h2><p>/session open · /session pause · /queue join · /claim · /result · /appeal submit · /appeal review</p><p>Account verification is restricted to moderators. Test claims and results require a tester role. Appeals require an independent moderator.</p><a class="button" href="${config.invite}" target="_blank" rel="noopener">Open staff Discord ↗</a></div>`;
 }
 modal.querySelector(".close").onclick = () => modal.close();
+document.querySelector(".skip").onclick = (e) => {
+  e.preventDefault();
+  main.focus();
+  main.scrollIntoView?.({ block: "start" });
+};
 modal.addEventListener("click", (e) => {
   if (e.target === modal) {
     const r = modal.getBoundingClientRect();
@@ -1026,10 +1156,21 @@ try {
     }),
   );
   render();
-  window.addEventListener("hashchange", render);
+  window.addEventListener("hashchange", () => {
+    modal.close();
+    render();
+  });
+  setInterval(() => {
+    if (
+      document.visibilityState !== "hidden" &&
+      !modal.open &&
+      !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)
+    )
+      refreshPublicData(false);
+  }, 60000);
 } catch (e) {
   main.innerHTML =
-    '<div class="big-empty"><h1>The tierlist could not load.</h1><p>Refresh the page or visit Discord.</p><a class="button" href="https://discord.gg/a36rg6BxuX">Open Discord ↗</a></div>';
+    '<div class="big-empty"><h1>The tierlist could not load.</h1><p>Refresh the page or visit Discord.</p><button class="button secondary" onclick="location.reload()">Try again</button><a class="button" href="https://discord.gg/a36rg6BxuX">Open Discord ↗</a></div>';
   console.error(e);
 }
 
@@ -1064,3 +1205,270 @@ window.addEventListener(
   },
   { passive: true },
 );
+
+async function copyText(
+  text,
+  success = "Command copied. Paste it in Discord.",
+) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(success);
+  } catch {
+    show(
+      '<h2>Copy this text</h2><p class="fine">Clipboard access is unavailable. Select the text below.</p><textarea class="copy-fallback" readonly>' +
+        esc(text) +
+        "</textarea>",
+    );
+    body.querySelector("textarea").select();
+  }
+}
+function commandRow(command, description) {
+  return (
+    '<div class="command-row"><div><code>' +
+    esc(command) +
+    "</code><small>" +
+    esc(description) +
+    '</small></div><button class="copy-command" data-command="' +
+    esc(command) +
+    '" aria-label="Copy ' +
+    esc(command) +
+    '">Copy</button></div>'
+  );
+}
+function decoratePage() {
+  document.body.classList.toggle("calm-view", readPreference("calm", false));
+  const status = document.querySelector("#data-status");
+  if (status) {
+    status.classList.toggle("stale", dataStale);
+    status.innerHTML =
+      '<span class="availability-dot"></span><span>' +
+      (dataStale
+        ? "Refresh failed · showing the last loaded snapshot"
+        : location.hostname === "localhost" || location.hostname === "127.0.0.1"
+          ? "Local preview snapshot"
+          : "Public cloud data") +
+      '</span><span class="checked-at">Checked ' +
+      esc(
+        lastChecked.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      ) +
+      '</span><button id="refresh-public" ' +
+      (refreshBusy ? "disabled" : "") +
+      ">" +
+      (refreshBusy ? "Refreshing…" : "Refresh") +
+      '</button><button id="calm-view" aria-pressed="' +
+      readPreference("calm", false) +
+      '">Calm view</button>';
+    status.querySelector("#refresh-public").onclick = () =>
+      refreshPublicData(true);
+    status.querySelector("#calm-view").onclick = () => {
+      writePreference("calm", !readPreference("calm", false));
+      decoratePage();
+    };
+  }
+  if (
+    document.body.dataset.page === "testing" &&
+    !main.querySelector(".testing-command-desk")
+  ) {
+    main
+      .querySelector(".notice")
+      ?.insertAdjacentHTML(
+        "afterend",
+        '<section class="testing-command-desk"><div><h2>Your testing toolkit</h2><p>Copy a command, paste it in our Discord, then choose its options. Replies are private.</p></div><div>' +
+          commandRow("/availability", "Find actual sessions") +
+          commandRow("/queue status", "Your place, result and cooldown") +
+          commandRow("/guide testing", "Understand the next step") +
+          "</div></section>",
+      );
+  }
+  main
+    .querySelectorAll("[data-command]")
+    .forEach((b) => (b.onclick = () => copyText(b.dataset.command)));
+}
+async function refreshPublicData(manual) {
+  if (refreshBusy) return;
+  refreshBusy = true;
+  decoratePage();
+  try {
+    const base =
+      location.hostname === "drax12341.github.io"
+        ? "https://minecraft-pvp-community.draxion0.chatgpt.site"
+        : "";
+    const result = await Promise.all(
+      ["results", "testing"].map(async (name) => {
+        const r = await fetch((base || ".") + "/data/" + name + ".json", {
+          cache: "no-store",
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!r.ok) throw Error("Unavailable");
+        return r.json();
+      }),
+    );
+    if (!Array.isArray(result[0].players) || !Array.isArray(result[1].sessions))
+      throw Error("Invalid feed");
+    data = result[0];
+    testing = result[1];
+    dataStale = false;
+    lastChecked = new Date();
+    if (document.body.dataset.page === "testing")
+      main.querySelector("#session-status")?.dispatchEvent(new Event("change"));
+    else if (!main.querySelector("form") && !modal.open) render();
+    if (manual) toast("Public data refreshed.");
+  } catch {
+    dataStale = true;
+    if (manual)
+      toast("Could not refresh. Your last loaded snapshot is still available.");
+  } finally {
+    refreshBusy = false;
+    decoratePage();
+  }
+}
+function resultsPage() {
+  main.innerHTML =
+    intro(
+      "Every result has a story.",
+      "Published tests, earned placements and evidence you can review.",
+    ) +
+    '<div class="results-toolbar"><div class="segmented"><button data-result-scope="all" class="active">All results</button><button data-result-scope="high">High-tier results</button></div><label class="field">Mode<select id="results-mode"><option value="all">All modes</option>' +
+    config.modes
+      .map((m) => '<option value="' + m.id + '">' + m.name + "</option>")
+      .join("") +
+    '</select></label><label class="field">Find a player<input id="results-search" type="search" placeholder="Minecraft name"></label></div><p class="fine" id="results-count" role="status"></p><div id="results-feed"></div>';
+  let scope = "all";
+  const draw = () => {
+    const selectedMode = main.querySelector("#results-mode").value,
+      q = main.querySelector("#results-search").value.toLowerCase();
+    const rows = (data.recent || []).filter(
+      (r) =>
+        (scope === "all" || r.tier < 3 || (r.tier === 3 && r.pos === 0)) &&
+        (selectedMode === "all" || r.mode === selectedMode) &&
+        r.name.toLowerCase().includes(q),
+    );
+    main.querySelector("#results-count").textContent =
+      rows.length +
+      " published results" +
+      (scope === "high" ? " · HT3 and higher" : "");
+    main.querySelector("#results-feed").innerHTML = rows.length
+      ? rows
+          .map(
+            (r) =>
+              '<article class="result-card">' +
+              art(r.mode) +
+              "<div><strong>" +
+              esc(r.name) +
+              "</strong><small>" +
+              esc(kit(r.mode)?.name || r.mode) +
+              " · " +
+              esc(r.region) +
+              "</small></div>" +
+              chip(r) +
+              "<time>" +
+              esc(new Date(r.created).toLocaleDateString()) +
+              '</time><a class="button secondary" href="' +
+              safeUrl(r.evidence) +
+              '" target="_blank" rel="noopener">Match evidence</a><a class="text-button" href="#rankings?player=' +
+              encodeURIComponent(r.uuid) +
+              '">Profile</a></article>',
+          )
+          .join("")
+      : '<div class="big-empty">' +
+        art("sword") +
+        '<h2>No results in this view yet.</h2><p>Completed, evidence-linked tests appear here. Try another filter or prepare for your first test.</p><a class="button secondary" href="#testing">Explore testing</a></div>';
+  };
+  main.querySelectorAll("[data-result-scope]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        scope = b.dataset.resultScope;
+        main.querySelectorAll("[data-result-scope]").forEach((x) => {
+          x.classList.toggle("active", x === b);
+          x.setAttribute("aria-pressed", String(x === b));
+        });
+        draw();
+      }),
+  );
+  main.querySelector("#results-mode").onchange = draw;
+  main.querySelector("#results-search").oninput = draw;
+  draw();
+}
+function communityPage() {
+  main.innerHTML =
+    intro(
+      "Better fights start with better company.",
+      "Find a practice partner, ask for feedback or help build a fair testing team.",
+    ) +
+    '<div class="community-grid">' +
+    [
+      [
+        "sword",
+        "Find your next spar",
+        "Create a practice listing for your mode and region. Posts expire after 24 hours; close yours when you are done.",
+        "/practice create",
+        "Create a listing",
+      ],
+      [
+        "bow",
+        "Practice on your terms",
+        "Browse real member listings by mode and region. Agree on a server, kit, UTC time and recording before a match.",
+        "/practice list",
+        "Browse listings",
+      ],
+      [
+        "mace",
+        "Help players improve",
+        "Verified members can apply privately. Moderators review experience and availability before supervised training. Applications never grant roles.",
+        "/tester-apply submit",
+        "Apply privately",
+      ],
+    ]
+      .map(
+        ([id, t, p, c, a]) =>
+          '<article class="community-feature">' +
+          art(id) +
+          "<h2>" +
+          t +
+          "</h2><p>" +
+          p +
+          '</p><button class="button secondary" data-command="' +
+          c +
+          '">' +
+          a +
+          "</button></article>",
+      )
+      .join("") +
+    '</div><div class="two-col community-bottom"><section class="panel"><h2>Your community commands</h2>' +
+    commandRow("/practice close", "Close your listing by ID") +
+    commandRow("/tester-apply status", "Check your private application") +
+    commandRow("/profile", "Find an earned player profile") +
+    commandRow("/guide practice", "Coaching and practice etiquette") +
+    '<a class="button" href="' +
+    config.invite +
+    '" target="_blank" rel="noopener">Open our Discord</a></section><section class="panel"><h2>Make a useful practice request</h2><p>Prepare a short summary, then copy it into your Discord practice post. This form does not publish or reserve a match.</p><form id="practice-draft"><label class="field">Mode' +
+    selectModes("practice-mode") +
+    '</label><label class="field">Region<select name="practice-region">' +
+    ["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"]
+      .map((r) => "<option>" + r + "</option>")
+      .join("") +
+    '</select></label><label class="field">Kit, UTC availability and goal<input name="practice-note" required minlength="10" maxlength="180" placeholder="Sword, Saturday 16:00 UTC, working on spacing"></label><button class="button secondary" type="submit">Prepare practice summary</button></form><p class="fine">For coaching: ask one specific question and share a clip only with consent. Practice and coaching never award an official tier.</p></section></div><section class="event-strip"><h2>Community events</h2><p>Confirmed hosts, rules and UTC schedules will be announced in Discord. No events are scheduled here yet.</p></section>';
+  main.querySelector("#practice-draft").onsubmit = (e) => {
+    e.preventDefault();
+    if (!e.target.checkValidity()) return;
+    const f = new FormData(e.target),
+      text =
+        "Practice request\nMode: " +
+        kit(main.querySelector("#practice-mode").value).name +
+        "\nRegion: " +
+        f.get("practice-region") +
+        "\n" +
+        f.get("practice-note") +
+        "\nPractice only — no official placement.";
+    show(
+      '<h2>Your practice summary</h2><p class="fine">Prepared locally; nothing has been posted. Use /practice create in Discord.</p><pre class="request-text">' +
+        esc(text) +
+        '</pre><button id="copy-practice" class="button">Copy summary</button>',
+    );
+    body.querySelector("#copy-practice").onclick = () =>
+      copyText(text, "Practice summary copied.");
+  };
+}
