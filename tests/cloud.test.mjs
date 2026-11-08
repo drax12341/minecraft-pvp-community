@@ -20,6 +20,12 @@ async function database() {
       "utf8",
     ),
   );
+  sql.exec(
+    await readFile(
+      new URL("../drizzle/0001_player_workflows.sql", import.meta.url),
+      "utf8",
+    ),
+  );
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({
@@ -154,6 +160,232 @@ test("cloud SQL enforces ownership, capacity, atomic claims/results, cooldown, i
     );
     assert.equal(await store.beginInteraction("123456"), true);
     assert.equal(await store.beginInteraction("123456"), false);
+  } finally {
+    sql.close();
+  }
+});
+
+test("practice posts enforce expiry, concurrent limits and owner/moderator closure without public identity exports", async () => {
+  const { sql, store } = await database();
+  try {
+    const attempts = await Promise.allSettled(
+      ["sword", "axe", "bow", "mace"].map((m) =>
+        store.practiceCreate(
+          "60000",
+          m,
+          "EU",
+          "Saturday 16 UTC, agreed kit and spacing practice.",
+        ),
+      ),
+    );
+    assert.equal(attempts.filter((r) => r.status === "fulfilled").length, 3);
+    await assert.rejects(
+      store.practiceCreate(
+        "60000",
+        "sword",
+        "EU",
+        "Another active sword post for Saturday.",
+      ),
+      /active post/,
+    );
+    const posts = await store.practiceList("sword", "EU");
+    assert.equal(posts.length, 1);
+    await assert.rejects(
+      store.practiceClose(posts[0].id, "60001"),
+      /post owner/,
+    );
+    assert.equal((await store.practiceList("bow", "NA")).length, 0);
+    await store.practiceClose(posts[0].id, "80000", true);
+    const id = await store.practiceCreate(
+      "60000",
+      "sword",
+      "EU",
+      "Reopened availability after closing old post.",
+    );
+    sql
+      .prepare("UPDATE practice_posts SET expires=? WHERE id=?")
+      .run("2020-01-01T00:00:00Z", id);
+    assert.equal((await store.practiceList("sword", "EU")).length, 0);
+    const newId = await store.practiceCreate(
+      "60000",
+      "sword",
+      "EU",
+      "New session after the old listing expired.",
+    );
+    await store.practiceClose(newId, "60000");
+    const feed = JSON.stringify([
+      await store.testing(),
+      await store.rankings(config.points),
+    ]);
+    assert.ok(!feed.includes("60000"));
+    assert.ok(!feed.includes("Saturday"));
+    await assert.rejects(
+      runCommand(
+        interaction("60001", "practice", "close", {
+          id: attempts.find((r) => r.status === "fulfilled").value,
+        }),
+        env,
+        store,
+      ),
+      /owner/,
+    );
+    await assert.rejects(
+      runCommand(
+        interaction("60000", "practice", "create", {
+          mode: "fake",
+          region: "EU",
+          note: "Testing invalid mode safely.",
+        }),
+        env,
+        store,
+      ),
+      /valid mode/,
+    );
+    assert.ok(
+      sql.prepare("SELECT count(*) AS n FROM practice_posts").get().n >= 4,
+      "closed/expired records retained",
+    );
+  } finally {
+    sql.close();
+  }
+});
+
+test("tester applications are verified, private, bounded, independently reviewed and never grant roles", async () => {
+  const { sql, store } = await database();
+  try {
+    const values = {
+      mode: "sword",
+      region: "EU",
+      experience:
+        "I explain spacing, fair scoring and evidence to every player.",
+      availability: "Saturday 16–18 UTC",
+    };
+    await assert.rejects(
+      runCommand(
+        interaction("60000", "tester-apply", "submit", values),
+        env,
+        store,
+      ),
+      /ownership/,
+    );
+    await store.verify(
+      "60000",
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "PlayerOne",
+      "30000",
+    );
+    await runCommand(
+      interaction("60000", "tester-apply", "submit", values),
+      env,
+      store,
+    );
+    const rows = await store.testerApplications("60000");
+    assert.equal(rows.length, 1);
+    await assert.rejects(
+      store.applyTester(
+        "60000",
+        "sword",
+        "EU",
+        values.experience,
+        values.availability,
+      ),
+      /pending/,
+    );
+    assert.equal((await store.testerApplications("60001")).length, 0);
+    await assert.rejects(
+      runCommand(interaction("60001", "tester-apply", "review"), env, store),
+      /moderators/,
+    );
+    await assert.rejects(
+      store.reviewTester(
+        rows[0].id,
+        "60000",
+        "interview",
+        "I should not review my own application.",
+      ),
+      /independent/,
+    );
+    let requests = 0;
+    await runCommand(
+      interaction("30000", "tester-apply", "review", {
+        id: rows[0].id,
+        decision: "interview",
+        reason: "Please arrange a supervised scoring exercise.",
+      }),
+      env,
+      store,
+      () => {
+        requests++;
+        throw Error("No role API should be called");
+      },
+    );
+    assert.equal(requests, 0);
+    assert.equal(
+      (await store.testerApplications("60000"))[0].status,
+      "interview",
+    );
+    assert.equal((await store.testerApplications()).length, 0);
+    const feed = JSON.stringify([
+      await store.testing(),
+      await store.rankings(config.points),
+    ]);
+    assert.ok(!feed.includes("supervised"));
+    assert.ok(!feed.includes(values.experience));
+    await assert.rejects(
+      store.reviewTester(
+        rows[0].id,
+        "30000",
+        "declined",
+        "Trying to change an already decided application.",
+      ),
+      /pending/,
+    );
+  } finally {
+    sql.close();
+  }
+});
+
+test("claim handoff only releases the assigned unfinished entry and retains queue order", async () => {
+  const { sql, store } = await database();
+  try {
+    await store.verify(
+      "60000",
+      "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "PlayerOne",
+      "30000",
+    );
+    await store.session("sword", "EU", "open", "30000", 2, 72);
+    const id = await store.join("60000", "sword", "EU");
+    const created = (await store.list())[0].created;
+    await store.claim(id, "70000");
+    await assert.rejects(store.release(id, "70001"), /assigned/);
+    await runCommand(
+      interaction("70000", "claim", null, { id, action: "release" }, ["50000"]),
+      env,
+      store,
+    );
+    const row = (await store.list())[0];
+    assert.equal(row.status, "waiting");
+    assert.equal(row.created, created);
+    await store.claim(id, "70001");
+    await store.result(id, 3, 0, "https://example.com/evidence", "70001");
+    await assert.rejects(store.release(id, "70001"), /unfinished/);
+    const profile = await runCommand(
+      interaction("60001", "profile", null, { name: "PlayerOne" }),
+      env,
+      store,
+    );
+    assert.match(profile, /Sword: HT3/);
+    assert.ok(!profile.includes("60000"));
+    assert.ok(!profile.includes("70001"));
+    await assert.rejects(
+      runCommand(
+        interaction("60001", "profile", null, { name: "<bad>" }),
+        env,
+        store,
+      ),
+      /username/,
+    );
   } finally {
     sql.close();
   }

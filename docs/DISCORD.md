@@ -23,6 +23,10 @@ an optional fallback; do not run them expecting to replace cloud command deliver
 
 ## Commands
 
+- `/practice create mode region note`: publish a community practice listing for 24 hours. The note is visible to members through `/practice list`; include kit/UTC availability/goal, never private personal details. At most three active listings and one per mode. `/practice list [mode] [region]` filters active posts. `/practice close id` closes your listing; moderators may close inappropriate ones. Closed/expired records remain stored; listings are never ranking results.
+- `/tester-apply submit mode region experience availability`: verified Minecraft owners submit a private application. `/tester-apply status` shows only their decisions. Moderator `/tester-apply review` lists pending applications; add id, decision (`interview` or `declined`) and reason for an independent decision. No automatic staff-role assignment. One pending application per player/mode.
+- `/profile name`: find a published player placement/profile from this tierlist; no external placements or private account IDs exposed.
+- `/claim id action:release`: only the assigned tester can return an unfinished claim to its original waiting position. Completed results cannot be released.
 - `/guide topic`: private onboarding, testing, appeals, staff and practice instructions (cloud).
 - `/availability mode region`: optional filters; real session states, counts, capacity and cooldown (cloud).
 - `/queue status mode region`: your private account verification, mode entry, deterministic waiting position, latest valid result ID/evidence and session-specific retest time (cloud). Positions exclude claimed tests and are not an ETA.

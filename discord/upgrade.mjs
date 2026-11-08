@@ -81,8 +81,18 @@ const topics = {
   sponsorships:
     "Disclose each agreed sponsor and what they support. No confirmed sponsor is implied. Money cannot buy ranks, queue priority or appeal outcomes. Contact staff before any agreement.",
   "tester-recruitment":
-    "Volunteer tester interest: mode/region • Minecraft name • experience • UTC availability • sample scoring explanation. Do not post personal details. Staff arrange a private review; applications never grant roles automatically.",
+    "Apply privately with /tester-apply submit after Minecraft ownership verification. Include mode, region, experience and UTC availability. /tester-apply status shows the decision. Staff arrange supervised training; applications never grant roles.",
 };
+topics["find-a-duel"] =
+  "Use /practice create to publish mode, region, kit, UTC availability and goal. /practice list finds member posts; /practice close removes yours from active listings. Posts expire in 24 hours. Practice never awards an official tier.";
+topics.help =
+  "Your player toolkit: /guide • /availability • /queue status • /profile • /practice • /tester-apply. Copy commands from our website’s Testing or Community pages. Applications and appeals use private command replies.";
+for (const m of config.modes)
+  topics[m.id + "-testing"] =
+    m.name +
+    " testing · /availability mode:" +
+    m.id +
+    " to check real sessions. Verify ownership, agree the published kit/scoring rules, then /queue join. /queue status shows progress privately. This channel does not imply an open queue.";
 const panels = {
   help: [
     "Your command desk",
@@ -94,7 +104,7 @@ const panels = {
   ],
   "find-a-duel": [
     "Practice with a purpose",
-    "**Mode / region / version:**\n**Server and kit:**\n**UTC availability:**\n**Goal:** spacing, movement, trades or a specific matchup.\n\nAgree the rules and any recording first. No unsolicited pings. Practice does not award tiers.",
+    "**Find a partner:** /practice list with optional mode and region.\n**Publish yours:** /practice create with mode, region and a short note: kit, UTC availability and goal.\n**Finished?** /practice close with your listing ID. Listings expire after 24 hours; moderators can close inappropriate posts.\n\nYour listing is visible to members using the bot. Do not include private information. Agree the server, rules and recording first. Practice never awards a tier. No unsolicited pings.",
   ],
   "guides-and-coaching": [
     "Turn a clip into a clear question",
@@ -102,13 +112,17 @@ const panels = {
   ],
   "tester-recruitment": [
     "Help build fair testing",
-    "Volunteer by sharing mode/region, Minecraft name, relevant experience, UTC availability and a short example of how you would explain a score. Do not post private personal details. Staff will arrange a private review, a rubric exercise and supervised testing before assigning any staff role.\n\nRequirements: impartial scoring, agreed kit knowledge, consented evidence, respectful feedback and recusal from your own disputes. No automated promotion or guaranteed acceptance.",
+    "**Apply privately:** verify Minecraft ownership with staff, then use /tester-apply submit. Choose your mode and region, explain your testing/scoring experience and give UTC availability. Use /tester-apply status for private feedback.\n\nA moderator may invite you to a rubric exercise and supervised testing. Applications never grant staff roles. Do not post private application details here. Impartial scoring, kit knowledge, consented evidence and recusal from your own disputes are essential.",
   ],
   "test-review": [
     "Staff launch and handoff checklist",
     "Before /session open: verify actual account ownership, publish exact version/kit/mod/arena/scoring rules, confirm capacity and cooldown, and assign real testers plus an independent appeal reviewer.\n\n/queue list includes player identifiers privately for staff. /claim assigns one tester. /result requires the assigned tester and a shareable HTTPS evidence link. Members can retrieve the result ID through /queue status. Never put private appeal reasons in public results.\n\nRun two real consenting accounts through the full flow before launch. No sessions have been opened by this setup.",
   ],
 };
+panels.help[1] +=
+  "\n\n**Between tests:** /practice create, list and close help you find a spar. /profile finds earned placements. **Volunteer:** /tester-apply submit and status keep applications private. Visit the website’s Community page for copyable commands.";
+panels["test-review"][1] +=
+  "\n\n**Handoffs:** /claim action:release returns your unfinished claim to its original waiting position. Completed results cannot be released. **Recruitment:** /tester-apply review lists pending applications; choose interview or declined with feedback. You cannot review your own application. No command grants staff roles.";
 const log = {
   applied: apply,
   topics: [],
