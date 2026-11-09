@@ -18,13 +18,15 @@ async function website(
   sessions = [],
   route = "rankings",
   recent = [],
+  host = 'example.com',
 ) {
   const dom = new JSDOM(await readFile("web/index.html", "utf8"), {
-      url: "https://example.com/" + (route ? "#" + route : ""),
+      url: `https://${host}/` + (route ? "#" + route : ""),
       runScripts: "outside-only",
     }),
     w = dom.window;
-  w.fetch = async (url) => ({
+  w.__requests=[];
+  w.fetch = async (url) => (w.__requests.push(String(url)),{
     ok: true,
     json: async () =>
       url.endsWith('testing-desk.json')||url.endsWith('/api/testing-desk')
@@ -64,6 +66,9 @@ test('profile testing paths preserve the gamemode, region and next tier in the a
  const dom=await website([player],[],'rankings?player='+player.uuid),w=dom.window,d=w.document;
  const link=d.querySelector('.profile-next');assert.ok(link);assert.match(link.hash,/mode=mace/);assert.match(link.hash,/tier=LT2/);link.click();await new Promise(r=>w.setTimeout(r,15));
  const form=d.querySelector('#desk-form');assert.equal(form.elements.mode.value,'mace');assert.equal(form.elements.region.value,'EU');assert.equal(form.elements.tier.value,'LT2');assert.equal(d.querySelector('dialog').open,false);dom.window.close();
+});
+test('the public Pages mirror reads live testing demand from the same cloud service as rankings',async()=>{
+ const dom=await website([],[],'test-desk',[],'drax12341.github.io');await new Promise(r=>dom.window.setTimeout(r,10));assert.ok(dom.window.__requests.includes('https://minecraft-pvp-community.draxion0.chatgpt.site/api/testing-desk'));dom.window.close();
 });
 test("standalone board has five tiers, explicit sample preview, and no external ranks", async () => {
   const dom = await website(),
