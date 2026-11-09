@@ -14,4 +14,6 @@ Applied to guild `1568767259168608267` using the dedicated bot.
 
 Exact Mace kit inventories, versions and calibrated benchmark opponents were not provided. Official sessions remain closed until staff approve complete manifests; generic rubric descriptions do not approve kits. Queues currently operate by mode and region, so the FAQ does not promise a global queue.
 
-Validation: 27 cloud/website tests and 5 server/runtime/testing tests passed. Secret scan and Worker build passed. Live Discord channels, panels, emoji IDs, roles and command choices read back. No fake live tickets or rankings created for testing.
+Validation: 28 cloud/website tests and 5 server/runtime/testing tests passed. Secret scan and Worker build passed. Live Discord channels, panels, emoji IDs, roles and command choices read back. No fake live tickets or rankings created for testing.
+
+Published as Sites version 15, deployment `appgdep_6af20bde85e081919752064e1b564344`, source `edfc4a572bdbd7cf79122504daf286820e765500`, environment revision 4. Existing public audience retained. Production: https://minecraft-pvp-community.draxion0.chatgpt.site . Live health, seven-mode config and custom emoji IDs verified. Discord member-list access is unavailable to this bot (403), so notification roles were assigned to the owner; future staff appointments must include their notification roles.

@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { JSDOM } from "jsdom";
+import {deskPaths,deskTiers,testingDeskCommands} from '../config/testing-desk.mjs';
 const config = JSON.parse(await readFile("config/community.json"));
 const player = {
   uuid: "00000000-0000-0000-0000-000000000001",
@@ -26,7 +27,9 @@ async function website(
   w.fetch = async (url) => ({
     ok: true,
     json: async () =>
-      url.endsWith("community.json")
+      url.endsWith('testing-desk.json')||url.endsWith('/api/testing-desk')
+        ? {paths:deskPaths,tiers:deskTiers,commands:testingDeskCommands,demand:[],leaderboard:[]}
+        : url.endsWith("community.json")
         ? config
         : url.endsWith("testing.json")
           ? { sessions, activation: sessions.length ? "active" : "pending" }
@@ -39,9 +42,23 @@ async function website(
     this.open = false;
     w.document.activeElement?.blur();
   };
-  await w.eval(`(async()=>{${await readFile("web/tierlist.js", "utf8")}\n})()`);
+  const deskSource=(await readFile('web/testing-desk.js','utf8')).replaceAll('export function','function').replaceAll('export async function','async function');
+  const appSource=(await readFile('web/tierlist.js','utf8')).replace(/^import .*testing-desk.js.*\r?\n/m,'');
+  await w.eval(`(async()=>{${deskSource}\n${appSource}\n})()`);
   return dom;
 }
+test('high-tier roster filters real placements, excludes lower tiers and never renders sample players',async()=>{
+ const dom=await website([player,{...player,uuid:'lower',name:'LowerPlayer',rankings:{mace:{tier:3,pos:1}}}],[],'high-tiers');const d=dom.window.document;
+ assert.equal(d.querySelectorAll('.rank-lane').length,5);assert.equal(d.querySelectorAll('[data-high-player]').length,1);assert.match(d.querySelector('#high-board').textContent,/TestPlayer/);assert.doesNotMatch(d.querySelector('#high-board').textContent,/LowerPlayer|PreviewPlayer/);
+ d.querySelector('#high-region').value='NA';d.querySelector('#high-region').dispatchEvent(new dom.window.Event('change'));assert.equal(d.querySelectorAll('[data-high-player]').length,0);dom.window.close();
+});
+test('test desk changes target phases and tester fields and prepares a local application',async()=>{
+ const dom=await website([],[],'test-desk'),w=dom.window,d=w.document;await new Promise(r=>w.setTimeout(r,10));
+ const form=d.querySelector('#desk-form');assert.ok(form);assert.equal(d.querySelectorAll('#desk-phases li').length,2);
+ form.elements.tier.value='LT1';form.elements.tier.dispatchEvent(new w.Event('change'));assert.equal(d.querySelectorAll('#desk-phases li').length,3);
+ form.elements.kind.value='tester';form.elements.kind.dispatchEvent(new w.Event('change'));assert.equal(d.querySelector('#desk-experience').hidden,false);assert.equal(form.elements.experience.required,true);
+ form.elements.experience.value='I record independent scores and explain fair tier decisions.';form.elements.availability.value='Saturday 16 UTC';form.dispatchEvent(new w.Event('submit',{cancelable:true}));assert.match(d.querySelector('#desk-draft').textContent,/tester-desk apply mode:mace region:EU tier:LT1/);assert.match(d.querySelector('#desk-draft').textContent,/Nothing submitted/);dom.window.close();
+});
 test("standalone board has five tiers, explicit sample preview, and no external ranks", async () => {
   const dom = await website(),
     w = dom.window,

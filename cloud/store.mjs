@@ -215,6 +215,7 @@ export class CloudStore {
       `INSERT INTO queue(id,user,mode,region,created)
       SELECT ?,?,?,?,? FROM sessions s WHERE s.mode=? AND s.region=? AND s.status='open'
       AND EXISTS(SELECT 1 FROM accounts WHERE discord=?)
+      AND NOT EXISTS(SELECT 1 FROM test_restrictions tr WHERE tr.user=? AND tr.mode=s.mode AND tr.until_at>?)
       AND NOT EXISTS(SELECT 1 FROM queue WHERE user=? AND mode=? AND status IN ('waiting','claimed'))
       AND (SELECT count(*) FROM queue WHERE mode=s.mode AND region=s.region AND status IN ('waiting','claimed')) < s.capacity
       AND NOT EXISTS(SELECT 1 FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE a.discord=? AND r.mode=s.mode
@@ -228,6 +229,8 @@ export class CloudStore {
       mode,
       region,
       user,
+      user,
+      now,
       user,
       mode,
       user,

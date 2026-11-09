@@ -1,6 +1,7 @@
 import config from "../config/community.json" with { type: "json" };
 import { rubricText } from "../config/rubrics.mjs";
 import { extraInterests, ticketKinds, staffTracks } from "../config/community-roles.mjs";
+import {deskTiers,deskRegions} from '../config/testing-desk.mjs';
 const menu=(id,placeholder,options)=>[{type:1,components:[{type:3,custom_id:id,placeholder,min_values:1,max_values:1,options}]}];
 const message=(content,components=[])=>({type:4,data:{content,flags:64,components,allowed_mentions:{parse:[]}}});
 const modal=(id,title,fields)=>({type:9,data:{custom_id:id,title,components:fields.map(([custom_id,label,style,min_length,max_length])=>({type:1,components:[{type:4,custom_id,label,style,required:true,min_length,max_length}]}))}});
@@ -10,11 +11,26 @@ export function componentRoute(i) {
   const modes=config.modes.map(m=>({label:m.name,value:m.id,description:m.group,...(m.emoji?{emoji:{id:m.emoji}}:{})}));
   if(i.type===5){
     const fields=Object.fromEntries((i.data.components||[]).flatMap(row=>(row.components||[]).map(f=>[f.custom_id,f.value])));
+    if(id.startsWith('desk:apply:')){const [, ,kind,mode,tier,region]=id.split(':');if(!['player','tester'].includes(kind))throw Error('Invalid application.');return{command:command(i,kind==='tester'?'tester-desk':'high-test','apply',{mode,tier,region,availability:fields.availability,...(kind==='tester'?{experience:fields.experience}:{})})};}
     if(id.startsWith("ticket:open:")){const kind=id.slice(12);if(!ticketKinds.includes(kind))throw Error("Invalid ticket category.");return {command:command(i,"ticket","prepare",{kind,subject:fields.subject,detail:fields.detail})};}
     if(id.startsWith('ticket:resolution:'))return{command:command(i,'ticket','close',{id:id.slice(18),reason:fields.reason})};
     if(id.startsWith("apply:open:")){const track=id.slice(11);if(!staffTracks.includes(track))throw Error("Invalid application track.");return{command:command(i,"staff-apply","submit",{track,experience:fields.experience,availability:fields.availability})};}
     throw Error("This form has expired. Open the panel again.");
   }
+  if(id==='desk:player'||id==='desk:tester')return{response:message('Choose the gamemode for your private application.',menu('desk:mode:'+id.slice(5),'Testing gamemode',modes))};
+  if(id.startsWith('desk:fixed:')){const [, ,kind,mode]=id.split(':');return{response:message('Choose the target tier.',menu(`desk:tier:${kind}:${mode}`,'Target tier',deskTiers.map(t=>({label:t,value:t}))))};}
+  if(id.startsWith('desk:target:'))return{response:message('Choose the gamemode for your '+id.slice(12)+' test.',menu('desk:target-mode:'+id.slice(12),'Gamemode',modes))};
+  if(id.startsWith('desk:target-mode:'))return{response:message('Choose your testing region.',menu(`desk:region:player:${value}:${id.slice(17)}`,'Region',deskRegions.map(r=>({label:r,value:r}))))};
+  if(id.startsWith('desk:mode:'))return{response:message('Choose the target tier. Player applications require the next rank above your published placement.',menu(`desk:tier:${id.slice(10)}:${value}`,'Target tier',deskTiers.map(t=>({label:t,value:t}))))};
+  if(id.startsWith('desk:tier:'))return{response:message('Choose your testing region.',menu(`desk:region:${id.slice(10)}:${value}`,'Testing region',deskRegions.map(r=>({label:r,value:r}))))};
+  if(id.startsWith('desk:region:')){const [, ,kind,mode,tier]=id.split(':');return{response:modal(`desk:apply:${kind}:${mode}:${tier}:${value}`,kind==='tester'?'Apply to become a tester':'Apply for a higher tier',[['availability','UTC availability',1,5,100],...(kind==='tester'?[['experience','Testing experience and approach to fair reviews',2,30,800]]:[])])};}
+  if(id==='desk:status')return{command:command(i,'high-test','status')};
+  if(id.startsWith('desk:list:'))return{response:message('Choose the gamemode to view current placements.',menu('desk:list-mode:'+id.slice(10),'Gamemode',modes))};
+  if(id.startsWith('desk:list-mode:'))return{command:command(i,'tier-list',null,{mode:value,tier:id.slice(15)})};
+  if(id==='desk:tester-status')return{command:command(i,'tester-desk','status')};
+  if(id==='desk:cooldown')return{response:message('Choose a gamemode to check your cooldown.',menu('desk:cooldown-mode','Gamemode',modes))};
+  if(id==='desk:cooldown-mode')return{response:message('Choose your region.',menu('desk:cooldown-region:'+value,'Region',deskRegions.map(r=>({label:r,value:r}))))};
+  if(id.startsWith('desk:cooldown-region:'))return{command:command(i,'cooldown',null,{mode:id.slice(21),region:value})};
   if(id==="hub:test")return{response:message("Choose the mode for your official test request.",menu("test:mode","Select a testing mode",modes))};
   if(id==="test:mode"||id.startsWith('test:mode:')){
     const selected=id.startsWith('test:mode:')?id.slice(10):value;

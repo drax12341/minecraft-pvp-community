@@ -3,6 +3,7 @@ import { runCommand } from "./commands.mjs";
 import config from "../config/community.json" with { type: "json" };
 import { componentRoute } from "./components.mjs";
 import { kitManifests } from '../config/kit-manifests.mjs';
+import { deskPublic } from './testing-desk.mjs';
 
 const website = "https://drax12341.github.io/minecraft-pvp-community";
 const json = (value, status = 200) =>
@@ -146,6 +147,7 @@ export default {
         "/api/rankings",
         "/data/testing.json",
         "/api/testing",
+        "/api/testing-desk",
       ].includes(url.pathname)
     ) {
       if (!env.DB) return json({ error: "Cloud storage unavailable" }, 503);
@@ -162,14 +164,16 @@ export default {
           await store.one('SELECT 1 FROM tester_qualifications LIMIT 1');
           await store.one('SELECT 1 FROM test_rooms LIMIT 1');
           await store.one('SELECT 1 FROM ticket_drafts LIMIT 1');
+          await store.one('SELECT 1 FROM high_tests LIMIT 1');
           return json({
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "community-v5",
-            commands: 22,
+            release: "testing-desk-v6",
+            commands: 29,
           });
         }
+        if(url.pathname==='/api/testing-desk')return json(await deskPublic(store));
         return json(
           url.pathname.includes("testing")
             ? await store.testing()

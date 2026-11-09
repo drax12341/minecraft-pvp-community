@@ -15,6 +15,72 @@ import config from "../config/community.json" with { type: "json" };
 import { OperationsStore } from "../cloud/operations-store.mjs";
 import { ticketOverwrites, assertPrivateTicket } from "../cloud/operations.mjs";
 import { componentRoute } from "../cloud/components.mjs";
+import {deskPublic} from '../cloud/testing-desk.mjs';
+
+test('high-tier applications persist privately, enforce next tier, prevent duplicates and recover timed-out rooms',async()=>{
+ const {sql,store}=await database();try{
+  const apply=interaction('60000','high-test','apply',{mode:'mace',region:'EU',tier:'HT3',availability:'Saturday 16–18 UTC'});
+  await assert.rejects(runCommand(apply,env,store),/ownership/);
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  await assert.rejects(runCommand(apply,env,store),/initial evaluation/);
+  await store.statement('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created) VALUES(?,?,?,?,?,?,?,?,?,?)','initial','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','EU','mace',3,1,'50001','https://example.com/initial',new Date(Date.now()-1000).toISOString()).run();
+  let created,fail=true,posts=0;
+  const request=async(url,o)=>{
+   if(o.method==='GET')return Response.json(created?[created]:[]);
+   if(url.endsWith('/channels')){posts++;created={...JSON.parse(o.body),id:'81000',guild_id:'20000'};if(fail)throw Error('Simulated response timeout');return Response.json(created);}
+   return Response.json({id:'82000'});
+  };
+  const privateEnv={...env,DISCORD_TICKET_CATEGORY_ID:'80000'};
+  await assert.rejects(runCommand(apply,privateEnv,store,request),/timeout/);
+  const row=await store.one('SELECT * FROM high_tests');assert.equal(row.target,'HT3');assert.equal(row.room_lock,null);
+  await assert.rejects(runCommand(apply,privateEnv,store,request),/active application/);
+  await assert.rejects(runCommand(interaction('60001','high-test','status',{id:row.id}),privateEnv,store,request),/Only the applicant/);
+  fail=false;assert.match(await runCommand(interaction('60000','high-test','room',{id:row.id}),privateEnv,store,request),/81000/);assert.equal(posts,1);
+  const everyone=created.permission_overwrites.find(o=>o.id==='20000');assert.equal(everyone.deny,'1024');
+  const publicData=JSON.stringify(await deskPublic(store));assert.ok(!publicData.includes('60000'));assert.ok(!publicData.includes('Saturday'));assert.ok(!publicData.includes(row.id));
+ }finally{sql.close();}
+});
+
+test('only qualified independent assignees track phases, and failed tests block both high applications and normal queues',async()=>{
+ const {sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  await store.statement("INSERT INTO high_tests(id,user,mode,region,target,availability,created,updated) VALUES(?,?,?,?,?,?,?,?)",'high-one','60000','mace','EU','HT3','Saturday 16 UTC',new Date().toISOString(),new Date().toISOString()).run();
+  const claim=interaction('50001','high-test','claim',{id:'high-one'},['50000']);
+  await assert.rejects(runCommand(claim,env,store),/qualification/);
+  await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001','mace',0,'30000','Approved training',new Date().toISOString()).run();
+  assert.match(await runCommand(claim,env,store),/claimed/);
+  await assert.rejects(runCommand(interaction('50001','high-test','advance',{id:'high-one',reason:'Reviewed the score evidence'},['50000']),env,store),/every assigned/);
+  await assert.rejects(runCommand(interaction('50001','high-test','close',{id:'high-one',decision:'passed',reason:'Approved reviewed outcome'},['50000']),env,store),/all phases/);
+  await runCommand(interaction('50001','high-test','close',{id:'high-one',decision:'failed',reason:'Lost the required opponent sets'},['50000']),env,store);
+  await store.session('mace','EU','open','30000',20,0);
+  await assert.rejects(store.join('60000','mace','EU'),/cooldown/);
+  assert.match(await runCommand(interaction('60000','cooldown',null,{mode:'mace',region:'EU'}),env,store),/Failed-test restriction ends/);
+  await assert.rejects(runCommand(interaction('60000','high-test','apply',{mode:'mace',region:'EU',tier:'HT3',availability:'Saturday 16 UTC'}),env,store),/cooldown/);
+ }finally{sql.close();}
+});
+
+test('tester recruitment records gamemode and target scope, stays private and requires independent review without granting qualifications',async()=>{
+ const {sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  const apply=interaction('60000','tester-desk','apply',{mode:'mace_spear',region:'EU',tier:'HT3',availability:'Saturday 16 UTC',experience:'I can independently record scores and explain fair match decisions.'});
+  await assert.rejects(runCommand(apply,env,store),/not configured/);
+  const r=await store.one('SELECT * FROM high_tests');assert.equal(r.kind,'tester');assert.equal(r.mode,'mace_spear');assert.equal(r.target,'HT3');
+  await assert.rejects(runCommand(interaction('60001','tester-desk','list'),env,store),/authorized/);
+  await runCommand(interaction('30000','tester-desk','review',{id:r.id,decision:'training',reason:'Proceed with supervised testing training'}),env,store);
+  assert.equal((await store.one('SELECT count(*) n FROM tester_qualifications')).n,0);
+  assert.match(await runCommand(interaction('60000','tester-desk','status'),env,store),/training/);
+ }finally{sql.close();}
+});
+
+test('testing application menus preserve kind, gamemode, target and region through modal submission',()=>{
+ const route=(id,value)=>componentRoute({type:3,data:{custom_id:id,values:value?[value]:[]}});
+ const first=route('desk:fixed:tester:mace_spear').response.data.components[0].components[0];assert.equal(first.custom_id,'desk:tier:tester:mace_spear');
+ const second=route(first.custom_id,'HT3').response.data.components[0].components[0];assert.equal(second.custom_id,'desk:region:tester:mace_spear:HT3');
+ const modal=route(second.custom_id,'EU').response;assert.equal(modal.data.custom_id,'desk:apply:tester:mace_spear:HT3:EU');
+ const submitted=componentRoute({type:5,data:{custom_id:modal.data.custom_id,components:[{components:[{custom_id:'availability',value:'Saturday 16 UTC'},{custom_id:'experience',value:'Independent scoring and testing experience'}]}]}}).command;
+ assert.equal(submitted.data.name,'tester-desk');assert.equal(submitted.data.options[0].options.find(o=>o.name==='mode').value,'mace_spear');
+ const cooldown=route('desk:cooldown-region:mace','EU').command;assert.equal(cooldown.data.options.find(o=>o.name==='mode').value,'mace');
+});
 
 test('waitlists are private preferences and never create or reserve queue places',async()=>{
   const {sql,store}=await database();try{
@@ -237,6 +303,7 @@ async function database() {
   sql.exec(await readFile(new URL("../drizzle/0002_community_operations.sql",import.meta.url),"utf8"));
   sql.exec(await readFile(new URL('../drizzle/0003_journey_safety.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0004_interaction_delivery.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0005_testing_desk.sql',import.meta.url),'utf8'));
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({

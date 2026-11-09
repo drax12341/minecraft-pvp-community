@@ -1,3 +1,4 @@
+import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js';
 const main = document.querySelector("main"),
   modal = document.querySelector("dialog"),
   body = document.querySelector("#modal-body");
@@ -157,6 +158,7 @@ function render() {
   });
   if (route === "rankings") readRankingScope();
   document.body.dataset.page = route;
+  const deskTitles={'high-tiers':'HT3+ roster','test-desk':'Testing desk',commands:'Testing commands'};
   document.title = `${{ home: "Home", rankings: "Rankings", testing: "Testing center", kits: "Kits & rules", tagger: "Tier tagger", sponsors: "Support us", about: "Rules & privacy", staff: "Staff console", results: "Results", community: "Community" }[route] || "Rankings"} · Minecraft PvP Tierlist`;
   (
     ({
@@ -170,9 +172,13 @@ function render() {
       staff,
       results: resultsPage,
       community: communityPage,
+      'high-tiers':()=>renderHighTiers({main,config,data,profile}),
+      'test-desk':()=>renderTestDesk({main,config}),
+      commands:()=>renderCommandLibrary({main}),
     })[route] || rankings
   )();
   decoratePage();
+  if(deskTitles[route])document.title=deskTitles[route]+' · Minecraft PvP Tierlist';
   const id = requestedPlayer;
   if (id) {
     const p = data.players.find((p) => p.uuid === id);

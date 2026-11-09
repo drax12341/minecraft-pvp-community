@@ -3,6 +3,7 @@ import { kitManifests } from '../config/kit-manifests.mjs';
 import config from "../config/community.json" with { type: "json" };
 import { operationNames, runOperation } from "./operations.mjs";
 import { staffAccess } from "../config/community-roles.mjs";
+import { testingDeskNames, runTestingDesk } from './testing-desk.mjs';
 
 const regions = ["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"];
 export async function runCommand(interaction, env, store, request = fetch) {
@@ -20,6 +21,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
   const roles = interaction.member.roles || [];
   const {mod,tester} = staffAccess(interaction,env);
   if(journeyNames.has(data.name))return runJourney(interaction,env,store,request);
+  if(testingDeskNames.has(data.name))return runTestingDesk(interaction,env,store,request);
   if(operationNames.has(data.name))return runOperation(interaction,env,store,request);
   const requireMod = () => {
     if (!mod) throw Error("Only moderators can use this command.");
@@ -389,6 +391,9 @@ export async function runCommand(interaction, env, store, request = fetch) {
       if(env.DISCORD_RESULTS_CHANNEL_ID){
         const ping=/^\d{5,22}$/.test(env.DISCORD_RESULT_PING_ROLE_ID||'')?env.DISCORD_RESULT_PING_ROLE_ID:null;
         try{await discord(`/channels/${env.DISCORD_RESULTS_CHANNEL_ID}/messages`,'POST',{content:ping?`<@&${ping}>`:undefined,embeds:[{title:`${account.name}'s Test Results 🏆`,color:parseInt(config.modes.find(m=>m.id===entry.mode)?.color.slice(1)||'8074ee',16),fields:[{name:'Tester',value:`<@${actor}>`},{name:'Gamemode',value:config.modes.find(m=>m.id===entry.mode)?.name||entry.mode,inline:true},{name:'Region',value:entry.region,inline:true},{name:'Username',value:account.name},{name:'Previous Rank',value:previous?`${previous.pos===0?'HT':'LT'}${previous.tier}`:'Unranked',inline:true},{name:'Rank Earned',value:tier,inline:true},{name:'Match evidence',value:evidence}],footer:{text:'Assessment '+get('id')}}],allowed_mentions:{parse:[],roles:ping?[ping]:[]}});}catch{return 'Result saved. The rankings feed updated, but the Discord result announcement failed; ask staff to review it.';}
+      }
+      if(/^(HT1|LT1|HT2|LT2|HT3)$/.test(tier)&&config.testingDeskChannels?.highResults){
+        try{await discord(`/channels/${config.testingDeskChannels.highResults}/messages`,'POST',{embeds:[{title:`${account.name}'s High-Tier Result`,color:0x9c82ee,fields:[{name:'Tester',value:`<@${actor}>`},{name:'Gamemode',value:config.modes.find(m=>m.id===entry.mode)?.name||entry.mode,inline:true},{name:'Region',value:entry.region,inline:true},{name:'Username',value:account.name},{name:'Previous Rank',value:previous?`${previous.pos===0?'HT':'LT'}${previous.tier}`:'Unranked',inline:true},{name:'Rank Earned',value:tier,inline:true},{name:'Match evidence',value:evidence}],footer:{text:'Assessment '+get('id')}}],allowed_mentions:{parse:[]}});}catch{return 'Result saved. The main rankings feed updated; staff should check the high-results announcement.';}
       }
       return "Result saved with evidence and tester attribution. The cloud rankings feed updates automatically.";
     }

@@ -1,0 +1,142 @@
+import config from '../config/community.json' with {type:'json'};
+import { deskTiers,deskRegions,deskPaths,testingDeskCommands } from '../config/testing-desk.mjs';
+import { staffAccess } from '../config/community-roles.mjs';
+import { requireQualification } from './journeys.mjs';
+export const testingDeskNames=new Set(testingDeskCommands.map(c=>c.name));
+const deskRank=r=>`${r.pos===0?'HT':'LT'}${r.tier}`;
+export async function deskPublic(store){
+ const leaderboard=await store.all(`SELECT a.name,count(*) AS tests FROM results r JOIN accounts a ON a.discord=r.tester WHERE NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) GROUP BY r.tester ORDER BY tests DESC,a.name LIMIT 10`);
+ const demand=await store.all("SELECT mode,region,target,count(*) AS waiting FROM high_tests WHERE kind='player' AND status IN ('pending','claimed') GROUP BY mode,region,target");
+ return {updatedAt:new Date().toISOString(),paths:deskPaths,tiers:deskTiers,demand,leaderboard};
+}
+export async function runTestingDesk(i,env,store,request=fetch){
+ const {actor,mod,tester}=staffAccess(i,env),sub=i.data.options?.find(o=>o.type===1),opts=sub?.options||i.data.options||[];
+ const get=n=>opts.find(o=>o.name===n)?.value;
+ const now=()=>new Date().toISOString();
+ const checkMode=()=>{if(!config.modes.some(m=>m.id===get('mode')))throw Error('Choose a valid gamemode.');return get('mode');};
+ const note=()=>{const n=get('reason');if(typeof n!=='string'||n.trim().length<10||n.length>1000)throw Error('Include a reason of 10–1000 characters.');return n.trim();};
+ const event=(id,action,text)=>store.statement('INSERT INTO high_test_events VALUES(?,?,?,?,?,?)',crypto.randomUUID(),id,actor,action,text,now());
+ const discord=async(path,method,body)=>{const r=await request('https://discord.com/api/v10'+path,{method,headers:{Authorization:'Bot '+env.DISCORD_TOKEN,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(10000)});if(!r.ok)throw Error('Discord could not finish this action. The application is saved; use the room command with its ID to recover.');return r.status===204?null:r.json();};
+ if(i.data.name==='tier-path'){if(!deskPaths[get('tier')])throw Error('Choose a target tier.');return `**Testing for ${get('tier')}**\n`+deskPaths[get('tier')].map((s,n)=>`**Phase ${n+1}:** ${s}`).join('\n')+'\n\nFailed tests: 30-day cooldown. Staff adjudicate replacements, forfeits and demotions using the ranked rubric.';}
+ if(i.data.name==='tier-list'){
+  const m=checkMode();if(!/^(HT|LT)[1-5]$/.test(get('tier')||''))throw Error('Choose a target tier.');if(get('region')&&!deskRegions.includes(get('region')))throw Error('Choose a region.');
+  const players=(await store.rankings(config.points)).players.filter(p=>p.rankings[m]&&deskRank(p.rankings[m])===get('tier')&&(!get('region')||p.region===get('region')));
+  return `**${config.modes.find(x=>x.id===m).name} · ${get('tier')}**\n`+(players.slice(0,40).map(p=>`${p.name} · ${p.region}`).join('\n')||'No published players in this tier yet.')+`\n${players.length} total. Full roster: https://minecraft-pvp-community.draxion0.chatgpt.site/#high-tiers`;
+ }
+ if(i.data.name==='tester-roster'){
+  const rows=await store.all('SELECT user,senior FROM tester_qualifications WHERE mode=? ORDER BY senior DESC,user LIMIT 30',checkMode());
+  return rows.map(r=>`<@${r.user}> — ${r.senior?'senior review':'qualified tester'}`).join('\n')||'No qualified testers recorded for this gamemode. Apply through /tester-desk apply; staff review is required.';
+ }
+ if(i.data.name==='test-stats'){
+  if(get('mode'))checkMode();const m=get('mode')||'';
+  const rows=await store.all(`SELECT r.tester,a.name,count(*) n FROM results r LEFT JOIN accounts a ON a.discord=r.tester WHERE NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND (?='' OR r.mode=?) GROUP BY r.tester ORDER BY n DESC,r.tester LIMIT 10`,m,m);
+  const total=await store.one("SELECT count(*) n FROM results r WHERE NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND (?='' OR r.mode=?)",m,m);
+  return `**Completed tests: ${total.n}**\n`+(rows.map((r,n)=>`${n+1}. ${r.name||'<@'+r.tester+'>'} — ${r.n}`).join('\n')||'No completed tests yet.');
+ }
+ if(i.data.name==='cooldown'){
+  const m=checkMode();if(!deskRegions.includes(get('region')))throw Error('Choose a valid region.');
+  const restriction=await store.one('SELECT until_at FROM test_restrictions WHERE user=? AND mode=? AND until_at>?',actor,m,now()),s=await store.status(actor,m,get('region'));
+  return `${restriction?'Failed-test restriction ends <t:'+Math.ceil(Date.parse(restriction.until_at)/1000)+':F>.':'No active failed-test restriction.'}\n${s.eligibleAt&&s.eligibleAt>now()?'Session retest cooldown ends <t:'+Math.ceil(Date.parse(s.eligibleAt)/1000)+':F>.':'No active session retest cooldown.'}\n${s.session?'Session: '+s.session.status+'.':'No session configured.'}`;
+ }
+ const kind=i.data.name==='tester-desk'?'tester':'player';
+ const show=r=>`**${r.kind==='tester'?'Tester application':'High-tier test'} ${r.id}**\n${r.mode} / ${r.region} / ${r.target} · ${r.status} · phase ${r.phase}\nApplicant: <@${r.user}>\nTester: ${r.tester?'<@'+r.tester+'>':'unassigned'}\nAvailability: ${r.availability}${r.reason?'\nDecision: '+r.reason:''}${r.channel?'\nTicket: <#'+r.channel+'>':''}`;
+ async function room(r){
+  if(r.channel){if(r.tester)await discord(`/channels/${r.channel}/permissions/${r.tester}`,'PUT',{type:1,allow:String(1024n|2048n|65536n|16384n|32768n),deny:'0'});return `Private ticket: <#${r.channel}>\n${show(r)}`;}
+  if(!env.DISCORD_TICKET_CATEGORY_ID)throw Error('Private testing tickets are not configured. Application saved: '+r.id);
+  const lock=now();
+  const reserved=await store.statement("UPDATE high_tests SET room_lock=? WHERE id=? AND channel IS NULL AND (room_lock IS NULL OR room_lock<?)",lock,r.id,new Date(Date.now()-120000).toISOString()).run();
+  if(!reserved.meta.changes)throw Error('Ticket creation is already running. Check status, then retry room in two minutes if needed. Application: '+r.id);
+  try{
+  // Recover a previous Discord success if the database update timed out.
+  const channels=await discord(`/guilds/${env.DISCORD_GUILD_ID}/channels`,'GET');
+  let c=channels.find(c=>c.topic===`Testing desk ${r.id}`);
+  if(!c){
+   const staff=String(env.DISCORD_MODERATOR_ROLE_IDS||env.MODERATOR_ROLE_ID||'').split(',').filter(x=>/^\d{5,22}$/.test(x));
+   const access=String(1024n|2048n|65536n|16384n|32768n);
+   c=await discord(`/guilds/${env.DISCORD_GUILD_ID}/channels`,'POST',{name:`${r.kind==='tester'?'tester':'test'}-${r.target.toLowerCase()}-${r.id.slice(0,8)}`,type:0,parent_id:env.DISCORD_TICKET_CATEGORY_ID,topic:`Testing desk ${r.id}`,permission_overwrites:[{id:env.DISCORD_GUILD_ID,type:0,allow:'0',deny:'1024'},...staff.map(id=>({id,type:0,allow:access,deny:'0'})),...[...new Set([r.user,env.DISCORD_CLIENT_ID,env.DISCORD_OWNER_ID,r.tester].filter(Boolean))].map(id=>({id,type:1,allow:access,deny:'0'}))]});
+  }
+  const permitted=new Set([env.DISCORD_GUILD_ID,r.user,env.DISCORD_CLIENT_ID,env.DISCORD_OWNER_ID,r.tester,...String(env.DISCORD_MODERATOR_ROLE_IDS||env.MODERATOR_ROLE_ID||'').split(',')].filter(Boolean));
+  if(c.guild_id!==env.DISCORD_GUILD_ID||!c.permission_overwrites?.some(o=>o.id===env.DISCORD_GUILD_ID&&(BigInt(o.deny)&1024n)&&!(BigInt(o.allow)&1024n))||c.permission_overwrites.some(o=>!permitted.has(o.id)&&(BigInt(o.allow)&1024n)))throw Error('Ticket privacy could not be verified. Ask management to inspect the application '+r.id);
+  await store.statement('UPDATE high_tests SET channel=?,room_lock=NULL,updated=? WHERE id=? AND room_lock=?',c.id,now(),r.id,lock).run();
+  await discord(`/channels/${c.id}/messages`,'POST',{embeds:[{title:`${r.target} ${r.kind==='tester'?'Tester Application':'Tier Test'}`,description:show(r),color:r.kind==='tester'?0x9c82ee:0xff087a,fields:[{name:'Gamemode',value:config.modes.find(m=>m.id===r.mode).name,inline:true},{name:'Region',value:r.region,inline:true},...(r.experience?[{name:'Experience',value:r.experience}]:[]),{name:'Next step',value:r.kind==='tester'?'Management reviews this application, interviews and supervises training. Acceptance does not grant a qualification.':'Qualified staff use /high-test claim, assign opponents and record evidence. /high-test status shows progress.'}]}],allowed_mentions:{parse:[]}});
+  return `Private application saved: ${r.id}\nTicket: <#${c.id}>`;
+  }catch(error){await store.statement('UPDATE high_tests SET room_lock=NULL WHERE id=? AND room_lock=?',r.id,lock).run();throw error;}
+ }
+ if(sub?.name==='apply'){
+  const m=checkMode(),target=get('tier'),region=get('region'),availability=get('availability'),experience=kind==='tester'?get('experience'):'';
+  if(!deskTiers.includes(target)||!deskRegions.includes(region))throw Error('Choose a valid target tier and region.');
+  if(typeof availability!=='string'||availability.trim().length<5||availability.length>100)throw Error('Include UTC availability in 5–100 characters.');
+  if(kind==='tester'&&(typeof experience!=='string'||experience.trim().length<30||experience.length>800))throw Error('Include testing experience in 30–800 characters.');
+  const account=await store.one('SELECT * FROM accounts WHERE discord=?',actor);if(!account)throw Error('Verify Minecraft account ownership with staff before applying.');
+  if(kind==='player'){
+   const restriction=await store.one('SELECT until_at FROM test_restrictions WHERE user=? AND mode=? AND until_at>?',actor,m,now());if(restriction)throw Error('Failed-test cooldown ends '+restriction.until_at);
+   const current=await store.one('SELECT tier,pos FROM results r WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1',account.uuid,m);
+   if(!current)throw Error('Complete an initial evaluation in this gamemode before applying for HT3+. Use /request-test.');
+   const order=['LT5','HT5','LT4','HT4','LT3','HT3','LT2','HT2','LT1','HT1'];
+   if(order.indexOf(target)!==order.indexOf(deskRank(current))+1)throw Error('Apply for the next tier above your published placement. Current rank: '+deskRank(current));
+  }
+  const id=crypto.randomUUID();
+  const saved=await store.statement("INSERT INTO high_tests(id,user,kind,mode,region,target,availability,experience,created,updated) SELECT ?,?,?,?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM high_tests WHERE user=? AND mode=? AND kind=? AND status IN ('pending','claimed'))",id,actor,kind,m,region,target,availability.trim(),experience.trim(),now(),now(),actor,m,kind).run();
+  if(!saved.meta.changes)throw Error('An active application already exists for this gamemode. Use the status command.');
+  return room(await store.one('SELECT * FROM high_tests WHERE id=?',id));
+ }
+ if(sub?.name==='status'&&!get('id'))return (await store.all('SELECT * FROM high_tests WHERE user=? AND kind=? ORDER BY created DESC LIMIT 8',actor,kind)).map(show).join('\n\n')||'No applications yet. Choose a gamemode, region and target tier with the apply command.';
+ if(sub?.name==='list'){
+  if(kind==='tester'?!mod:!tester)throw Error('Only authorized staff can list applications.');
+  if(get('mode')){checkMode();if(kind==='player'&&!mod)await requireQualification(store,actor,get('mode'));}
+  if(kind==='player'&&!mod&&!get('mode'))throw Error('Select a gamemode you are qualified to test.');
+  const rows=await store.all("SELECT * FROM high_tests WHERE kind=? AND status IN ('pending','claimed') AND (?='' OR mode=?) AND (?='' OR target=?) AND (?='' OR region=?) ORDER BY created LIMIT 10",kind,get('mode')||'',get('mode')||'',get('tier')||'',get('tier')||'',get('region')||'',get('region')||'');
+  return rows.map(show).join('\n\n')||'No active applications match these filters.';
+ }
+ const r=await store.one('SELECT * FROM high_tests WHERE id=? AND kind=?',get('id'),kind);if(!r)throw Error('Application not found.');
+ if(actor!==r.user&&!mod&&actor!==r.tester&&!(kind==='player'&&sub?.name==='claim'&&tester))throw Error('Only the applicant, assigned tester or management can access this application.');
+ if(sub?.name==='status'){
+  const sets=await store.all('SELECT phase,opponent,opponent_tier,wins,losses,evidence FROM high_test_sets WHERE test_id=? ORDER BY phase,updated',r.id);
+  return show(r)+'\n'+sets.map(s=>`Phase ${s.phase}: <@${s.opponent}> (${s.opponent_tier}) · ${s.wins===null?'assigned':s.wins+'–'+s.losses+' · '+s.evidence}`).join('\n');
+ }
+ if(sub?.name==='room'){if(!['pending','claimed'].includes(r.status))throw Error('This application is closed.');return room(r);}
+ if(kind==='tester'&&sub?.name==='review'){
+  if(!mod||actor===r.user)throw Error('An independent moderator must review tester applications.');const reason=note(),decision=get('decision');if(!['interview','training','declined'].includes(decision))throw Error('Choose a valid decision.');
+  const change=await store.db.batch([store.statement("UPDATE high_tests SET status=?,reason=?,updated=? WHERE id=? AND status='pending'",decision,reason,now(),r.id),event(r.id,'review',decision+': '+reason)]);if(!change[0].meta.changes)throw Error('Application is no longer pending.');
+  return 'Review saved. No role or tester qualification was granted. Use /qualification grant only after supervised approval.';
+ }
+ if(actor===r.user||!tester)throw Error('A qualified independent tester is required.');
+ await requireQualification(store,actor,r.mode,r.target!=='HT3');
+ if(sub?.name==='claim'){
+  const change=await store.statement("UPDATE high_tests SET tester=?,status='claimed',updated=? WHERE id=? AND status='pending' AND user<>?",actor,now(),r.id,actor).run();if(!change.meta.changes)throw Error('Application is already claimed or closed.');
+  if(r.channel)await discord(`/channels/${r.channel}/permissions/${actor}`,'PUT',{type:1,allow:String(1024n|2048n|65536n|16384n|32768n),deny:'0'});
+  return 'Application claimed. '+(r.channel?'Private ticket: <#'+r.channel+'>':'Use /high-test room to open its ticket.');
+ }
+ if(r.tester!==actor||r.status!=='claimed')throw Error('Only the assigned tester can update an active claimed test.');
+ if(sub?.name==='opponent'){
+  if(get('opponent')===r.user||(get('opponent')===actor&&!(r.target==='HT3'&&r.phase===1)))throw Error('Choose an independent opponent.');
+  if(get('phase')!==r.phase)throw Error('Assign opponents for the current phase.');
+  const opponent=await store.one('SELECT * FROM accounts WHERE discord=?',get('opponent'));if(!opponent)throw Error('The opponent must have verified account ownership.');
+  const placement=await store.one('SELECT tier,pos FROM results r WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1',opponent.uuid,r.mode);if(!placement)throw Error('The opponent needs a published placement in this gamemode.');
+  const changed=await store.statement('INSERT OR IGNORE INTO high_test_sets(id,test_id,phase,opponent,opponent_tier,actor,updated) VALUES(?,?,?,?,?,?,?)',crypto.randomUUID(),r.id,r.phase,get('opponent'),deskRank(placement),actor,now()).run();
+  if(!changed.meta.changes)throw Error('This opponent is already assigned in this phase.');return `Opponent assigned as ${deskRank(placement)}. Record the set with /high-test score. Staff must check tier and replacement eligibility against the rubric.`;
+ }
+ if(sub?.name==='score'){
+  const evidence=get('evidence'),wins=get('wins'),losses=get('losses');if(!URL.canParse(evidence)||new URL(evidence).protocol!=='https:'||evidence.length>1000)throw Error('Include a shareable HTTPS evidence URL.');
+  if(!Number.isInteger(wins)||!Number.isInteger(losses)||wins<0||losses<0||wins>30||losses>30||wins+losses===0)throw Error('Enter valid round scores.');if(get('phase')!==r.phase)throw Error('Record scores for the current phase.');
+  const changed=await store.db.batch([store.statement('UPDATE high_test_sets SET wins=?,losses=?,evidence=?,updated=? WHERE test_id=? AND phase=? AND opponent=?',wins,losses,evidence,now(),r.id,r.phase,get('opponent')),event(r.id,'score',`Phase ${r.phase}: ${get('opponent')} ${wins}-${losses} ${evidence}`)]);
+  if(!changed[0].meta.changes)throw Error('Assign this opponent before recording a score.');return 'Score and evidence saved. Phase completion requires staff adjudication.';
+ }
+ if(sub?.name==='advance'){
+  const reason=note();if(r.phase>=deskPaths[r.target].length)throw Error('This is the final phase. Publish the reviewed result, then close the test.');
+  const sets=await store.all('SELECT wins FROM high_test_sets WHERE test_id=? AND phase=?',r.id,r.phase);if(!sets.length||sets.some(s=>s.wins===null))throw Error('Record every assigned opponent set before advancing.');
+  const change=await store.db.batch([store.statement("UPDATE high_tests SET phase=phase+1,updated=? WHERE id=? AND phase=? AND status='claimed'",now(),r.id,r.phase),event(r.id,'advance',reason)]);if(!change[0].meta.changes)throw Error('Phase changed; check status.');return `Phase ${r.phase} adjudicated. Next: ${deskPaths[r.target][r.phase]}`;
+ }
+ if(sub?.name==='close'){
+  const decision=get('decision'),reason=note();if(!['passed','failed','cancelled'].includes(decision))throw Error('Choose a valid outcome.');
+  if(decision==='passed'){
+   const result=await store.one('SELECT r.* FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE r.id=? AND a.discord=? AND r.mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id)',get('result')||'',r.user,r.mode);
+   const sets=await store.all('SELECT wins FROM high_test_sets WHERE test_id=? AND phase=?',r.id,r.phase);
+   if(r.phase!==deskPaths[r.target].length||!sets.length||sets.some(s=>s.wins===null)||!result||deskRank(result)!==r.target||result.created<r.created)throw Error('A pass requires all phases recorded and a new published result matching this player, mode and target tier. Use the official assessment and result workflow.');
+  }
+  const statements=[store.statement("UPDATE high_tests SET status=?,reason=?,result_id=?,updated=? WHERE id=? AND status='claimed'",decision,reason,get('result')||null,now(),r.id),event(r.id,'close',decision+': '+reason)];
+  if(decision==='failed')statements.push(store.statement('INSERT INTO test_restrictions VALUES(?,?,?,?,?) ON CONFLICT(user,mode) DO UPDATE SET until_at=MAX(test_restrictions.until_at,excluded.until_at),reason=excluded.reason,test_id=excluded.test_id',r.user,r.mode,new Date(Date.now()+30*86400000).toISOString(),reason,r.id));
+  await store.db.batch(statements);return `Test ${decision}. ${decision==='failed'?'A 30-day mode cooldown is now enforced.':'History retained in the private ticket.'}`;
+ }
+ throw Error('Choose a supported testing command.');
+}
