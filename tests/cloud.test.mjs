@@ -16,6 +16,70 @@ import { OperationsStore } from "../cloud/operations-store.mjs";
 import { ticketOverwrites, assertPrivateTicket } from "../cloud/operations.mjs";
 import { componentRoute } from "../cloud/components.mjs";
 import {deskPublic} from '../cloud/testing-desk.mjs';
+import {checkTierPhase} from '../config/phase-checks.mjs';
+
+test('connected promotion prepares, readies, scores, independently reviews and publishes within one existing ticket',async()=>{
+ const {sql,store}=await database();try{
+  const names=['Applicant','OpponentOne','OpponentTwo','TargetOne','TargetTwo'];
+  for(let n=0;n<5;n++){const user=String(60000+n),uuid=String(n+1).repeat(8)+'-aaaa-aaaa-aaaa-aaaaaaaaaaaa';await store.verify(user,uuid,names[n],'30000');await store.statement('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created) VALUES(?,?,?,?,?,?,?,?,?,?)','seed-'+n,uuid,names[n],'EU','mace',n<3?3:2,n<3?0:1,'50001','https://example.com/seed',new Date(Date.now()-10000).toISOString()).run();}
+  for(const actor of ['50001','50002','50003'])await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)',actor,'mace',1,'30000','Supervised senior approval',new Date().toISOString()).run();
+  await store.session('mace','EU','open','30000');await store.statement('UPDATE sessions SET kit_version=?',kitManifests.version).run();
+  await store.statement("INSERT INTO high_tests(id,user,mode,region,target,availability,status,tester,channel,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)",'connected','60000','mace','EU','LT2','Saturday 16 UTC','claimed','50001','81000',new Date().toISOString(),new Date().toISOString()).run();
+  const calls=[],request=async(url,o)=>{calls.push({url,method:o.method});return o.method==='DELETE'?new Response(null,{status:204}):Response.json({id:'82000'});};
+  const testingEnv={...env,DISCORD_SENIOR_TESTER_ROLE_IDS:'51000',DISCORD_RESULTS_CHANNEL_ID:'80000'};
+  const call=(actor,action,values={},roles=['50000'])=>runCommand({...interaction(actor,'high-test',action,values,roles),channel_id:'81000'},testingEnv,store,request);
+  await call('50001','prepare');assert.equal((await store.one('SELECT queue_id FROM high_tests')).queue_id,'connected');assert.equal((await store.one('SELECT channel FROM test_rooms')).channel,'81000');
+  await call('50001','release',{reason:'Availability changed; reassign without losing the test'});
+  assert.equal((await store.one('SELECT status FROM high_tests')).status,'pending');
+  await call('50003','claim');await call('50003','prepare');assert.equal((await store.one('SELECT tester FROM test_rooms')).tester,'50003');
+  await call('50003','release',{reason:'Hand back to the originally scheduled tester'});await call('50001','claim');await call('50001','prepare');
+  await assert.rejects(call('50001','assess',{scores:'3,3,3,3,3,3',reason:'Reviewed complete opponent recordings'}),/Both participants/);
+  await call('60000','ready',{},[]);await call('50001','ready');
+  for(const [phase,user,wins,losses] of [[1,'60001',4,2],[1,'60002',4,3],[2,'60003',4,3],[2,'60004',3,4]]){
+   if(phase===2&&(await store.one('SELECT phase FROM high_tests')).phase===1)await call('50001','advance',{reason:'Both same-tier opponents beaten with 8–5 overall'});
+   await call('50001','opponent',{phase,opponent:user});await call('50001','score',{phase,opponent:user,wins,losses,evidence:'https://example.com/set-'+user});
+  }
+  await call('50001','assess',{scores:'3,3,3,3,3,3',reason:'Complete reviewed phase evidence and calibrated sets'});
+  await assert.rejects(runCommand(interaction('50001','result',null,{id:'connected',tier:'LT2',evidence:'https://example.com/final'},['50000']),testingEnv,store,request),/high-test publish/);
+  await assert.rejects(call('50001','publish',{evidence:'https://example.com/final',reason:'Final sets and full assessment checked'}),/independent|assessment review/);
+  await assert.rejects(call('50001','review',{evidence:'https://example.com/final',reason:'Review the final match recordings'},['50000','51000']),/different qualified senior/);
+  await call('50002','review',{evidence:'https://example.com/final',reason:'Independent exact evidence and rubric review'},['50000','51000']);
+  assert.match(await call('50001','publish',{evidence:'https://example.com/final',reason:'All required sets and senior review completed'}),/Test passed/);
+  assert.equal((await store.one("SELECT status FROM high_tests WHERE id='connected'")).status,'passed');assert.equal((await store.one("SELECT status FROM queue WHERE id='connected'")).status,'complete');
+  assert.equal(calls.filter(c=>c.url.endsWith('/channels')&&c.method==='POST').length,0);
+ }finally{sql.close();}
+});
+
+test('phase guidance detects missing opponents, failed margins, final minimum rounds and tier replacements',()=>{
+ const set=(wins,losses,opponent_tier)=>({wins,losses,opponent_tier});
+ assert.equal(checkTierPhase('HT3',1,[set(3,2,'HT3')]).passed,false);
+ assert.equal(checkTierPhase('HT3',2,[set(4,3,'HT3')]).passed,true);
+ assert.equal(checkTierPhase('LT2',1,[set(4,2,'HT3')]).passed,false);
+ assert.equal(checkTierPhase('LT2',1,[set(4,2,'HT3'),set(4,3,'HT3')]).passed,true);
+ assert.equal(checkTierPhase('LT2',2,[set(5,0,'LT2'),set(2,0,'LT2')]).passed,false);
+ assert.equal(checkTierPhase('LT2',2,[set(4,3,'LT2'),set(3,4,'LT2')]).passed,true);
+ assert.equal(checkTierPhase('HT2',2,[set(4,0,'LT2'),set(4,0,'HT2')]).replacements,1);
+});
+
+test('pending applications may be withdrawn by their owner, while active claims cannot bypass forfeit adjudication',async()=>{
+ const {sql,store}=await database();try{
+  const stamp=new Date().toISOString();await store.statement('INSERT INTO high_tests(id,user,mode,region,target,availability,created,updated) VALUES(?,?,?,?,?,?,?,?)','withdraw-test','60000','mace','EU','HT3','Saturday 16 UTC',stamp,stamp).run();
+  await assert.rejects(runCommand(interaction('60001','high-test','withdraw',{id:'withdraw-test',reason:'Changed my planned testing availability'}),env,store),/Only the applicant/);
+  await store.statement("UPDATE high_tests SET status='claimed',tester='50001' WHERE id='withdraw-test'").run();
+  await assert.rejects(runCommand(interaction('60000','high-test','withdraw',{id:'withdraw-test',reason:'Changed my planned testing availability'}),env,store),/forfeit/);
+  await store.statement("UPDATE high_tests SET status='pending',tester=NULL WHERE id='withdraw-test'").run();
+  assert.match(await runCommand(interaction('60000','high-test','withdraw',{id:'withdraw-test',reason:'Changed my planned testing availability'}),env,store),/withdrawn/);assert.equal((await store.one('SELECT count(*) n FROM test_restrictions')).n,0);
+ }finally{sql.close();}
+});
+
+test('one roster paginates real players and test-hub chooses the verified next action without leaking other applications',async()=>{
+ const {sql,store}=await database();try{
+  const unverified=await runCommand(interaction('60000','test-hub',null,{mode:'mace',region:'EU'}),env,store);assert.match(unverified.content,/Not verified/);assert.equal(unverified.components[0].components[0].custom_id,'hub:ticket');
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  const roster=await runCommand(interaction('60000','roster',null,{mode:'mace'}),env,store);assert.match(roster.content,/No published players/);assert.match(roster.components[0].components[0].url,/#rankings/);
+  const region=componentRoute({type:3,data:{custom_id:'desk:hub-region:mace',values:['EU']}}).command;assert.equal(region.data.options.find(o=>o.name==='mode').value,'mace');
+ }finally{sql.close();}
+});
 
 test('high-tier applications persist privately, enforce next tier, prevent duplicates and recover timed-out rooms',async()=>{
  const {sql,store}=await database();try{
@@ -304,6 +368,7 @@ async function database() {
   sql.exec(await readFile(new URL('../drizzle/0003_journey_safety.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0004_interaction_delivery.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0005_testing_desk.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0006_connected_tests.sql',import.meta.url),'utf8'));
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({

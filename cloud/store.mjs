@@ -475,6 +475,7 @@ export class CloudStore {
         peak_pos: peak.pos,
         retired: false,
         attained: r.created,
+        region: r.region,
         evidence: r.evidence,
       };
     }

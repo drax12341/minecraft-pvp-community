@@ -1,4 +1,5 @@
 import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js';
+import {renderLeagueHome,mountLeagueShell} from './league.js';
 const main = document.querySelector("main"),
   modal = document.querySelector("dialog"),
   body = document.querySelector("#modal-body");
@@ -189,164 +190,7 @@ function render() {
 function arenaHub() {
   return '<section class="arena-hub" aria-label="Community player hub"><div class="hub-identity"><img src="./mark.svg" alt="Community shield" width="68" height="68"><div><h2>Your community. In sync.</h2><p>Practice in Minecraft, request a test in Discord, follow your placements here.</p></div></div><div class="hub-destinations"><article><h3>Join the arena</h3><p>Java · Paper 1.21.11 · Europe</p><button class="server-copy" data-command="mcpvpcommunity.minekeep.gg" aria-label="Copy Minecraft server address">mcpvpcommunity.minekeep.gg <span>Copy</span></button><small>Practice setup in progress. The free host may sleep when empty.</small><details><summary>In-game commands</summary><p><code>/arena</code> Practice lobby<br><code>/play</code> Kit matchmaking<br><code>/duel player kit</code> Private challenge<br><code>/ffa</code> Sword free-for-all<br><code>/settings</code> Personal settings</p></details></article><article><h3>Request your test</h3><p>Choose a mode and region. Your verified account, cooldown and actual session capacity are checked.</p><a class="button secondary" href="https://discord.com/channels/1568767259168608267/1569347570214506607" target="_blank" rel="noopener">Open testing desk</a><small>Waiting does not guarantee a session or tier.</small></article><article><h3>Talk to the team</h3><p>Choose a category and fill out a short form. Support staff are notified inside your private ticket.</p><a class="button secondary" href="https://discord.com/channels/1568767259168608267/1569347634395746364" target="_blank" rel="noopener">Open a support ticket</a><small>Account help, player reports and confidential staff reports.</small></article></div></section>';
 }
-function home() {
-  const open = testing.sessions.filter((s) => s.status === "open");
-  main.innerHTML =
-    '<section class="night-hero arena-intro"><div class="intro-copy"><span class="launch-pill"><i></i>' +
-    (open.length
-      ? open.length + " testing sessions open"
-      : "Testing launch in preparation") +
-    '</span><h1 class="night-wordmark">Earn your place.</h1><p>A real fight. A fair result.<br>Your own path through Minecraft PvP.</p><div class="hero-actions"><a class="button" href="#rankings">Explore rankings</a><a class="button secondary" href="#testing">Get tested</a></div><div class="hero-facts"><span>' +
-    config.modes.length +
-    ' modes</span><span>Paper 1.21.11</span><span>One independent tierlist</span></div></div><div class="arena-art" role="img" aria-label="Illustrated Minecraft duel arena"><img src="./assets/arena-v2.png" alt="" fetchpriority="high"><div class="arena-caption"><img src="./assets/sword.svg" alt=""><span>Every placement starts<br><strong>in the arena.</strong></span></div></div><div class="sky-controls" aria-label="Arena atmosphere"><button data-sky="arena" class="active" aria-pressed="true">Arena</button><button data-sky="stars" aria-pressed="false">Quiet</button></div></section>' +
-    arenaHub() + '<section class="playstyle-section" id="home-features"><div class="section-heading"><div><h2>Find your discipline</h2><p class="fine">Main modes and specialist kits. All in one community.</p></div><a href="#kits">Kit guide</a></div><div class="kit-ribbon">' +
-    config.modes
-      .map(
-        (m) =>
-          '<button data-home-mode="' +
-          m.id +
-          '">' +
-          art(m.id) +
-          "<span>" +
-          m.name +
-          "</span></button>",
-      )
-      .join("") +
-    "</div></section>" +
-    '<section class="arena-live-grid"><div class="panel"><div class="section-heading"><h2>Latest placements</h2><a href="#results">All results</a></div>' +
-    activity() +
-    '</div><div class="panel next-session"><span class="availability-dot"></span><h2>' +
-    (open.length
-      ? "The next session is ready."
-      : "Your next match starts here.") +
-    "</h2><p>" +
-    (open.length
-      ? "Choose a mode and region, check your eligibility and join in Discord."
-      : "Read the kit guide, meet practice partners and get ready. Staff will publish sessions when the testing team is prepared.") +
-    '</p><div class="actions"><a class="button secondary" href="#testing">Testing center</a><a class="text-button" href="#community">Find practice</a></div></div></section>' +
-    '<section class="home-section"><div class="section-heading"><div><h2>From first test to your next tier</h2><p class="fine">A clear process, with evidence and a second opinion when you need it.</p></div></div><div class="journey-layout"><div class="journey-buttons">' +
-    [
-      ["Choose your kit", "Find your mode and learn the rules."],
-      ["Play your test", "Verify ownership. Join an open session."],
-      ["Review your result", "Your placement, evidence and next step."],
-    ]
-      .map(
-        ([t, p], i) =>
-          '<button data-journey="' +
-          i +
-          '" aria-pressed="' +
-          (i === 0) +
-          '"><span class="journey-number">' +
-          (i + 1) +
-          "</span><span><strong>" +
-          t +
-          "</strong><small>" +
-          p +
-          "</small></span></button>",
-      )
-      .join("") +
-    '</div><div class="journey-window" id="journey-detail" aria-live="polite"></div></div></section>' +
-    '<section class="home-faq"><h2>Before you queue</h2>' +
-    [
-      [
-        "Is this connected to another tierlist?",
-        "Every placement comes from our own tests. We do not import other communities’ rankings.",
-      ],
-      [
-        "Can I get tested now?",
-        open.length
-          ? "Published sessions are open. Check capacity in the testing center and join through Discord."
-          : "No sessions are open right now. You can prepare your request or find a practice partner.",
-      ],
-      [
-        "How do I get a tier?",
-        "Staff verify ownership, a tester claims your entry and you play under the agreed kit rubric.",
-      ],
-      [
-        "What does the tagger use?",
-        "The experimental Fabric release reads this community’s committed result exports. In-game compatibility testing remains required.",
-      ],
-      [
-        "Can I buy a better rank?",
-        "No. Support never buys a tier, queue priority or an appeal outcome.",
-      ],
-    ]
-      .map(
-        ([q, a]) =>
-          "<details><summary>" +
-          q +
-          "<span>+</span></summary><p>" +
-          a +
-          "</p></details>",
-      )
-      .join("") +
-    '</section><section class="community-invite"><img src="./mark.svg" alt=""><div><h2>Bring your playstyle.</h2><p>Compete, practice and build the founding community.</p></div><a class="button" href="' +
-    config.invite +
-    '" target="_blank" rel="noopener">Join Discord</a></section>';
-  main.querySelectorAll("[data-home-mode]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        mode = b.dataset.homeMode;
-        modeGroup = kit(mode).group === "Main modes" ? "main" : "sub";
-        view = "board";
-        preview = false;
-        location.hash = "rankings";
-      }),
-  );
-  main.querySelectorAll("[data-sky]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        main
-          .querySelector(".night-hero")
-          .classList.toggle("stars-only", b.dataset.sky === "stars");
-        main.querySelectorAll("[data-sky]").forEach((x) => {
-          x.classList.toggle("active", x === b);
-          x.setAttribute("aria-pressed", String(x === b));
-        });
-      }),
-  );
-  const stages = [
-    [
-      "Know your kit",
-      "Check the version, allowed equipment, scoring rules and evidence agreement before a test.",
-      "#kits",
-      "Read kit guidance",
-    ],
-    [
-      "Find a session",
-      "Verify Minecraft ownership with staff. /availability finds real sessions; /queue status keeps your progress private.",
-      "#testing",
-      "Prepare for testing",
-    ],
-    [
-      "A result you can review",
-      "Review your evidence. An independent moderator handles an appeal through private Discord commands.",
-      "#results",
-      "Browse results",
-    ],
-  ];
-  const stage = (i) => {
-    const [t, p, url, a] = stages[i];
-    main.querySelector("#journey-detail").innerHTML =
-      '<span class="preview-caption">How testing works</span><h3>' +
-      t +
-      "</h3><p>" +
-      p +
-      '</p><a class="button secondary" href="' +
-      url +
-      '">' +
-      a +
-      "</a>";
-    main.querySelectorAll("[data-journey]").forEach((b) => {
-      b.classList.toggle("active", Number(b.dataset.journey) === i);
-      b.setAttribute("aria-pressed", String(Number(b.dataset.journey) === i));
-    });
-  };
-  main
-    .querySelectorAll("[data-journey]")
-    .forEach((b) => (b.onclick = () => stage(Number(b.dataset.journey))));
-  stage(0);
-}
+function home(){renderLeagueHome({main,config,data,testing,profile,openMode:id=>{mode=id;modeGroup=kit(id).group==='Main modes'?'main':'sub';preview=false;view='board';location.hash='rankings';}});}
 function rankings() {
   const visibleModes = config.modes.filter(
     (m) =>
@@ -621,7 +465,7 @@ function renderBoard() {
   const rows = source()
     .filter(
       (p) =>
-        (region === "all" || p.region === region) &&
+        (region === "all" || (mode==='overall'?p.region:p.rankings[mode]?.region||p.region) === region) &&
         p.name.toLowerCase().includes(search.toLowerCase()) &&
         (!savedOnly || savedPlayers.has(p.uuid)) &&
         (mode === "overall"
@@ -777,13 +621,15 @@ function compareDock() {
 }
 function profile(p) {
   if (!p) return;
+  const best=Object.values(p.rankings).sort((a,b)=>(config.points[label(b)]||0)-(config.points[label(a)]||0))[0];
+  const profilePath=(id,r)=>{const order=['LT5','HT5','LT4','HT4','LT3','HT3','LT2','HT2','LT1','HT1'],next=order[order.indexOf(label(r))+1];return ['HT3','LT2','HT2','LT1','HT1'].includes(next)?'#test-desk?'+new URLSearchParams({mode:id,region:r.region||p.region,tier:next}):'#testing';};
   show(
-    `<div class="player-profile">${avatar(p)}<div><h2>${esc(p.name)}</h2><p class="fine">${p.region} · ${points(p)} points${p.demo ? " · Sample player, not a real placement" : ""}</p></div></div><div class="profile-grid">${Object.entries(
+    `<div class="player-profile">${avatar(p)}<div><span class="profile-kicker">Player dossier</span><h2>${esc(p.name)}</h2><p class="fine">${p.region} · ${points(p)} points${p.demo ? " · Sample player, not a real placement" : ""}</p></div></div><div class="dossier-stats"><div><strong>${best?label(best):'Unranked'}</strong><span>Highest current tier</span></div><div><strong>${Object.keys(p.rankings).length}</strong><span>Ranked disciplines</span></div><div><strong>${points(p)}</strong><span>Overall points</span></div></div><h3 class="dossier-section-title">Current placements</h3><div class="profile-grid">${Object.entries(
       p.rankings,
     )
       .map(
         ([id, r]) =>
-          `<div class="profile-kit">${art(id)}<div>${kit(id)?.name || esc(id)}<small>Peak ${r.peak_tier ? label({ tier: r.peak_tier, pos: r.peak_pos }) : label(r)}${r.retired ? " · Retired" : ""}</small></div>${chip(r)}</div>`,
+          `<div class="profile-kit">${art(id)}<div>${kit(id)?.name || esc(id)}<small>Best result ${r.peak_tier ? label({ tier: r.peak_tier, pos: r.peak_pos }) : label(r)}${r.retired ? " · Retired" : ""}${r.region?' · '+esc(r.region):''}</small><a class="profile-next" href="${profilePath(id,r)}">View testing path</a></div>${chip(r)}</div>`,
       )
       .join(
         "",
@@ -804,6 +650,7 @@ function profile(p) {
     writePreference("savedPlayers", [...savedPlayers]);
     profile(p);
   };
+  body.querySelectorAll('.profile-next').forEach(a=>a.addEventListener('click',()=>modal.close()));
   body.querySelector("#share").onclick = async () => {
     try {
       await navigator.clipboard.writeText(
@@ -1189,6 +1036,8 @@ try {
     '<div class="big-empty"><h1>The tierlist could not load.</h1><p>Refresh the page or visit Discord.</p><button class="button secondary" onclick="location.reload()">Try again</button><a class="button" href="https://discord.gg/a36rg6BxuX">Open Discord ↗</a></div>';
   console.error(e);
 }
+
+mountLeagueShell({browseModes:()=>{if(config)browseModes();}});
 
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {

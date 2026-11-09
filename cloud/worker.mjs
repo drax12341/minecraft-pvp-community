@@ -169,8 +169,8 @@ export default {
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "testing-desk-v6",
-            commands: 29,
+            release: "mace-league-v7",
+            commands: 31,
           });
         }
         if(url.pathname==='/api/testing-desk')return json(await deskPublic(store));

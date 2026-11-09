@@ -13,6 +13,10 @@ The new [Eclipse-inspired presentation](docs/ECLIPSE-INSPIRATION.md) adds a viol
 Website: https://drax12341.github.io/minecraft-pvp-community/
 Discord: https://discord.gg/a36rg6BxuX
 
+The [Mace League v7 upgrade](docs/MACE-LEAGUE-V7.md) rebuilds the website shell,
+consolidates Discord rosters and connects promotion tickets to their official
+assessments. Start with `/test-hub`, `/roster` or the website testing desk.
+
 ## Website
 
 A redesigned five-column tier board, 15 original kit icons, overall leaderboard, search/region filtering, profiles, comparisons, player cards, testing session availability, kit rules, request summaries, sponsor page and dedicated tagger configurator. An explicit sample preview demonstrates populated states; sample players are never published as real rankings. No third-party rankings are imported.

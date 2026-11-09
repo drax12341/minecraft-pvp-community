@@ -43,8 +43,9 @@ async function website(
     w.document.activeElement?.blur();
   };
   const deskSource=(await readFile('web/testing-desk.js','utf8')).replaceAll('export function','function').replaceAll('export async function','async function');
-  const appSource=(await readFile('web/tierlist.js','utf8')).replace(/^import .*testing-desk.js.*\r?\n/m,'');
-  await w.eval(`(async()=>{${deskSource}\n${appSource}\n})()`);
+  const leagueSource=(await readFile('web/league.js','utf8')).replaceAll('export function','function');
+  const appSource=(await readFile('web/tierlist.js','utf8')).replace(/^import .*\r?\n/gm,'');
+  await w.eval(`(async()=>{${deskSource}\n${leagueSource}\n${appSource}\n})()`);
   return dom;
 }
 test('high-tier roster filters real placements, excludes lower tiers and never renders sample players',async()=>{
@@ -58,6 +59,11 @@ test('test desk changes target phases and tester fields and prepares a local app
  form.elements.tier.value='LT1';form.elements.tier.dispatchEvent(new w.Event('change'));assert.equal(d.querySelectorAll('#desk-phases li').length,3);
  form.elements.kind.value='tester';form.elements.kind.dispatchEvent(new w.Event('change'));assert.equal(d.querySelector('#desk-experience').hidden,false);assert.equal(form.elements.experience.required,true);
  form.elements.experience.value='I record independent scores and explain fair tier decisions.';form.elements.availability.value='Saturday 16 UTC';form.dispatchEvent(new w.Event('submit',{cancelable:true}));assert.match(d.querySelector('#desk-draft').textContent,/tester-desk apply mode:mace region:EU tier:LT1/);assert.match(d.querySelector('#desk-draft').textContent,/Nothing submitted/);dom.window.close();
+});
+test('profile testing paths preserve the gamemode, region and next tier in the application builder',async()=>{
+ const dom=await website([player],[],'rankings?player='+player.uuid),w=dom.window,d=w.document;
+ const link=d.querySelector('.profile-next');assert.ok(link);assert.match(link.hash,/mode=mace/);assert.match(link.hash,/tier=LT2/);link.click();await new Promise(r=>w.setTimeout(r,15));
+ const form=d.querySelector('#desk-form');assert.equal(form.elements.mode.value,'mace');assert.equal(form.elements.region.value,'EU');assert.equal(form.elements.tier.value,'LT2');assert.equal(d.querySelector('dialog').open,false);dom.window.close();
 });
 test("standalone board has five tiers, explicit sample preview, and no external ranks", async () => {
   const dom = await website(),
@@ -77,30 +83,20 @@ test("standalone board has five tiers, explicit sample preview, and no external 
   dom.window.close();
 });
 
-test("inspired homepage has functional scene controls, walkthrough and kit entry points", async () => {
+test("league homepage uses real counts, a compact navigation shell and direct gamemode entry points", async () => {
   const dom = await website([], [], ""),
     w = dom.window,
     d = w.document;
   assert.equal(d.body.dataset.page, "home");
-  assert.ok(d.querySelector(".night-wordmark"));
-  assert.equal(d.querySelectorAll(".home-faq details").length, 5);
-  assert.match(d.querySelector(".launch-pill").textContent, /preparation/);
-  d.querySelector('[data-sky="stars"]').click();
-  assert.ok(d.querySelector(".night-hero").classList.contains("stars-only"));
-  assert.equal(
-    d.querySelector('[data-sky="arena"]').getAttribute("aria-pressed"),
-    "false",
-  );
-  d.querySelector('[data-journey="2"]').click();
-  assert.match(
-    d.querySelector("#journey-detail").textContent,
-    /independent moderator/,
-  );
-  assert.equal(
-    d.querySelector('[data-journey="2"]').getAttribute("aria-pressed"),
-    "true",
-  );
-  d.querySelector('[data-home-mode="mace_rod"]').click();
+  assert.match(d.querySelector('.league-page-heading h1').textContent,/Every tier/);
+  assert.equal(d.querySelectorAll('[data-league-mode]').length,7);
+  assert.match(d.querySelector('.league-live-pill').textContent,/Next sessions/);
+  assert.match(d.querySelector('.league-empty').textContent,/first results/);
+  assert.equal(d.querySelector('.league-bottom-strip strong').textContent,'0');
+  d.querySelector('#mobile-navigation').click();assert.equal(d.querySelector('#mobile-navigation').getAttribute('aria-expanded'),'true');
+  d.querySelector('.league-rail a').click();assert.equal(d.querySelector('#mobile-navigation').getAttribute('aria-expanded'),'false');
+  await new Promise(r=>w.setTimeout(r,10));
+  d.querySelector('[data-league-mode="mace_rod"]').click();
   await new Promise((r) => w.setTimeout(r, 10));
   assert.equal(d.body.dataset.page, "rankings");
   assert.match(d.querySelector(".kit-title h2").textContent, /Rod Mace/);

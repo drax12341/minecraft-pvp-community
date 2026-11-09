@@ -21,7 +21,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
   const roles = interaction.member.roles || [];
   const {mod,tester} = staffAccess(interaction,env);
   if(journeyNames.has(data.name))return runJourney(interaction,env,store,request);
-  if(testingDeskNames.has(data.name))return runTestingDesk(interaction,env,store,request);
+  if(testingDeskNames.has(data.name))return runTestingDesk(interaction,env,store,request,next=>runCommand(next,env,store,request));
   if(operationNames.has(data.name))return runOperation(interaction,env,store,request);
   const requireMod = () => {
     if (!mod) throw Error("Only moderators can use this command.");
@@ -374,6 +374,8 @@ export async function runCommand(interaction, env, store, request = fetch) {
         );
       const entry=await store.one('SELECT * FROM queue WHERE id=?',get('id'));
       if(!entry)throw Error('Assessment not found.');
+      const linkedTest=await store.one("SELECT id,target FROM high_tests WHERE queue_id=? AND status='claimed'",get('id'));
+      if(linkedTest&&(interaction.testingDeskPublish!==linkedTest.id||tier!==linkedTest.target))throw Error('Publish this linked promotion through /high-test publish in its private ticket so its phases and target tier are checked together.');
       await requireQualification(store,actor,entry.mode);
       const room=await requireReadyRoom(store,get('id'),actor);
       const assessment=await store.one('SELECT kit_version FROM assessments WHERE id=?',get('id'));

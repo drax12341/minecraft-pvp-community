@@ -11,6 +11,7 @@ export function componentRoute(i) {
   const modes=config.modes.map(m=>({label:m.name,value:m.id,description:m.group,...(m.emoji?{emoji:{id:m.emoji}}:{})}));
   if(i.type===5){
     const fields=Object.fromEntries((i.data.components||[]).flatMap(row=>(row.components||[]).map(f=>[f.custom_id,f.value])));
+    if(id.startsWith('testform:submit:')){const [, ,action,testId,phase,opponent]=id.split(':');const values={id:testId,...fields};if(action==='score'){values.phase=Number(phase);values.opponent=opponent;values.wins=Number(fields.wins);values.losses=Number(fields.losses);}return{command:command(i,'high-test',action,values)};}
     if(id.startsWith('desk:apply:')){const [, ,kind,mode,tier,region]=id.split(':');if(!['player','tester'].includes(kind))throw Error('Invalid application.');return{command:command(i,kind==='tester'?'tester-desk':'high-test','apply',{mode,tier,region,availability:fields.availability,...(kind==='tester'?{experience:fields.experience}:{})})};}
     if(id.startsWith("ticket:open:")){const kind=id.slice(12);if(!ticketKinds.includes(kind))throw Error("Invalid ticket category.");return {command:command(i,"ticket","prepare",{kind,subject:fields.subject,detail:fields.detail})};}
     if(id.startsWith('ticket:resolution:'))return{command:command(i,'ticket','close',{id:id.slice(18),reason:fields.reason})};
@@ -25,6 +26,22 @@ export function componentRoute(i) {
   if(id.startsWith('desk:tier:'))return{response:message('Choose your testing region.',menu(`desk:region:${id.slice(10)}:${value}`,'Testing region',deskRegions.map(r=>({label:r,value:r}))))};
   if(id.startsWith('desk:region:')){const [, ,kind,mode,tier]=id.split(':');return{response:modal(`desk:apply:${kind}:${mode}:${tier}:${value}`,kind==='tester'?'Apply to become a tester':'Apply for a higher tier',[['availability','UTC availability',1,5,100],...(kind==='tester'?[['experience','Testing experience and approach to fair reviews',2,30,800]]:[])])};}
   if(id==='desk:status')return{command:command(i,'high-test','status')};
+  if(id.startsWith('testform:')){
+   const [,action,testId,phase]=id.split(':');
+   if(action==='opponent')return{response:message('Choose a verified opponent with a published placement.',[{type:1,components:[{type:5,custom_id:`testform:opponent-pick:${testId}:${phase}`,min_values:1,max_values:1,placeholder:'Choose opponent'}]}])};
+   if(action==='opponent-pick')return{command:command(i,'high-test','opponent',{id:testId,phase:Number(phase),opponent:value})};
+   if(action==='score-pick')return{response:modal(`testform:submit:score:${testId}:${phase}:${value}`,'Record opponent set',[['wins','Applicant rounds won',1,1,2],['losses','Applicant rounds lost',1,1,2],['evidence','Shareable HTTPS match evidence',1,8,1000]])};
+   const prompts={assess:[['scores','Six rubric scores, 0–4 separated by commas',1,11,30],['reason','Assessment rationale',2,10,1000]],advance:[['reason','Why this phase meets the ranked rubric',2,10,1000]],publish:[['evidence','Exact HTTPS evidence approved for publication',1,8,1000],['reason','Final assessment and outcome rationale',2,10,1000]]};
+   if(prompts[action])return{response:modal(`testform:submit:${action}:${testId}`,{assess:'Record rubric assessment',advance:'Advance the testing phase',publish:'Publish the reviewed result'}[action],prompts[action])};
+  }
+  if(id==='desk:roster')return{response:message('Choose a gamemode. All tiers share this player roster.',menu('desk:roster-mode','Gamemode',modes))};
+  if(id==='desk:roster-mode')return{command:command(i,'roster',null,{mode:value})};
+  if(id==='desk:my-hub')return{response:message('Choose your gamemode.',menu('desk:hub-mode','Gamemode',modes))};
+  if(id==='desk:hub-mode')return{response:message('Choose your testing region.',menu('desk:hub-region:'+value,'Region',deskRegions.map(r=>({label:r,value:r}))))};
+  if(id.startsWith('desk:hub-region:'))return{command:command(i,'test-hub',null,{mode:id.slice(16),region:value})};
+  if(id.startsWith('roster:page:')){const [, ,mode,region,tier,page]=id.split(':');return{command:command(i,'roster',null,{mode,...(region!=='all'?{region}:{}),...(tier!=='all'?{tier}:{}),page:Number(page)})};}
+  if(id.startsWith('flow:apply:')){const [, ,mode,tier,region]=id.split(':');return{response:modal(`desk:apply:player:${mode}:${tier}:${region}`,'Apply for '+tier,[['availability','UTC availability',1,5,100]])};}
+  if(id.startsWith('flow:')){const [,action,testId]=id.split(':');return{command:command(i,'high-test',action,{id:testId})};}
   if(id.startsWith('desk:list:'))return{response:message('Choose the gamemode to view current placements.',menu('desk:list-mode:'+id.slice(10),'Gamemode',modes))};
   if(id.startsWith('desk:list-mode:'))return{command:command(i,'tier-list',null,{mode:value,tier:id.slice(15)})};
   if(id==='desk:tester-status')return{command:command(i,'tester-desk','status')};
