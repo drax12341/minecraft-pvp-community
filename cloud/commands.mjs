@@ -1,4 +1,6 @@
 import config from "../config/community.json" with { type: "json" };
+import { operationNames, runOperation } from "./operations.mjs";
+import { staffAccess } from "../config/community-roles.mjs";
 
 const regions = ["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"];
 export async function runCommand(interaction, env, store, request = fetch) {
@@ -14,11 +16,8 @@ export async function runCommand(interaction, env, store, request = fetch) {
   const options = sub ? sub.options || [] : data.options || [];
   const get = (name) => options.find((o) => o.name === name)?.value;
   const roles = interaction.member.roles || [];
-  const mod =
-    actor === env.DISCORD_OWNER_ID ||
-    (BigInt(interaction.member.permissions || "0") & 8n) !== 0n ||
-    roles.includes(env.MODERATOR_ROLE_ID);
-  const tester = mod || roles.includes(env.TESTER_ROLE_ID);
+  const {mod,tester} = staffAccess(interaction,env);
+  if(operationNames.has(data.name))return runOperation(interaction,env,store,request);
   const requireMod = () => {
     if (!mod) throw Error("Only moderators can use this command.");
   };
@@ -342,6 +341,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
         tier.startsWith("HT") ? 0 : 1,
         evidence,
         actor,
+        true,
       );
       return "Result saved with evidence and tester attribution. The cloud rankings feed updates automatically.";
     }

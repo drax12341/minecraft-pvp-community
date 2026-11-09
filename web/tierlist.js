@@ -1,4 +1,4 @@
-﻿const main = document.querySelector("main"),
+const main = document.querySelector("main"),
   modal = document.querySelector("dialog"),
   body = document.querySelector("#modal-body");
 const esc = (v) =>
@@ -180,6 +180,9 @@ function render() {
     else toast("This player does not have a published tier here yet.");
   }
 }
+function arenaHub() {
+  return '<section class="arena-hub" aria-label="Community player hub"><div class="hub-identity"><img src="./mark.svg" alt="Community shield" width="68" height="68"><div><h2>Your community. In sync.</h2><p>Practice in Minecraft, request a test in Discord, follow your placements here.</p></div></div><div class="hub-destinations"><article><h3>Join the arena</h3><p>Java · Paper 1.21.11 · Europe</p><button class="server-copy" data-command="mcpvpcommunity.minekeep.gg" aria-label="Copy Minecraft server address">mcpvpcommunity.minekeep.gg <span>Copy</span></button><small>Practice setup in progress. The free host may sleep when empty.</small><details><summary>In-game commands</summary><p><code>/arena</code> Practice lobby<br><code>/play</code> Kit matchmaking<br><code>/duel player kit</code> Private challenge<br><code>/ffa</code> Sword free-for-all<br><code>/settings</code> Personal settings</p></details></article><article><h3>Request your test</h3><p>Choose a mode and region. Your verified account, cooldown and actual session capacity are checked.</p><a class="button secondary" href="https://discord.com/channels/1568767259168608267/1569347570214506607" target="_blank" rel="noopener">Open testing desk</a><small>Waiting does not guarantee a session or tier.</small></article><article><h3>Talk to the team</h3><p>Choose a category and fill out a short form. Support staff are notified inside your private ticket.</p><a class="button secondary" href="https://discord.com/channels/1568767259168608267/1569347634395746364" target="_blank" rel="noopener">Open a support ticket</a><small>Account help, player reports and confidential staff reports.</small></article></div></section>';
+}
 function home() {
   const open = testing.sessions.filter((s) => s.status === "open");
   main.innerHTML =
@@ -189,8 +192,8 @@ function home() {
       : "Testing launch in preparation") +
     '</span><h1 class="night-wordmark">Earn your place.</h1><p>A real fight. A fair result.<br>Your own path through Minecraft PvP.</p><div class="hero-actions"><a class="button" href="#rankings">Explore rankings</a><a class="button secondary" href="#testing">Get tested</a></div><div class="hero-facts"><span>' +
     config.modes.length +
-    ' modes</span><span>Java 1.21.1</span><span>One independent tierlist</span></div></div><div class="arena-art" role="img" aria-label="Illustrated Minecraft duel arena"><img src="./assets/arena-v2.png" alt="" fetchpriority="high"><div class="arena-caption"><img src="./assets/sword.svg" alt=""><span>Every placement starts<br><strong>in the arena.</strong></span></div></div><div class="sky-controls" aria-label="Arena atmosphere"><button data-sky="arena" class="active" aria-pressed="true">Arena</button><button data-sky="stars" aria-pressed="false">Quiet</button></div></section>' +
-    '<section class="playstyle-section" id="home-features"><div class="section-heading"><div><h2>Find your discipline</h2><p class="fine">Main modes and specialist kits. All in one community.</p></div><a href="#kits">Kit guide</a></div><div class="kit-ribbon">' +
+    ' modes</span><span>Paper 1.21.11</span><span>One independent tierlist</span></div></div><div class="arena-art" role="img" aria-label="Illustrated Minecraft duel arena"><img src="./assets/arena-v2.png" alt="" fetchpriority="high"><div class="arena-caption"><img src="./assets/sword.svg" alt=""><span>Every placement starts<br><strong>in the arena.</strong></span></div></div><div class="sky-controls" aria-label="Arena atmosphere"><button data-sky="arena" class="active" aria-pressed="true">Arena</button><button data-sky="stars" aria-pressed="false">Quiet</button></div></section>' +
+    arenaHub() + '<section class="playstyle-section" id="home-features"><div class="section-heading"><div><h2>Find your discipline</h2><p class="fine">Main modes and specialist kits. All in one community.</p></div><a href="#kits">Kit guide</a></div><div class="kit-ribbon">' +
     config.modes
       .map(
         (m) =>
@@ -1398,7 +1401,7 @@ function communityPage() {
       "Better fights start with better company.",
       "Find a practice partner, ask for feedback or help build a fair testing team.",
     ) +
-    '<div class="community-grid">' +
+    arenaHub() + '<div class="community-grid">' +
     [
       [
         "sword",
@@ -1442,6 +1445,8 @@ function communityPage() {
     commandRow("/tester-apply status", "Check your private application") +
     commandRow("/profile", "Find an earned player profile") +
     commandRow("/guide practice", "Coaching and practice etiquette") +
+    commandRow("/ticket open", "Private help, account verification or a report") +
+    commandRow("/staff-apply submit", "Apply for helper, moderator, coach or event host") +
     '<a class="button" href="' +
     config.invite +
     '" target="_blank" rel="noopener">Open our Discord</a></section><section class="panel"><h2>Make a useful practice request</h2><p>Prepare a short summary, then copy it into your Discord practice post. This form does not publish or reserve a match.</p><form id="practice-draft"><label class="field">Mode' +

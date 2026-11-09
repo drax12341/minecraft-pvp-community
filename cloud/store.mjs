@@ -314,18 +314,24 @@ export class CloudStore {
     if (!outcomes[0].meta.changes)
       throw Error("Entry was already claimed, cancelled, or belongs to you.");
   }
-  async result(id, tier, pos, evidence, actor) {
+  async result(id, tier, pos, evidence, actor, enforceRubric = false) {
     const outcomes = await this.db.batch([
       this.statement(
         `INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created)
         SELECT q.id,a.uuid,a.name,q.region,q.mode,?,?,q.tester,?,? FROM queue q JOIN accounts a ON a.discord=q.user
-        WHERE q.id=? AND q.tester=? AND q.status='claimed'`,
+        WHERE q.id=? AND q.tester=? AND q.status='claimed'
+        AND (?=0 OR EXISTS(SELECT 1 FROM assessments a WHERE a.id=q.id AND a.tester=q.tester
+          AND a.version='community-1' AND (? > 2 OR EXISTS(SELECT 1 FROM placement_reviews p
+            WHERE p.id=q.id AND p.assessment_revision=a.revision AND p.tier=? AND p.reviewer<>q.tester AND p.reviewer<>q.user))))`,
         tier,
         pos,
         evidence,
         new Date().toISOString(),
         id,
         actor,
+        enforceRubric ? 1 : 0,
+        tier,
+        `${pos === 0 ? "HT" : "LT"}${tier}`,
       ),
       this.statement(
         "UPDATE queue SET status='complete' WHERE id=? AND tester=? AND status='claimed' AND EXISTS(SELECT 1 FROM results WHERE id=? AND tester=?)",
@@ -337,7 +343,7 @@ export class CloudStore {
       this.audit(actor, "result-attempt", id),
     ]);
     if (!outcomes[0].meta.changes)
-      throw Error("Only the assigned tester can record a claimed entry.");
+      throw Error("Result needs your assigned claim and a current /assessment record. High tiers also need independent /assessment review for the exact proposed tier.");
   }
   async appeal(resultId, actor, reason) {
     this.reason(reason);

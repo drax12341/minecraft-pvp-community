@@ -7,6 +7,7 @@ import {
   PermissionFlagsBits,
 } from "discord.js";
 import { readFile } from "node:fs/promises";
+import { communityCommands } from "./community-commands.mjs";
 const config = JSON.parse(
   await readFile(new URL("../config/community.json", import.meta.url)),
 );
@@ -396,7 +397,7 @@ await new REST()
       process.env.DISCORD_GUILD_ID,
     ),
     {
-      body: [
+      body: [...[
         queue,
         claim,
         result,
@@ -409,13 +410,13 @@ await new REST()
         practice,
         testerApply,
         playerProfile,
-      ].map((c) => c.toJSON()),
+      ].map((c) => c.toJSON()), ...communityCommands],
     },
   );
 // Register cloud commands without starting the legacy local gateway.
 if (process.argv.includes("--register-only")) {
   console.log(
-    "Registered twelve guild commands, including practice, private tester applications and player profiles. No gateway started.",
+    "Registered nineteen cloud guild commands, including tickets, staff applications, rubrics and assessments. No gateway started.",
   );
   process.exit(0);
 }

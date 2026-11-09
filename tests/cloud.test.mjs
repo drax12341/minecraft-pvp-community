@@ -9,6 +9,59 @@ import worker, {
   completeInteraction,
 } from "../cloud/worker.mjs";
 import config from "../config/community.json" with { type: "json" };
+import { OperationsStore } from "../cloud/operations-store.mjs";
+import { ticketOverwrites, assertPrivateTicket } from "../cloud/operations.mjs";
+import { componentRoute } from "../cloud/components.mjs";
+
+test("ticket forms route privately, enforce limits, isolate staff reports and ping only configured staff", async () => {
+  const {sql,store}=await database();
+  const configured={...env,DISCORD_SUPPORT_ROLE_IDS:"70000",DISCORD_MODERATOR_ROLE_IDS:"40000",DISCORD_TICKET_CATEGORY_ID:"80000"};
+  const calls=[];
+  const request=async(url,options)=>{
+    const body=options.body?JSON.parse(options.body):null;calls.push({url,body});
+    if(url.endsWith("/channels"))return Response.json({id:"81000",guild_id:env.DISCORD_GUILD_ID,...body});
+    return Response.json({id:"82000"});
+  };
+  try {
+    const route=componentRoute({...interaction("60000","unused"),type:3,data:{custom_id:"ticket:kind",values:["support"]}});
+    assert.equal(route.response.type,9);
+    assert.equal(route.response.data.components.length,2);
+    const response=await runCommand(interaction("60000","ticket","open",{kind:"support",subject:"Help with a test",detail:"Please help me understand the queue."}),configured,store,request);
+    assert.match(response,/81000/);
+    assert.deepEqual(calls[1].body.allowed_mentions,{parse:[],roles:["70000"]});
+    assert.deepEqual(calls[2].body.allowed_mentions,{parse:[]});
+    await assert.rejects(runCommand(interaction("60000","ticket","open",{kind:"support",subject:"Duplicate ticket",detail:"This is a duplicate request."}),configured,store,request),/active ticket/);
+    const perms=ticketOverwrites(configured,"60000","staff-report");
+    assert.equal(perms.some(p=>p.id==="70000"),false);
+    const channel={guild_id:env.DISCORD_GUILD_ID,permission_overwrites:perms};
+    assert.doesNotThrow(()=>assertPrivateTicket(channel,configured,"60000","staff-report"));
+    channel.permission_overwrites.push({id:"99999",type:0,allow:"1024",deny:"0"});
+    assert.throws(()=>assertPrivateTicket(channel,configured,"60000","staff-report"),/unexpected/);
+    const op=new OperationsStore(store);const own=await op.tickets("60000",false);
+    await op.claimTicket(own[0].id,"70001");
+    await assert.rejects(op.claimTicket(own[0].id,"70002"),/already claimed/);
+    await assert.rejects(runCommand(interaction("60001","ticket","status",{id:own[0].id}),configured,store,request),/access/);
+  } finally {sql.close();}
+});
+
+test("high-tier sign-off is independent and invalidated when assessment scores change",async()=>{
+  const {sql,store}=await database();const op=new OperationsStore(store);
+  try {
+    await store.verify("60000","aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","PlayerOne","30000");
+    await store.session("sword","EU","open","30000",10,72);
+    const id=await store.join("60000","sword","EU");await store.claim(id,"50001");
+    await assert.rejects(store.result(id,2,0,"https://example.com/evidence","50001",true),/assessment/);
+    await op.assess(id,"50001","3,3,3,3,3,3","Consistent benchmark performance.");
+    await assert.rejects(op.reviewPlacement(id,"50001","HT2","I reviewed my own assessment."),/independent/);
+    await assert.rejects(op.reviewPlacement(id,"60000","HT2","I reviewed my own placement."),/independent/);
+    await op.reviewPlacement(id,"50002","HT2","Independent benchmark review.");
+    await op.assess(id,"50001","4,3,3,3,3,3","Corrected first score after review.");
+    await assert.rejects(store.result(id,2,0,"https://example.com/evidence","50001",true),/assessment/);
+    await op.reviewPlacement(id,"50002","HT2","Independent corrected assessment review.");
+    await store.result(id,2,0,"https://example.com/evidence","50001",true);
+    assert.equal((await store.one("SELECT count(*) n FROM assessment_history")).n,2);
+  } finally {sql.close();}
+});
 
 // Exercise the real migration and SQL against SQLite, preserving D1's batch
 // transaction and prepared-statement result contracts.
@@ -26,6 +79,7 @@ async function database() {
       "utf8",
     ),
   );
+  sql.exec(await readFile(new URL("../drizzle/0002_community_operations.sql",import.meta.url),"utf8"));
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({

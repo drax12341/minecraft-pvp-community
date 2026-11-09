@@ -1,6 +1,7 @@
 import { CloudStore } from "./store.mjs";
 import { runCommand } from "./commands.mjs";
 import config from "../config/community.json" with { type: "json" };
+import { componentRoute } from "./components.mjs";
 
 const website = "https://drax12341.github.io/minecraft-pvp-community";
 const json = (value, status = 200) =>
@@ -99,12 +100,19 @@ export default {
         return json({ error: "Wrong application" }, 403);
       if (interaction.type === 1) return json({ type: 1 });
       if (
-        interaction.type !== 2 ||
+        ![2,3,5].includes(interaction.type) ||
         interaction.guild_id !== env.DISCORD_GUILD_ID ||
         !/^\d{5,22}$/.test(interaction.id || "") ||
         !interaction.token
       )
         return json({ error: "Unsupported interaction" }, 400);
+      if(interaction.type===3 || interaction.type===5){
+        try{
+          const route=componentRoute(interaction);
+          if(route.response)return json(route.response);
+          interaction=route.command;
+        }catch(error){return json({type:4,data:{content:error.message,flags:64,allowed_mentions:{parse:[]}}});}
+      }
       if (!env.DB) return json({ error: "Cloud storage unavailable" }, 503);
       const db = env.DB.withSession?.("first-primary") || env.DB;
       ctx.waitUntil(
@@ -135,12 +143,14 @@ export default {
           await store.one("SELECT count(*) AS n FROM sessions");
           await store.one("SELECT 1 FROM tester_applications LIMIT 1");
           await store.one("SELECT 1 FROM practice_posts LIMIT 1");
+          await store.one("SELECT 1 FROM support_tickets LIMIT 1");
+          await store.one("SELECT 1 FROM assessments LIMIT 1");
           return json({
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "arena-v3",
-            commands: 12,
+            release: "community-v4",
+            commands: 19,
           });
         }
         return json(
@@ -162,6 +172,10 @@ export default {
     const path = url.pathname === "/" ? "/index.html" : url.pathname;
     if (path.includes("..") || path.includes("\\"))
       return json({ error: "Not found" }, 404);
+    if(typeof siteAssets!=="undefined" && Object.hasOwn(siteAssets,path)){
+      const asset=siteAssets[path];
+      return new Response(request.method==="HEAD"?null:asset.body,{headers:{"Content-Type":asset.type,"X-Content-Type-Options":"nosniff","Cache-Control":"public, max-age=60","Referrer-Policy":"strict-origin-when-cross-origin"}});
+    }
     const upstream = await fetch(website + path, {
       method: request.method,
       redirect: "manual",

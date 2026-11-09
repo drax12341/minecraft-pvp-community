@@ -1,0 +1,28 @@
+name: CommunityArena
+version: 1.0.0
+main: community.pvp.arena.CommunityArena
+api-version: '1.21.11'
+description: Original practice arenas, fair queues, private duels and supervised test sets.
+commands:
+  arena:
+    description: Open the community arena
+    aliases: [hub, lobby, spawn]
+  play:
+    description: Queue for practice or open the kit menu
+    aliases: [queue]
+  duel:
+    description: Challenge a player; /duel accept player
+  leave:
+    description: Leave a queue or concede a match
+  ffa:
+    description: Enter the sword free-for-all
+  stats:
+    description: View your own practice statistics
+  settings:
+    description: Toggle scoreboard, duel invitations and hit sounds
+  testmatch:
+    description: Staff supervised first-to-ten set; /testmatch player1 player2 kit
+    permission: communityarena.tester
+permissions:
+  communityarena.tester:
+    default: op

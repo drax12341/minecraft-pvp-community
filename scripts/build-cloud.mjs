@@ -1,10 +1,23 @@
-import { mkdir, readFile, writeFile, cp } from "node:fs/promises";
+import { mkdir, readFile, writeFile, cp, readdir } from "node:fs/promises";
 await import("./build.mjs");
 const config = JSON.parse(await readFile("config/community.json", "utf8"));
 let worker = `const config = ${JSON.stringify(config)};\n`;
-for (const file of ["store", "commands", "worker"]) {
-  let source = await readFile(`cloud/${file}.mjs`, "utf8");
-  source = source.replace(/^import .*;\r?\n/gm, "");
+const siteAssets={};
+async function collect(dir,prefix=""){
+  for(const entry of await readdir(dir,{withFileTypes:true})){
+    const path=prefix+"/"+entry.name;
+    if(entry.isDirectory())await collect(dir+"/"+entry.name,path);
+    else{
+      const extension=entry.name.split(".").at(-1),type={html:"text/html; charset=utf-8",css:"text/css; charset=utf-8",js:"text/javascript; charset=utf-8",svg:"image/svg+xml"}[extension];
+      if(type)siteAssets[path]={body:await readFile(dir+"/"+entry.name,"utf8"),type};
+    }
+  }
+}
+await collect("web");
+worker+=`const siteAssets = ${JSON.stringify(siteAssets)};\n`;
+for (const path of ["config/community-roles.mjs","config/rubrics.mjs","cloud/store.mjs","cloud/operations-store.mjs","cloud/operations.mjs","cloud/commands.mjs","cloud/components.mjs","cloud/worker.mjs"]) {
+  let source = await readFile(path, "utf8");
+  source = source.replace(/^import[\s\S]*?;\r?\n/gm, "");
   worker += source + "\n";
 }
 await mkdir("dist/server", { recursive: true });
