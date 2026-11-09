@@ -37,10 +37,11 @@ export async function runCommand(interaction, env, store, request = fetch) {
     if (!regions.includes(get("region"))) throw Error("Choose a valid region.");
     return get("region");
   };
-  const discord = async (path, method = "GET") => {
+  const discord = async (path, method = "GET", body) => {
     const response = await request("https://discord.com/api/v10" + path, {
       method,
-      headers: { Authorization: "Bot " + env.DISCORD_TOKEN },
+      headers: { Authorization: "Bot " + env.DISCORD_TOKEN, "Content-Type":"application/json" },
+      body:body?JSON.stringify(body):undefined,
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok)
@@ -274,6 +275,10 @@ export async function runCommand(interaction, env, store, request = fetch) {
         get('kit')||null,
         get('benchmarks')||null,
       );
+      if(status==='open'&&env.DISCORD_TEST_ALERT_CHANNEL_ID){
+        const ping=/^\d{5,22}$/.test(env.DISCORD_TEST_PING_ROLE_ID||'')?env.DISCORD_TEST_PING_ROLE_ID:null;
+        try{await discord(`/channels/${env.DISCORD_TEST_ALERT_CHANNEL_ID}/messages`,'POST',{content:(ping?`<@&${ping}> `:'')+`Testing is open: ${config.modes.find(m=>m.id===get('mode')).name} / ${get('region')}. Use the testing menu to join; verification, cooldown and capacity checks apply.`,allowed_mentions:{parse:[],roles:ping?[ping]:[]}});}catch{return `${get('mode')} / ${get('region')} session open. The session alert failed; staff should review the announcement.`;}
+      }
       return `${get("mode")} / ${get("region")} session ${status}. The public testing page updates automatically.`;
     }
     case "queue": {
@@ -365,12 +370,14 @@ export async function runCommand(interaction, env, store, request = fetch) {
         throw Error(
           "A valid tier and shareable HTTPS evidence link are required.",
         );
-      const entry=await store.one('SELECT mode FROM queue WHERE id=?',get('id'));
+      const entry=await store.one('SELECT * FROM queue WHERE id=?',get('id'));
       if(!entry)throw Error('Assessment not found.');
       await requireQualification(store,actor,entry.mode);
       const room=await requireReadyRoom(store,get('id'),actor);
       const assessment=await store.one('SELECT kit_version FROM assessments WHERE id=?',get('id'));
       if(assessment?.kit_version!==room.kit_version)throw Error('Record a new assessment against the current private-room kit version before publishing.');
+      const account=await store.one('SELECT * FROM accounts WHERE discord=?',entry.user);
+      const previous=account?await store.one('SELECT tier,pos FROM results WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=results.id) ORDER BY sequence DESC LIMIT 1',account.uuid,entry.mode):null;
       await store.result(
         get("id"),
         Number(tier.slice(-1)),
@@ -379,6 +386,10 @@ export async function runCommand(interaction, env, store, request = fetch) {
         actor,
         true,
       );
+      if(env.DISCORD_RESULTS_CHANNEL_ID){
+        const ping=/^\d{5,22}$/.test(env.DISCORD_RESULT_PING_ROLE_ID||'')?env.DISCORD_RESULT_PING_ROLE_ID:null;
+        try{await discord(`/channels/${env.DISCORD_RESULTS_CHANNEL_ID}/messages`,'POST',{content:ping?`<@&${ping}>`:undefined,embeds:[{title:`${account.name}'s Test Results 🏆`,color:parseInt(config.modes.find(m=>m.id===entry.mode)?.color.slice(1)||'8074ee',16),fields:[{name:'Tester',value:`<@${actor}>`},{name:'Gamemode',value:config.modes.find(m=>m.id===entry.mode)?.name||entry.mode,inline:true},{name:'Region',value:entry.region,inline:true},{name:'Username',value:account.name},{name:'Previous Rank',value:previous?`${previous.pos===0?'HT':'LT'}${previous.tier}`:'Unranked',inline:true},{name:'Rank Earned',value:tier,inline:true},{name:'Match evidence',value:evidence}],footer:{text:'Assessment '+get('id')}}],allowed_mentions:{parse:[],roles:ping?[ping]:[]}});}catch{return 'Result saved. The rankings feed updated, but the Discord result announcement failed; ask staff to review it.';}
+      }
       return "Result saved with evidence and tester attribution. The cloud rankings feed updates automatically.";
     }
     case "appeal": {

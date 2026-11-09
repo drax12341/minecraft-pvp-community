@@ -9,7 +9,7 @@ const player = {
   region: "EU",
   points: 10,
   rankings: {
-    sword: { tier: 3, pos: 0, peak_tier: 3, peak_pos: 0, retired: false },
+    mace: { tier: 3, pos: 0, peak_tier: 3, peak_pos: 0, retired: false },
   },
 };
 async function website(
@@ -83,10 +83,10 @@ test("inspired homepage has functional scene controls, walkthrough and kit entry
     d.querySelector('[data-journey="2"]').getAttribute("aria-pressed"),
     "true",
   );
-  d.querySelector('[data-home-mode="bow"]').click();
+  d.querySelector('[data-home-mode="mace_rod"]').click();
   await new Promise((r) => w.setTimeout(r, 10));
   assert.equal(d.body.dataset.page, "rankings");
-  assert.match(d.querySelector(".kit-title h2").textContent, /Bow/);
+  assert.match(d.querySelector(".kit-title h2").textContent, /Rod Mace/);
   dom.window.close();
 });
 
@@ -96,15 +96,15 @@ test("kit groups, searchable kit picker, clear filters and compact controls work
     d = w.document;
   d.querySelector('[data-mode-group="sub"]').click();
   assert.ok(d.querySelector('[data-mode="mace_spear"]'));
-  assert.equal(d.querySelector('[data-mode="sword"]'), null);
+  assert.equal(d.querySelector('[data-mode="mace"]'), null);
   d.querySelector("#browse-modes").click();
   const search = d.querySelector("#kit-search");
-  search.value = "bow";
+  search.value = "Rod Mace";
   search.dispatchEvent(new w.Event("input"));
   assert.equal(d.querySelectorAll("[data-pick]").length, 1);
-  d.querySelector('[data-pick="bow"]').click();
+  d.querySelector('[data-pick="mace_rod"]').click();
   await new Promise((r) => w.setTimeout(r, 10));
-  assert.match(d.querySelector(".kit-title h2").textContent, /Bow/);
+  assert.match(d.querySelector(".kit-title h2").textContent, /Rod Mace/);
   const query = d.querySelector("#search");
   query.value = "missing";
   query.dispatchEvent(new w.Event("input"));
@@ -126,13 +126,13 @@ test("testing filters select an open region and preserve the request form", asyn
       [],
       [
         {
-          mode: "sword",
+          mode: "mace",
           region: "EU",
           status: "closed",
           waiting: 0,
           claimed: 0,
         },
-        { mode: "sword", region: "NA", status: "open", waiting: 3, claimed: 1 },
+        { mode: "mace", region: "NA", status: "open", waiting: 3, claimed: 1 },
       ],
     ),
     w = dom.window,
@@ -144,7 +144,7 @@ test("testing filters select an open region and preserve the request form", asyn
   d.querySelector("#session-status").value = "open";
   d.querySelector("#session-status").dispatchEvent(new w.Event("change"));
   assert.equal(d.querySelectorAll(".session").length, 1);
-  d.querySelector('[data-request="sword"]').click();
+  d.querySelector('[data-request="mace"]').click();
   assert.equal(d.querySelector("[name=region]").value, "NA");
   assert.equal(d.querySelector("[name=name]").value, "MyPlayer");
   d.querySelector("#session-region").value = "EU";
@@ -200,12 +200,12 @@ test("shared ranking scope, profile deep links, saved players and retired filter
     ...player,
     uuid: "00000000-0000-0000-0000-000000000002",
     name: "RetiredPlayer",
-    rankings: { sword: { ...player.rankings.sword, retired: true } },
+    rankings: { mace: { ...player.rankings.mace, retired: true } },
   };
   const dom = await website(
       [player, retired],
       [],
-      "rankings?mode=sword&region=EU&view=list&status=all&player=" +
+      "rankings?mode=mace&region=EU&view=list&status=all&player=" +
         player.uuid,
     ),
     w = dom.window,
@@ -256,7 +256,7 @@ test("leaderboards paginate without hiding filter scope and result feeds enforce
   const recent = [
     {
       ...player,
-      mode: "sword",
+      mode: "mace",
       tier: 3,
       pos: 0,
       evidence: "https://example.com/evidence",
@@ -265,7 +265,7 @@ test("leaderboards paginate without hiding filter scope and result feeds enforce
     {
       ...player,
       name: "LowPlayer",
-      mode: "sword",
+      mode: "mace",
       tier: 3,
       pos: 1,
       evidence: "https://example.com/low",
@@ -290,7 +290,7 @@ test("community summaries are local and refresh failure retains useful content",
     w = dom.window,
     d = w.document;
   d.querySelector("[name=practice-note]").value =
-    "Saturday 16 UTC, sword kit, spacing practice.";
+    "Saturday 16 UTC, mace kit, spacing practice.";
   d.querySelector("#practice-draft").dispatchEvent(
     new w.Event("submit", { cancelable: true }),
   );
@@ -311,7 +311,7 @@ test("community summaries are local and refresh failure retains useful content",
   );
   assert.equal(
     d.querySelector("[name=practice-note]").value,
-    "Saturday 16 UTC, sword kit, spacing practice.",
+    "Saturday 16 UTC, mace kit, spacing practice.",
   );
   dom.window.close();
 });

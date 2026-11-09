@@ -7,7 +7,7 @@ const modal=(id,title,fields)=>({type:9,data:{custom_id:id,title,components:fiel
 function command(i,name,sub,values={}) { const opts=Object.entries(values).map(([name,value])=>({name,value}));return {...i,type:2,data:{name,options:sub?[{type:1,name:sub,options:opts}]:opts}}; }
 export function componentRoute(i) {
   const id=i.data.custom_id,value=i.data.values?.[0];
-  const modes=config.modes.map(m=>({label:m.name,value:m.id,description:m.group}));
+  const modes=config.modes.map(m=>({label:m.name,value:m.id,description:m.group,...(m.emoji?{emoji:{id:m.emoji}}:{})}));
   if(i.type===5){
     const fields=Object.fromEntries((i.data.components||[]).flatMap(row=>(row.components||[]).map(f=>[f.custom_id,f.value])));
     if(id.startsWith("ticket:open:")){const kind=id.slice(12);if(!ticketKinds.includes(kind))throw Error("Invalid ticket category.");return {command:command(i,"ticket","prepare",{kind,subject:fields.subject,detail:fields.detail})};}
@@ -16,9 +16,10 @@ export function componentRoute(i) {
     throw Error("This form has expired. Open the panel again.");
   }
   if(id==="hub:test")return{response:message("Choose the mode for your official test request.",menu("test:mode","Select a testing mode",modes))};
-  if(id==="test:mode"){
-    if(!config.modes.some(m=>m.id===value))throw Error("Invalid mode.");
-    return{response:message("Choose your region. The next step checks ownership, real session availability, capacity and cooldown.",menu("test:region:"+value,"Select your region",["EU","NA","AS","SA","AU","AF","ME","OC"].map(v=>({label:v,value:v}))))};
+  if(id==="test:mode"||id.startsWith('test:mode:')){
+    const selected=id.startsWith('test:mode:')?id.slice(10):value;
+    if(!config.modes.some(m=>m.id===selected))throw Error("Invalid mode.");
+    return{response:message("Choose your region. The next step checks ownership, real session availability, capacity and cooldown.",menu("test:region:"+selected,"Select your region",["EU","NA","AS","SA","AU","AF","ME","OC"].map(v=>({label:v,value:v}))))};
   }
   if(id.startsWith("test:region:"))return{command:command(i,"request-test",null,{mode:id.slice(12),region:value})};
   if(id.startsWith('waitlist:join:')){const parts=id.split(':');return{command:command(i,'waitlist','join',{mode:parts[2],region:parts[3]})};}
@@ -27,7 +28,7 @@ export function componentRoute(i) {
   if(id==="rubric:mode"){const m=config.modes.find(m=>m.id===value);if(!m)throw Error("Invalid mode.");return{response:message(rubricText(m.id,m.name).slice(0,1950))};}
   if(id==="hub:modes")return{response:message("Choose a mode interest role. This does not grant a rank or join a test queue.",menu("roles:mode","Toggle a PvP mode",modes))};
   if(id==="roles:mode")return{command:command(i,"preferences",null,{mode:value})};
-  if(id==="hub:interests")return{response:message("Choose a casual game interest or opt-in alert role.",menu("roles:interest","Toggle an interest or alert",Object.entries(extraInterests).map(([value,label])=>({label,value}))))};
+  if(id==="hub:interests")return{response:message("Choose an optional alert or name color. Selecting a new color replaces your previous color.",menu("roles:interest","Choose an alert or color",Object.entries(extraInterests).map(([value,label])=>({label,value}))))};
   if(id==="roles:interest")return{command:command(i,"interests",null,{role:value})};
   if(id==="hub:ticket")return{response:message("Choose a category. Two active cases per member, one per category. Use /appeal submit for disputed placements. Staff reports go only to moderators; administrators can access private channels.",menu("ticket:kind","What do you need help with?",ticketKinds.map(value=>({label:{support:"General support",account:"Account verification or recovery",report:"Player report","staff-report":"Confidential staff report",technical:"Website or bot problem"}[value],value}))))};
   if(id==="ticket:kind"){if(!ticketKinds.includes(value))throw Error("Invalid ticket category.");const prompts={support:"What happened? What help do you need?",account:"IGN, verification or recovery? Never secrets",report:"Who, when (UTC), what happened, evidence?","staff-report":"Staff involved, UTC date, facts and evidence?",technical:"Page/command, UTC time, steps, expected result?"};return{response:modal("ticket:open:"+value,"Contact the team",[["subject","Subject — no passwords or tokens",1,5,100],["detail",prompts[value],2,10,1500]])};}

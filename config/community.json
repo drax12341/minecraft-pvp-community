@@ -4,229 +4,116 @@
   "invite": "https://discord.gg/a36rg6BxuX",
   "modes": [
     {
-      "id": "sword",
-      "name": "Sword",
-      "icon": "⚔",
-      "color": "#6bd7ee",
-      "group": "Main modes",
-      "kit": "Diamond sword",
-      "description": "Spacing, sprint resets, aim and trades",
-      "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
-    },
-    {
-      "id": "axe",
-      "name": "Axe",
-      "icon": "🪓",
-      "color": "#b8c7d6",
-      "group": "Main modes",
-      "kit": "Axe & shield",
-      "description": "Shield timing, critical hits and movement",
-      "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
-    },
-    {
-      "id": "vanilla",
-      "name": "Crystal",
-      "icon": "✦",
-      "color": "#b194ed",
-      "group": "Main modes",
-      "kit": "Crystal kit",
-      "description": "Crystal placement, anchors, totems and positioning",
-      "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
-    },
-    {
-      "id": "uhc",
-      "name": "UHC",
-      "icon": "♥",
-      "color": "#edaa78",
-      "group": "Main modes",
-      "kit": "UHC kit",
-      "description": "Resource use, healing and terrain control",
-      "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
-    },
-    {
-      "id": "pot",
-      "name": "Diamond Pot",
-      "icon": "⚗",
-      "color": "#de90cf",
-      "group": "Main modes",
-      "kit": "Diamond potions",
-      "description": "Potion economy, accuracy and sustained pressure",
-      "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
-    },
-    {
-      "id": "nethop",
-      "name": "NethPot",
-      "icon": "◆",
-      "color": "#a394e7",
-      "group": "Main modes",
-      "kit": "Netherite potions",
-      "description": "Sustained trades and healing management",
-      "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
-    },
-    {
-      "id": "smp",
-      "name": "SMP",
-      "icon": "▣",
-      "color": "#76c7a8",
-      "group": "Main modes",
-      "kit": "SMP kit",
-      "description": "Resource management and varied combat",
-      "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
-    },
-    {
       "id": "mace",
       "name": "Mace",
+      "color": "#83b8ef",
       "icon": "🔨",
-      "color": "#8eaff5",
       "group": "Main modes",
-      "kit": "Mace kit",
-      "description": "Wind charges, aerial movement and smash timing",
+      "kit": "Mace — staff-approved loadout required",
+      "description": "Mace testing and placements.",
       "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
+        "Premium Minecraft Java account required; no cracked or Bedrock accounts.",
+        "Agree the approved kit, version and verified testing server with your tester.",
+        "No cheats, macros, account sharing or staged results.",
+        "Agree recording and share only match evidence."
+      ],
+      "emoji": "1569411519454777515"
     },
     {
       "id": "mace_spear",
-      "name": "Mace Spear",
-      "icon": "↗",
-      "color": "#6bd7ee",
+      "name": "Spear Mace",
+      "color": "#58d5ca",
+      "icon": "🔨",
       "group": "Submodes",
-      "kit": "Mace Spear kit",
-      "description": "Specialist mace spear combat.",
+      "kit": "Spear Mace — staff-approved loadout required",
+      "description": "Spear Mace testing and placements.",
       "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
+        "Premium Minecraft Java account required; no cracked or Bedrock accounts.",
+        "Agree the approved kit, version and verified testing server with your tester.",
+        "No cheats, macros, account sharing or staged results.",
+        "Agree recording and share only match evidence."
+      ],
+      "emoji": "1569411521795195073"
     },
     {
-      "id": "mace_breach",
-      "name": "Breach",
-      "icon": "◈",
-      "color": "#b8c7d6",
+      "id": "mace_ht",
+      "name": "High Tier Mace",
+      "color": "#ed777f",
+      "icon": "🔨",
       "group": "Submodes",
-      "kit": "Breach kit",
-      "description": "Specialist breach combat.",
+      "kit": "High Tier Mace — staff-approved loadout required",
+      "description": "High Tier Mace testing and placements.",
       "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
+        "Premium Minecraft Java account required; no cracked or Bedrock accounts.",
+        "Agree the approved kit, version and verified testing server with your tester.",
+        "No cheats, macros, account sharing or staged results.",
+        "Agree recording and share only match evidence."
+      ],
+      "emoji": "1569411524328427770"
     },
     {
-      "id": "mace_density",
-      "name": "Density",
-      "icon": "▥",
-      "color": "#b194ed",
+      "id": "mace_lt",
+      "name": "Low Tier Mace",
+      "color": "#8fc879",
+      "icon": "🔨",
       "group": "Submodes",
-      "kit": "Density kit",
-      "description": "Specialist density combat.",
+      "kit": "Low Tier Mace — staff-approved loadout required",
+      "description": "Low Tier Mace testing and placements.",
       "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
+        "Premium Minecraft Java account required; no cracked or Bedrock accounts.",
+        "Agree the approved kit, version and verified testing server with your tester.",
+        "No cheats, macros, account sharing or staged results.",
+        "Agree recording and share only match evidence."
+      ],
+      "emoji": "1569411528330059966"
     },
     {
-      "id": "cart",
-      "name": "Cart",
-      "icon": "▰",
-      "color": "#edaa78",
+      "id": "mace_og",
+      "name": "OG Mace",
+      "color": "#bb9bef",
+      "icon": "🔨",
       "group": "Submodes",
-      "kit": "Cart kit",
-      "description": "Specialist cart combat.",
+      "kit": "OG Mace — staff-approved loadout required",
+      "description": "OG Mace testing and placements.",
       "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
+        "Premium Minecraft Java account required; no cracked or Bedrock accounts.",
+        "Agree the approved kit, version and verified testing server with your tester.",
+        "No cheats, macros, account sharing or staged results.",
+        "Agree recording and share only match evidence."
+      ],
+      "emoji": "1569411531807129701"
     },
     {
-      "id": "bow",
-      "name": "Bow",
-      "icon": "➶",
-      "color": "#de90cf",
+      "id": "mace_rod",
+      "name": "Rod Mace",
+      "color": "#efbf76",
+      "icon": "🔨",
       "group": "Submodes",
-      "kit": "Bow kit",
-      "description": "Specialist bow combat.",
+      "kit": "Rod Mace — staff-approved loadout required",
+      "description": "Rod Mace testing and placements.",
       "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
+        "Premium Minecraft Java account required; no cracked or Bedrock accounts.",
+        "Agree the approved kit, version and verified testing server with your tester.",
+        "No cheats, macros, account sharing or staged results.",
+        "Agree recording and share only match evidence."
+      ],
+      "emoji": "1569411534139035758"
     },
     {
-      "id": "diasmp",
-      "name": "Diamond SMP",
-      "icon": "◇",
-      "color": "#a394e7",
+      "id": "mace_rocket",
+      "name": "Rocket Mace",
+      "color": "#ed90ce",
+      "icon": "🔨",
       "group": "Submodes",
-      "kit": "Diamond SMP kit",
-      "description": "Specialist diamond smp combat.",
+      "kit": "Rocket Mace — staff-approved loadout required",
+      "description": "Rocket Mace testing and placements.",
       "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
-    },
-    {
-      "id": "creeper",
-      "name": "Creeper",
-      "icon": "▦",
-      "color": "#76c7a8",
-      "group": "Submodes",
-      "kit": "Creeper kit",
-      "description": "Specialist creeper combat.",
-      "rules": [
-        "Java 1.21.1; use the version agreed with your tester.",
-        "Tester confirms the approved equipment and arena before the test.",
-        "No macros, cheats, account sharing or staged results.",
-        "Record only agreed match evidence; keep personal information private."
-      ]
+        "Premium Minecraft Java account required; no cracked or Bedrock accounts.",
+        "Agree the approved kit, version and verified testing server with your tester.",
+        "No cheats, macros, account sharing or staged results.",
+        "Agree recording and share only match evidence."
+      ],
+      "emoji": "1569411536449966081"
     }
   ],
   "points": {
@@ -241,7 +128,7 @@
     "HT5": 2,
     "LT5": 1
   },
-  "version": 2,
+  "version": 3,
   "testing": {
     "cooldownHours": 72,
     "capacity": 30

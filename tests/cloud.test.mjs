@@ -8,6 +8,9 @@ import worker, {
   validSignature,
   completeInteraction,
 } from "../cloud/worker.mjs";
+// Synthetic approved kit for workflow tests only; production Mace kits stay pending.
+import { kitManifests } from "../config/kit-manifests.mjs";
+kitManifests.modes.push({id:"mace",name:"Test-only Mace"});
 import config from "../config/community.json" with { type: "json" };
 import { OperationsStore } from "../cloud/operations-store.mjs";
 import { ticketOverwrites, assertPrivateTicket } from "../cloud/operations.mjs";
@@ -15,7 +18,7 @@ import { componentRoute } from "../cloud/components.mjs";
 
 test('waitlists are private preferences and never create or reserve queue places',async()=>{
   const {sql,store}=await database();try{
-    const join=interaction('60000','waitlist','join',{mode:'sword',region:'EU',kit:'pilot-1-candidate',benchmarks:'Consented calibration evidence and benchmark opponents'});
+    const join=interaction('60000','waitlist','join',{mode:'mace',region:'EU',kit:'pilot-1-candidate',benchmarks:'Consented calibration evidence and benchmark opponents'});
     await assert.rejects(runCommand(join,env,store),/ownership/);
     await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
     await Promise.all([runCommand(join,env,store),runCommand(join,env,store)]);
@@ -28,23 +31,38 @@ test('waitlists are private preferences and never create or reserve queue places
 
 test('mode qualification and one active tester claim are mandatory even for moderators',async()=>{
   const {sql,store}=await database();try{
-    const open=interaction('30000','session','open',{mode:'sword',region:'EU',kit:'pilot-1-candidate',benchmarks:'Consented calibration evidence and benchmark opponents'});
+    const open=interaction('30000','session','open',{mode:'mace',region:'EU',kit:'pilot-1-candidate',benchmarks:'Consented calibration evidence and benchmark opponents'});
     await assert.rejects(runCommand(open,env,store),/qualification/);
-    await assert.rejects(runCommand(interaction('30000','qualification','grant',{user:'30000',mode:'sword',reason:'Self approval is not permitted'}),env,store),/different/);
-    await runCommand(interaction('30000','qualification','grant',{user:'50001',mode:'sword',reason:'Supervised calibration completed'}),env,store);
-    await assert.rejects(runCommand(interaction('50001','session','open',{mode:'axe',region:'EU'},['50000']),env,store),/qualification/);
-    await runCommand(interaction('50001','session','open',{mode:'sword',region:'EU',kit:'pilot-1-candidate',benchmarks:'Consented calibration evidence and benchmark opponents'},['50000']),env,store);
+    await assert.rejects(runCommand(interaction('30000','qualification','grant',{user:'30000',mode:'mace',reason:'Self approval is not permitted'}),env,store),/different/);
+    await runCommand(interaction('30000','qualification','grant',{user:'50001',mode:'mace',reason:'Supervised calibration completed'}),env,store);
+    await assert.rejects(runCommand(interaction('50001','session','open',{mode:'mace_spear',region:'EU'},['50000']),env,store),/qualification/);
+    await runCommand(interaction('50001','session','open',{mode:'mace',region:'EU',kit:'pilot-1-candidate',benchmarks:'Consented calibration evidence and benchmark opponents'},['50000']),env,store);
     for(const [user,uuid] of [['60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],['60001','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb']])await store.verify(user,uuid,'Player'+user,'30000');
-    const a=await store.join('60000','sword','EU'),b=await store.join('60001','sword','EU');
+    const a=await store.join('60000','mace','EU'),b=await store.join('60001','mace','EU');
     const outcomes=await Promise.allSettled([store.claim(a,'50001'),store.claim(b,'50001')]);
     assert.equal(outcomes.filter(o=>o.status==='fulfilled').length,1);
+  }finally{sql.close();}
+});
+
+test('result announcements include earned rank and ping only the optional result role',async()=>{
+  const {sql,store}=await database();try{
+    await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+    await store.session('mace','EU','open','30000');const id=await store.join('60000','mace','EU');await store.claim(id,'50001');
+    await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001','mace',0,'30000','Supervised calibration',new Date().toISOString()).run();
+    await store.statement("INSERT INTO test_rooms VALUES(?,?,?,?,?,?,?,?,?,?)",id,'81000','assignment','50001','ready-check',new Date(Date.now()+60000).toISOString(),1,1,'pilot-1-candidate',new Date().toISOString()).run();
+    await new OperationsStore(store).assess(id,'50001','3,3,3,3,3,3','Benchmark comparison and feedback');
+    const calls=[];const request=async(url,o)=>{calls.push(JSON.parse(o.body));return Response.json({id:'82000'});};
+    await runCommand(interaction('50001','result',null,{id,tier:'HT3',evidence:'https://example.com/match'},['50000']),{...env,DISCORD_RESULTS_CHANNEL_ID:'80000',DISCORD_RESULT_PING_ROLE_ID:'70000'},store,request);
+    assert.deepEqual(calls[0].allowed_mentions,{parse:[],roles:['70000']});
+    assert.equal(calls[0].embeds[0].fields.find(f=>f.name==='Rank Earned').value,'HT3');
+    assert.equal(calls[0].embeds[0].fields.find(f=>f.name==='Previous Rank').value,'Unranked');
   }finally{sql.close();}
 });
 
 test('evidence substitution cannot reuse high-tier sign-off',async()=>{
   const {sql,store}=await database();try{
     await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
-    await store.session('sword','EU','open','30000');const id=await store.join('60000','sword','EU');await store.claim(id,'50001');
+    await store.session('mace','EU','open','30000');const id=await store.join('60000','mace','EU');await store.claim(id,'50001');
     const op=new OperationsStore(store);await op.assess(id,'50001','3,3,3,3,3,3','Benchmark comparison and feedback');
     await op.reviewPlacement(id,'50002','HT2','Independent review of exact evidence','https://example.com/original');
     await assert.rejects(store.result(id,2,0,'https://example.com/substituted','50001',true),/assessment/);
@@ -56,22 +74,22 @@ test('evidence substitution cannot reuse high-tier sign-off',async()=>{
 
 test('claim-next follows deterministic order, excludes self and rejects simultaneous second assignments',async()=>{
   const {sql,store}=await database();try{
-    await store.session('sword','EU','open','30000');
+    await store.session('mace','EU','open','30000');
     for(const [user,uuid]of[['60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],['60001','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb']])await store.verify(user,uuid,'Player'+user,'30000');
-    const first=await store.join('60000','sword','EU'),second=await store.join('60001','sword','EU');
+    const first=await store.join('60000','mace','EU'),second=await store.join('60001','mace','EU');
     await store.statement('UPDATE queue SET created=? WHERE id=?','2026-01-01T00:00:00Z',first).run();
-    assert.equal(await store.claimNext('sword','EU','60000'),second);
-    await assert.rejects(store.claimNext('sword','EU','60000'),/already hold/);
-    assert.equal(await store.claimNext('sword','EU','50001'),first);
+    assert.equal(await store.claimNext('mace','EU','60000'),second);
+    await assert.rejects(store.claimNext('mace','EU','60000'),/already hold/);
+    assert.equal(await store.claimNext('mace','EU','50001'),first);
   }finally{sql.close();}
 });
 
 test('the same player cannot receive simultaneous assignments in different modes, and paused sessions do not assign',async()=>{
  const{sql,store}=await database();try{
   await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
-  await store.session('sword','EU','open','30000');await store.session('axe','EU','open','30000');
-  const sword=await store.join('60000','sword','EU'),axe=await store.join('60000','axe','EU');
-  const outcomes=await Promise.allSettled([store.claim(sword,'50001'),store.claim(axe,'50002')]);
+  await store.session('mace','EU','open','30000');await store.session('axe','EU','open','30000');
+  const mace=await store.join('60000','mace','EU'),axe=await store.join('60000','axe','EU');
+  const outcomes=await Promise.allSettled([store.claim(mace,'50001'),store.claim(axe,'50002')]);
   assert.equal(outcomes.filter(o=>o.status==='fulfilled').length,1);
   const current=await store.one("SELECT id,tester FROM queue WHERE status='claimed'");await store.release(current.id,current.tester);
   await store.session('axe','EU','paused','30000');await assert.rejects(store.claim(axe,'50002'),/already claimed/);
@@ -80,7 +98,7 @@ test('the same player cannot receive simultaneous assignments in different modes
 
 test('a repeated interaction recovers a failed private reply without repeating the operation',async()=>{
   const{sql,store}=await database();try{
-    const command=interaction('60000','practice','create',{mode:'sword',region:'EU',note:'Saturday 16 UTC, spacing practice'});
+    const command=interaction('60000','practice','create',{mode:'mace',region:'EU',note:'Saturday 16 UTC, spacing practice'});
     let calls=0;
     const request=async()=>{calls++;if(calls===1)throw Error('Simulated reply timeout');return Response.json({});};
     await assert.rejects(completeInteraction(command,env,store,request),/timeout/);
@@ -122,8 +140,8 @@ test('room provisioning reconciles an API timeout without creating a duplicate, 
   const {sql,store}=await database();try{
     const configured={...env,DISCORD_TICKET_CATEGORY_ID:'80000'};
     await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
-    await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001','sword',0,'30000','Supervised calibration',new Date().toISOString()).run();
-    await store.session('sword','EU','open','50001',30,72,'pilot-1-candidate','Consented benchmark calibration');const id=await store.join('60000','sword','EU');await store.claim(id,'50001');
+    await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001','mace',0,'30000','Supervised calibration',new Date().toISOString()).run();
+    await store.session('mace','EU','open','50001',30,72,'pilot-1-candidate','Consented benchmark calibration');const id=await store.join('60000','mace','EU');await store.claim(id,'50001');
     const channels=[];let creates=0;
     const request=async(url,opts)=>{
       if(opts.method==='GET')return Response.json(channels);
@@ -152,7 +170,7 @@ test('room provisioning reconciles an API timeout without creating a duplicate, 
 
 test("ticket forms route privately, enforce limits, isolate staff reports and ping only configured staff", async () => {
   const {sql,store}=await database();
-  const configured={...env,DISCORD_SUPPORT_ROLE_IDS:"70000",DISCORD_MODERATOR_ROLE_IDS:"40000",DISCORD_TICKET_CATEGORY_ID:"80000"};
+  const configured={...env,DISCORD_SUPPORT_ROLE_IDS:"70000",DISCORD_SUPPORT_PING_ROLE_ID:"70002",DISCORD_MODERATOR_ROLE_IDS:"40000",DISCORD_TICKET_CATEGORY_ID:"80000"};
   const calls=[];
   const request=async(url,options)=>{
     const body=options.body?JSON.parse(options.body):null;calls.push({url,body});
@@ -165,7 +183,7 @@ test("ticket forms route privately, enforce limits, isolate staff reports and pi
     assert.equal(route.response.data.components.length,2);
     const response=await runCommand(interaction("60000","ticket","open",{kind:"support",subject:"Help with a test",detail:"Please help me understand the queue."}),configured,store,request);
     assert.match(response,/81000/);
-    assert.deepEqual(calls[1].body.allowed_mentions,{parse:[],roles:["70000"],users:[]});
+    assert.deepEqual(calls[1].body.allowed_mentions,{parse:[],roles:["70002"],users:[]});
     assert.deepEqual(calls[2].body.allowed_mentions,{parse:[]});
     await assert.rejects(runCommand(interaction("60000","ticket","open",{kind:"support",subject:"Duplicate ticket",detail:"This is a duplicate request."}),configured,store,request),/active ticket/);
     const perms=ticketOverwrites(configured,"60000","staff-report");
@@ -185,8 +203,8 @@ test("high-tier sign-off is independent and invalidated when assessment scores c
   const {sql,store}=await database();const op=new OperationsStore(store);
   try {
     await store.verify("60000","aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","PlayerOne","30000");
-    await store.session("sword","EU","open","30000",10,72);
-    const id=await store.join("60000","sword","EU");await store.claim(id,"50001");
+    await store.session("mace","EU","open","30000",10,72);
+    const id=await store.join("60000","mace","EU");await store.claim(id,"50001");
     await assert.rejects(store.result(id,2,0,"https://example.com/evidence","50001",true),/assessment/);
     await op.assess(id,"50001","3,3,3,3,3,3","Consistent benchmark performance.");
     await assert.rejects(op.reviewPlacement(id,"50001","HT2","I reviewed my own assessment.","https://example.com/evidence"),/independent/);
@@ -274,7 +292,7 @@ function interaction(actor, command, sub, values = {}, roles = []) {
 test("cloud SQL enforces ownership, capacity, atomic claims/results, cooldown, independent appeals and public privacy", async () => {
   const { sql, store, adapter } = await database();
   try {
-    await assert.rejects(store.join("60000", "sword", "EU"), /ownership/);
+    await assert.rejects(store.join("60000", "mace", "EU"), /ownership/);
     await store.verify(
       "60000",
       "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
@@ -287,9 +305,9 @@ test("cloud SQL enforces ownership, capacity, atomic claims/results, cooldown, i
       "PlayerTwo",
       "30000",
     );
-    await store.session("sword", "EU", "open", "30000", 1, 72);
-    const entry = await store.join("60000", "sword", "EU");
-    await assert.rejects(store.join("60001", "sword", "EU"), /unavailable/);
+    await store.session("mace", "EU", "open", "30000", 1, 72);
+    const entry = await store.join("60000", "mace", "EU");
+    await assert.rejects(store.join("60001", "mace", "EU"), /unavailable/);
     await assert.rejects(store.claim(entry, "60000"), /belongs/);
     await store.claim(entry, "70000");
     await assert.rejects(store.claim(entry, "70001"), /already/);
@@ -302,10 +320,10 @@ test("cloud SQL enforces ownership, capacity, atomic claims/results, cooldown, i
       store.result(entry, 1, 0, "https://example.com/evidence", "70000"),
       /assigned/,
     );
-    await assert.rejects(store.join("60000", "sword", "EU"), /unavailable/);
+    await assert.rejects(store.join("60000", "mace", "EU"), /unavailable/);
     const reopened = new CloudStore(adapter);
     assert.equal(
-      (await reopened.rankings(config.points)).players[0].rankings.sword.tier,
+      (await reopened.rankings(config.points)).players[0].rankings.mace.tier,
       2,
     );
     const appeal = await store.appeal(
@@ -362,7 +380,7 @@ test("practice posts enforce expiry, concurrent limits and owner/moderator closu
   const { sql, store } = await database();
   try {
     const attempts = await Promise.allSettled(
-      ["sword", "axe", "bow", "mace"].map((m) =>
+      ["mace", "mace_spear", "mace_rod", "mace_rocket"].map((m) =>
         store.practiceCreate(
           "60000",
           m,
@@ -375,13 +393,13 @@ test("practice posts enforce expiry, concurrent limits and owner/moderator closu
     await assert.rejects(
       store.practiceCreate(
         "60000",
-        "sword",
+        "mace",
         "EU",
-        "Another active sword post for Saturday.",
+        "Another active mace post for Saturday.",
       ),
       /active post/,
     );
-    const posts = await store.practiceList("sword", "EU");
+    const posts = await store.practiceList("mace", "EU");
     assert.equal(posts.length, 1);
     await assert.rejects(
       store.practiceClose(posts[0].id, "60001"),
@@ -391,17 +409,17 @@ test("practice posts enforce expiry, concurrent limits and owner/moderator closu
     await store.practiceClose(posts[0].id, "80000", true);
     const id = await store.practiceCreate(
       "60000",
-      "sword",
+      "mace",
       "EU",
       "Reopened availability after closing old post.",
     );
     sql
       .prepare("UPDATE practice_posts SET expires=? WHERE id=?")
       .run("2020-01-01T00:00:00Z", id);
-    assert.equal((await store.practiceList("sword", "EU")).length, 0);
+    assert.equal((await store.practiceList("mace", "EU")).length, 0);
     const newId = await store.practiceCreate(
       "60000",
-      "sword",
+      "mace",
       "EU",
       "New session after the old listing expired.",
     );
@@ -447,7 +465,7 @@ test("tester applications are verified, private, bounded, independently reviewed
   const { sql, store } = await database();
   try {
     const values = {
-      mode: "sword",
+      mode: "mace",
       region: "EU",
       experience:
         "I explain spacing, fair scoring and evidence to every player.",
@@ -477,7 +495,7 @@ test("tester applications are verified, private, bounded, independently reviewed
     await assert.rejects(
       store.applyTester(
         "60000",
-        "sword",
+        "mace",
         "EU",
         values.experience,
         values.availability,
@@ -547,8 +565,8 @@ test("claim handoff only releases the assigned unfinished entry and retains queu
       "PlayerOne",
       "30000",
     );
-    await store.session("sword", "EU", "open", "30000", 2, 72);
-    const id = await store.join("60000", "sword", "EU");
+    await store.session("mace", "EU", "open", "30000", 2, 72);
+    const id = await store.join("60000", "mace", "EU");
     const created = (await store.list())[0].created;
     await store.claim(id, "70000");
     await assert.rejects(store.release(id, "70001"), /assigned/);
@@ -568,7 +586,7 @@ test("claim handoff only releases the assigned unfinished entry and retains queu
       env,
       store,
     );
-    assert.match(profile, /Sword: HT3/);
+    assert.match(profile, /Mace: HT3/);
     assert.ok(!profile.includes("60000"));
     assert.ok(!profile.includes("70001"));
     await assert.rejects(
@@ -587,11 +605,11 @@ test("claim handoff only releases the assigned unfinished entry and retains queu
 test("cloud commands authorize server owner, reject ordinary members and update only zero-permission interest roles", async () => {
   const { sql, store } = await database();
   try {
-    await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','30000','sword',0,'40000','Supervised calibration completed',new Date().toISOString()).run();
+    await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','30000','mace',0,'40000','Supervised calibration completed',new Date().toISOString()).run();
     await assert.rejects(
       runCommand(
         interaction("60000", "session", "open", {
-          mode: "sword",
+          mode: "mace",
           region: "EU",
         }),
         env,
@@ -602,7 +620,7 @@ test("cloud commands authorize server owner, reject ordinary members and update 
     assert.match(
       await runCommand(
         interaction("30000", "session", "open", {
-          mode: "sword",
+          mode: "mace",
           region: "EU",
           kit:"pilot-1-candidate",benchmarks:"Consented benchmark opponents and evidence",
         }),
@@ -619,11 +637,11 @@ test("cloud commands authorize server owner, reject ordinary members and update 
     );
     const unsafe = async () =>
       Response.json([
-        { id: "12345", name: "Sword", managed: false, permissions: "8" },
+        { id: "12345", name: "Mace", managed: false, permissions: "8" },
       ]);
     await assert.rejects(
       runCommand(
-        interaction("60000", "preferences", null, { mode: "sword" }),
+        interaction("60000", "preferences", null, { mode: "mace" }),
         env,
         store,
         unsafe,
@@ -635,18 +653,18 @@ test("cloud commands authorize server owner, reject ordinary members and update 
       paths.push([url, options.method]);
       return options.method === "GET"
         ? Response.json([
-            { id: "12345", name: "Sword", managed: false, permissions: "0" },
+            { id: "12345", name: "Mace", managed: false, permissions: "0" },
           ])
         : new Response(null, { status: 204 });
     };
     assert.match(
       await runCommand(
-        interaction("60000", "preferences", null, { mode: "sword" }),
+        interaction("60000", "preferences", null, { mode: "mace" }),
         env,
         store,
         safe,
       ),
-      /Sword added/,
+      /Mace added/,
     );
     assert.equal(paths[1][1], "PUT");
     assert.ok(paths[1][0].endsWith("/members/60000/roles/12345"));
@@ -670,18 +688,18 @@ test("private status scopes account, entry, position, latest evidence and cooldo
       "PlayerTwo",
       "30000",
     );
-    await store.session("sword", "EU", "open", "30000", 3, 72);
-    const first = await store.join("60001", "sword", "EU");
+    await store.session("mace", "EU", "open", "30000", 3, 72);
+    const first = await store.join("60001", "mace", "EU");
     // Equal timestamps exercise the same deterministic created/id ordering as list().
-    const own = await store.join("60000", "sword", "EU");
+    const own = await store.join("60000", "mace", "EU");
     sql
       .prepare("UPDATE queue SET created=? WHERE id=?")
       .run("2026-01-01T00:00:00.000Z", first);
-    assert.equal((await store.status("60000", "sword", "EU")).position, 2);
+    assert.equal((await store.status("60000", "mace", "EU")).position, 2);
     await store.claim(first, "70000");
-    assert.equal((await store.status("60000", "sword", "EU")).position, 1);
+    assert.equal((await store.status("60000", "mace", "EU")).position, 1);
     const command = interaction("60000", "queue", "status", {
-      mode: "sword",
+      mode: "mace",
       region: "EU",
     });
     const reply = await runCommand(command, env, store);
@@ -707,14 +725,14 @@ test("private status scopes account, entry, position, latest evidence and cooldo
       "revoke",
       "Evidence does not support the result.",
     );
-    assert.equal((await store.status("60000", "sword", "EU")).latest, null);
-    const other = await store.status("60002", "sword", "EU");
+    assert.equal((await store.status("60000", "mace", "EU")).latest, null);
+    const other = await store.status("60002", "mace", "EU");
     assert.equal(other.account, null);
     assert.equal(other.entry, null);
     assert.equal(other.latest, null);
     const listings = await runCommand(
       interaction("60002", "availability", null, {
-        mode: "sword",
+        mode: "mace",
         region: "EU",
       }),
       env,

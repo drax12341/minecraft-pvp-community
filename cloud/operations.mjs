@@ -56,6 +56,9 @@ export async function runOperation(interaction,env,store,request=fetch) {
       const roles=await discord(`/guilds/${env.DISCORD_GUILD_ID}/roles`),role=roles.find(r=>r.name===name);
       if(!role || role.managed || BigInt(role.permissions)!==0n)throw Error("Interest role is missing or has unsafe permissions.");
       const remove=interaction.member.roles.includes(role.id);
+      if(name.startsWith('Color · ')&&!remove){
+        for(const old of roles.filter(r=>r.name.startsWith('Color · ')&&r.id!==role.id&&interaction.member.roles.includes(r.id)&&!r.managed&&BigInt(r.permissions)===0n))await discord(`/guilds/${env.DISCORD_GUILD_ID}/members/${actor}/roles/${old.id}`,"DELETE");
+      }
       await discord(`/guilds/${env.DISCORD_GUILD_ID}/members/${actor}/roles/${role.id}`,remove?"DELETE":"PUT");
       return name+(remove?" removed.":" added.");
     }
@@ -126,7 +129,7 @@ export async function runOperation(interaction,env,store,request=fetch) {
           // Ping only the configured team, once, inside the verified private case.
           const notifyRoles = [...new Set(ids(get("kind")==="staff-report"
             ? env.DISCORD_REPORT_REVIEWER_ROLE_IDS
-            : (env.DISCORD_SUPPORT_ROLE_IDS || env.DISCORD_MODERATOR_ROLE_IDS || env.MODERATOR_ROLE_ID)))];
+            : (env.DISCORD_SUPPORT_PING_ROLE_ID || env.DISCORD_SUPPORT_ROLE_IDS || env.DISCORD_MODERATOR_ROLE_IDS || env.MODERATOR_ROLE_ID)))];
           await discord(`/channels/${channel.id}/messages`,"POST",{
             content: notifyRoles.map(role=>`<@&${role}>`).join(" ") + (get('kind')==='staff-report'&&env.DISCORD_OWNER_ID?` <@${env.DISCORD_OWNER_ID}>`:'') + " A new support case needs review.",
             allowed_mentions:{parse:[],roles:notifyRoles,users:get('kind')==='staff-report'&&env.DISCORD_OWNER_ID?[env.DISCORD_OWNER_ID]:[]},

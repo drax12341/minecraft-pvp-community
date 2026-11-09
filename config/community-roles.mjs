@@ -1,6 +1,6 @@
 export const extraInterests = {
-  survival: "Survival & SMP", bedwars: "Bedwars", skywars: "Skywars", creative: "Creative & Redstone", parkour: "Parkour",
-  tests: "Test Alerts", events: "Event Alerts", updates: "Update Alerts",
+  tests: "Test Alerts", events: "Event Alerts", updates: "Update Alerts", results: "Result Alerts",
+  violet: "Color · Violet", blue: "Color · Blue", cyan: "Color · Cyan", green: "Color · Green", gold: "Color · Gold", pink: "Color · Pink", red: "Color · Red",
 };
 export const staffTracks = ["helper", "moderator", "coach", "event-host"];
 export const ticketKinds = ["support", "account", "report", "staff-report", "technical"];

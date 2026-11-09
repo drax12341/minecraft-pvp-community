@@ -18,6 +18,7 @@ export const modeRubrics = {
   creeper: ["Approved kit attack/setup control", "Terrain and blast-range spacing", "Setup/attack timing", "Blast safety and recovery", "Approved kit resource use", "Responding to counterplay"],
 };
 export const rubricWeights = [20, 20, 20, 15, 15, 10];
+for (const id of ['mace_ht','mace_lt','mace_og','mace_rod','mace_rocket']) modeRubrics[id] = [...modeRubrics.mace];
 export const rubricProtocol = "Before opening a session, staff must publish a kit manifest: exact Minecraft version, items/amounts, enchantments, allowed mods, arena, reset rules and disconnect policy. Default assessment: 2 unscored warmups then first to 10 scored rounds, alternating sides; no mid-set kit changes. Both sides agree recording and shareable evidence. An unsafe arena or unresolved disconnect pauses the assessment. These are our community's rules, not another tierlist's standard.";
 export const rubricPlacement = "Score each dimension 0–4: 0 not demonstrated, 1 inconsistent fundamentals, 2 reliable basics, 3 advanced execution, 4 consistently demonstrated against calibrated opposition. Weighted score is feedback, not an automatic HT/LT conversion. A trained tester selects a provisional placement using documented benchmark opponents; HT1/LT1/HT2/LT2 require an independent senior review before publication. Never promise a rank from a score alone.";
 export function calculateAssessment(mode, input) {

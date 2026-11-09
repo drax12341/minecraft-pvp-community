@@ -12,7 +12,7 @@ const esc = (v) =>
 let config,
   data,
   testing,
-  mode = "sword",
+  mode = "mace",
   region = "all",
   search = "",
   view = "board",
@@ -65,7 +65,7 @@ function readRankingScope() {
     mode =
       p.get("mode") === "overall" || kit(p.get("mode"))
         ? p.get("mode")
-        : "sword";
+        : "mace";
   if (p.has("region"))
     region = ["all", "EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"].includes(
       p.get("region"),
@@ -120,7 +120,7 @@ const demoPlayers = () =>
     region: ["EU", "NA", "AS"][i % 3],
     points: Object.values(config.points)[i],
     rankings: {
-      [mode === "overall" ? "sword" : mode]: {
+      [mode === "overall" ? "mace" : mode]: {
         tier: Math.floor(i / 2) + 1,
         pos: i % 2,
         retired: false,
@@ -482,7 +482,7 @@ function rankings() {
             )
             .some((m) => m.id === mode)
         )
-          mode = modeGroup === "sub" ? "mace_spear" : "sword";
+          mode = modeGroup === "sub" ? "mace_spear" : "mace";
         rankings();
       }),
   );
@@ -512,7 +512,7 @@ function rankings() {
       (b.onclick = () => {
         view = b.dataset.view;
         if (mode === "overall" && view === "board") {
-          mode = "sword";
+          mode = "mace";
           modeGroup = "main";
         }
         rankings();
@@ -701,7 +701,7 @@ function renderBoard() {
                 )}</div></td><td>${mode === "overall" ? points(p) : config.points[label(p.rankings[mode])]}</td><td><input class="check" type="checkbox" data-compare="${p.uuid}" aria-label="Compare ${esc(p.name)}" ${selected.has(p.uuid) ? "checked" : ""}></td></tr>`,
           )
           .join("")}</tbody></table></div>`
-      : `<div class="big-empty">${art("sword")}<h3>The next name could be yours.</h3><p>No published results match this view. Earn a placement through our testing system.</p><a href="#testing" class="button">Explore testing ↗</a></div>`;
+      : `<div class="big-empty">${art("mace")}<h3>The next name could be yours.</h3><p>No published results match this view. Earn a placement through our testing system.</p><a href="#testing" class="button">Explore testing ↗</a></div>`;
   if (view === "list" && rows.length > 50)
     html += `<div class="pagination"><button id="prev-page" ${rankPage === 1 ? "disabled" : ""}>Previous</button><span>Page ${rankPage} of ${Math.ceil(rows.length / 50)}</span><button id="next-page" ${rankPage * 50 >= rows.length ? "disabled" : ""}>Next</button></div>`;
   const filteredEmpty =
@@ -1384,7 +1384,7 @@ function resultsPage() {
           )
           .join("")
       : '<div class="big-empty">' +
-        art("sword") +
+        art("mace") +
         '<h2>No results in this view yet.</h2><p>Completed, evidence-linked tests appear here. Try another filter or prepare for your first test.</p><a class="button secondary" href="#testing">Explore testing</a></div>';
   };
   main.querySelectorAll("[data-result-scope]").forEach(
@@ -1411,7 +1411,7 @@ function communityPage() {
     arenaHub() + '<div class="community-grid">' +
     [
       [
-        "sword",
+        "mace",
         "Find your next spar",
         "Create a practice listing for your mode and region. Posts expire after 24 hours; close yours when you are done.",
         "/practice create",
