@@ -66,6 +66,18 @@ test('claim-next follows deterministic order, excludes self and rejects simultan
   }finally{sql.close();}
 });
 
+test('the same player cannot receive simultaneous assignments in different modes, and paused sessions do not assign',async()=>{
+ const{sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  await store.session('sword','EU','open','30000');await store.session('axe','EU','open','30000');
+  const sword=await store.join('60000','sword','EU'),axe=await store.join('60000','axe','EU');
+  const outcomes=await Promise.allSettled([store.claim(sword,'50001'),store.claim(axe,'50002')]);
+  assert.equal(outcomes.filter(o=>o.status==='fulfilled').length,1);
+  const current=await store.one("SELECT id,tester FROM queue WHERE status='claimed'");await store.release(current.id,current.tester);
+  await store.session('axe','EU','paused','30000');await assert.rejects(store.claim(axe,'50002'),/already claimed/);
+ }finally{sql.close();}
+});
+
 test('a repeated interaction recovers a failed private reply without repeating the operation',async()=>{
   const{sql,store}=await database();try{
     const command=interaction('60000','practice','create',{mode:'sword',region:'EU',note:'Saturday 16 UTC, spacing practice'});

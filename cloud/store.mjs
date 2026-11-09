@@ -162,7 +162,7 @@ export class CloudStore {
   async verify(user, uuid, name, actor) {
     const existing=await this.one('SELECT uuid FROM accounts WHERE discord=?',user);
     if(existing&&existing.uuid!==uuid)throw Error('This Discord account is linked to another UUID. Open a private recovery ticket; existing identity is preserved.');
-    await this.db.batch([
+    const outcomes=await this.db.batch([
       this.statement(
         "INSERT INTO accounts(discord,uuid,name,verified_by,verified_at) VALUES(?,?,?,?,?) ON CONFLICT(discord) DO UPDATE SET name=excluded.name,verified_by=excluded.verified_by,verified_at=excluded.verified_at WHERE accounts.uuid=excluded.uuid",
         user,
@@ -173,6 +173,7 @@ export class CloudStore {
       ),
       this.audit(actor, "verify", uuid),
     ]);
+    if(!outcomes[0].meta.changes)throw Error('Account link changed during verification. Review the private recovery case; no identity was replaced.');
   }
   async session(mode, region, status, actor, capacity = 30, cooldown = 72, kitVersion=null, benchmarks=null) {
     if (
@@ -247,9 +248,9 @@ export class CloudStore {
       ).run()
     ).meta.changes;
   }
-  async list() {
+  async list(user=null) {
     return this.all(
-      "SELECT id,user,mode,region,status,created FROM queue WHERE status IN ('waiting','claimed') ORDER BY created,id LIMIT 200",
+      "SELECT id,user,mode,region,status,created FROM queue WHERE status IN ('waiting','claimed') AND (? IS NULL OR user=?) ORDER BY created,id LIMIT 200",user,user,
     );
   }
   async status(user, mode, region) {
@@ -309,7 +310,7 @@ export class CloudStore {
   async claim(id, actor) {
     const outcomes = await this.db.batch([
       this.statement(
-        "UPDATE queue SET status='claimed',tester=? WHERE id=? AND status='waiting' AND user<>? AND NOT EXISTS(SELECT 1 FROM queue WHERE tester=? AND status='claimed')",
+        "UPDATE queue SET status='claimed',tester=? WHERE id=? AND status='waiting' AND user<>? AND NOT EXISTS(SELECT 1 FROM queue WHERE tester=? AND status='claimed') AND NOT EXISTS(SELECT 1 FROM queue busy WHERE busy.user=queue.user AND busy.status='claimed') AND EXISTS(SELECT 1 FROM sessions s WHERE s.mode=queue.mode AND s.region=queue.region AND s.status='open')",
         actor,
         id,
         actor,
@@ -324,6 +325,7 @@ export class CloudStore {
     const row=await this.statement(`UPDATE queue SET status='claimed',tester=? WHERE id=(
       SELECT q.id FROM queue q JOIN sessions s ON s.mode=q.mode AND s.region=q.region
       WHERE q.mode=? AND q.region=? AND q.status='waiting' AND q.user<>? AND s.status='open'
+      AND NOT EXISTS(SELECT 1 FROM queue busy WHERE busy.user=q.user AND busy.status='claimed')
       ORDER BY q.created,q.id LIMIT 1) AND NOT EXISTS(SELECT 1 FROM queue WHERE tester=? AND status='claimed') RETURNING id`,actor,mode,region,actor,actor).first();
     if(!row)throw Error('No eligible waiting player in an open session, or you already hold a claim.');
     await this.audit(actor,'claim-next',row.id).run();

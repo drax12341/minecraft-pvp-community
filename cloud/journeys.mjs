@@ -48,7 +48,7 @@ export async function runJourney(i,env,store,request=fetch){
     const session=await store.one('SELECT kit_version FROM sessions WHERE mode=? AND region=?',q.mode,q.region);
     if(!room){await store.statement("INSERT OR IGNORE INTO test_rooms(id,assignment,tester,ready_by,kit_version,updated) VALUES(?,?,?,?,?,?)",q.id,crypto.randomUUID(),actor,new Date(Date.now()+5*60000).toISOString(),session?.kit_version||'legacy-unrecorded',now).run();room=await store.one('SELECT * FROM test_rooms WHERE id=?',q.id);}
     if(room.state==='archived'){
-      await store.statement("UPDATE test_rooms SET channel=NULL,assignment=?,tester=?,state='creating',ready_by=?,player_ready=0,tester_ready=0,updated=? WHERE id=? AND state='archived'",crypto.randomUUID(),actor,new Date(Date.now()+5*60000).toISOString(),now,q.id).run();
+      await store.statement("UPDATE test_rooms SET channel=NULL,assignment=?,tester=?,state='creating',ready_by=?,player_ready=0,tester_ready=0,kit_version=?,updated=? WHERE id=? AND state='archived'",crypto.randomUUID(),actor,new Date(Date.now()+5*60000).toISOString(),session?.kit_version||'legacy-unrecorded',now,q.id).run();
       room=await store.one('SELECT * FROM test_rooms WHERE id=?',q.id);
     }
     if(room.tester!==actor)throw Error('An older room must be archived by its participants before reassignment.');

@@ -24,7 +24,7 @@ for(const[name,[title,description]]of Object.entries(updates)){
  const previous=messages.find(m=>m.author.id===me.id&&m.embeds?.some(e=>e.footer?.text?.endsWith(suffix)));
  const marker=previous?.embeds?.find(e=>e.footer?.text?.endsWith(suffix))?.footer.text||`Minecraft PvP Tierlist · community-v5${suffix}`;
  const buttons=name==='open-a-ticket'?[{type:2,style:1,label:'Open private case',custom_id:'hub:ticket'}]:name==='request-test'?[{type:2,style:1,label:'Find testing',custom_id:'hub:test'},{type:2,style:2,label:'Availability',custom_id:'hub:availability'}]:[];
- const body={embeds:[{title,description,color:0xa995ff,footer:{text:marker},image:{url:url+'/brand/panel-'+(name==='open-a-ticket'?'support':name==='testing-rubrics'?'standards':'testing')+'.png'}}],components:[{type:1,components:[...buttons,{type:2,style:5,label:'Player hub',url}]}],allowed_mentions:{parse:[]}};
+ const body={embeds:[{title,description,color:0xa995ff,footer:{text:marker},image:{url:url+'/brand/panel-'+(name==='open-a-ticket'?'support':name==='testing-rubrics'?'standards':'testing')+'.png?v=12'}}],components:[{type:1,components:[...buttons,{type:2,style:5,label:'Player hub',url}]}],allowed_mentions:{parse:[]}};
  const message=await api(`/channels/${c.id}/messages${previous?'/'+previous.id:''}`,previous?'PATCH':'POST',body);
  await api(`/channels/${c.id}`,'PATCH',{topic:description.replaceAll('\n',' ').slice(0,990)});
  report.updated.push({channel:name,id:c.id,message:message.id,edited:!!previous});
@@ -33,5 +33,5 @@ for(const[name,[title,description]]of Object.entries(updates)){
 const community=channels.find(c=>c.id==='1568975808838635611');
 if(community)for(const id of ['1568975817583763568','1568975818648985761'])if(channels.some(c=>c.id===id))await api(`/channels/${id}`,'PATCH',{parent_id:community.id});
 const icon='data:image/png;base64,'+(await readFile('web/brand/discord-icon.png')).toString('base64');
-try{await api(`/guilds/${guild}`,'PATCH',{icon});report.guildIcon='applied';}catch(e){report.blocked.push('Guild icon: '+e.message);}
+if(!process.argv.includes('--skip-icon'))try{await api(`/guilds/${guild}`,'PATCH',{icon});report.guildIcon='applied';}catch(e){report.blocked.push('Guild icon: '+e.message);}
 await mkdir('.runtime',{recursive:true});await writeFile('.runtime/journeys-discord.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

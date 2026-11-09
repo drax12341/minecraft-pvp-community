@@ -10,6 +10,16 @@ Support: https://discord.com/channels/1568767259168608267/1569347634395746364
 
 Authenticated Discord API: **73 channels, 56 roles, 19 guild commands**. Local test runner: **23 passing tests**. Public `/healthz` reported `community-v4`, `cloud-http`, `pcRequired:false`. `/api/rankings` had zero players/results; `/api/testing` had zero sessions. The application retained the existing Sites interaction endpoint. Private local evidence: `.runtime/platform-audit.json` (not a deliverable or public asset).
 
+## Live publication and final checks
+
+Sites **version 12** deployed successfully from source `4c1b322de40cf031c6418ffc97ebe0dab488e438`, deployment `appgdep_6af1f00b63ac8191bb72acad4ac4038c`, preserving the public audience, environment revision 2, existing Worker/D1 architecture and Discord interaction URL. Version 11 initially reported success while HTTP still served v4; final version 12 was separately verified by HTTP and reports **community-v5 / 22 commands / pcRequired false**.
+
+`/api/kits`, `/standards.html`, `/brand/discord-icon.png` return 200. `/api/tickets`, `/api/accounts`, `/api/queue`, `/api/applications` and `/api/assessments` return 404; unsigned interactions return 401. Rankings and availability still contain no fabricated players or sessions. Native D1 overview confirms the new waitlist, qualification, room, draft and note tables. Twenty-two guild commands were re-registered and confirmed through the Discord API; no gateway was started.
+
+Five existing Discord panels were edited in place: request-test, testing-faq, open-a-ticket, staff-handbook, testing-rubrics. Events and looking-for-team were moved into Community; history was retained. Repeat application targets the same messages and does not create new channels/roles. The guild icon PATCH returned **403**: the bot lacks the required guild permission. Upload `web/brand/discord-icon.png` manually in Server Settings when convenient. No broader bot permission was granted.
+
+The later guild role count was **59**: three independently added managed integrations (Appy, Arcane, carl-bot) appeared during this work. This upgrade did not create or change those roles. Channel count remains 73; channel/role count is not a completion criterion.
+
 ## Implemented stage
 
 - Durable private waitlist preferences, independent from active queues and interest roles.
@@ -24,7 +34,7 @@ Authenticated Discord API: **73 channels, 56 roles, 19 guild commands**. Local t
 
 ## Validation
 
-**31 automated tests pass** at this source stage. Added cases cover waitlist privacy/idempotence, per-mode authorisation, competing tester claims, evidence substitution, identity conflicts/timestamps, private drafts/internal notes/confidential reports, and room recovery after an API timeout with retained queue order. Existing SQL, migration, signature/replay, queue capacity, appeal independence, application privacy, browser-DOM website, saved-player, comparison and refresh tests still pass. Worker build/syntax and Git whitespace checks pass.
+**32 automated tests pass** at this source stage. Added cases cover waitlist privacy/idempotence, per-mode authorisation, competing tester claims, evidence substitution, identity conflicts/timestamps, private drafts/internal notes/confidential reports, and room recovery after an API timeout with retained queue order. Existing SQL, migration, signature/replay, queue capacity, appeal independence, application privacy, browser-DOM website, saved-player, comparison and refresh tests still pass. Worker build/syntax and Git whitespace checks pass.
 
 Browser DOM tests are not desktop/mobile visual QA. SQLite tests exercise the real migration SQL and a D1-compatible adapter; they are not a stress test of deployed D1 concurrency. No fake accounts or placements were inserted in production.
 
@@ -47,4 +57,5 @@ Source: `cloud/journeys.mjs`, cloud operations/store/worker, Discord command/pan
 Staff checklist: approve real kits/benchmarks → appoint staff manually and record independent qualifications → review confidential channel access → run the two-person journey checks → complete desktop/mobile/keyboard QA → advertise only actually staffed sessions. Full procedures: [STAFF-OPERATIONS-V5.md](STAFF-OPERATIONS-V5.md).
 
 This is a tested platform stage, not a claim that all requested journeys are production-complete. No Minecraft hosting, plugins, worlds or gameplay configuration was changed.
+
 

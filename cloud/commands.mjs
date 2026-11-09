@@ -242,6 +242,16 @@ export async function runCommand(interaction, env, store, request = fetch) {
         "$1-$2-$3-$4-$5",
       );
       await store.verify(get("user"), uuid, get("name"), actor);
+      if(env.DISCORD_VERIFIED_ROLE_ID){
+        try{
+          const roles=await discord(`/guilds/${env.DISCORD_GUILD_ID}/roles`);
+          const role=roles.find(r=>r.id===env.DISCORD_VERIFIED_ROLE_ID);
+          if(!role||role.managed||BigInt(role.permissions)!==0n)throw Error('Unsafe verification role');
+          await discord(`/guilds/${env.DISCORD_GUILD_ID}/members/${get('user')}/roles/${role.id}`,'PUT');
+        }catch{
+          return 'Ownership verification was saved, but the Verified Player role could not be synchronised. Staff should check the role hierarchy and repeat verification with the same UUID to retry. Do not create another identity.';
+        }
+      }
       return "Verified account saved in cloud storage. Staff must confirm ownership before using this command.";
     }
     case "session": {
@@ -308,7 +318,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
           ? "You left the queue."
           : "No waiting entry found. For claimed entries, contact your tester.";
       if (sub?.name !== "list") throw Error("Choose join, leave or list.");
-      const rows = (await store.list()).filter(
+      const rows = (await store.list(tester?null:actor)).filter(
         (r) => tester || r.user === actor,
       );
       return rows.length

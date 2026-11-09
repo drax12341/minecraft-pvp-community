@@ -21,6 +21,7 @@ export function componentRoute(i) {
     return{response:message("Choose your region. The next step checks ownership, real session availability, capacity and cooldown.",menu("test:region:"+value,"Select your region",["EU","NA","AS","SA","AU","AF","ME","OC"].map(v=>({label:v,value:v}))))};
   }
   if(id.startsWith("test:region:"))return{command:command(i,"request-test",null,{mode:id.slice(12),region:value})};
+  if(id.startsWith('waitlist:join:')){const parts=id.split(':');return{command:command(i,'waitlist','join',{mode:parts[2],region:parts[3]})};}
   if(id==="hub:availability")return{command:command(i,"availability",null)};
   if(id==="hub:rubrics")return{response:message("Choose a mode to read its assessment rubric.",menu("rubric:mode","Select a rubric",modes))};
   if(id==="rubric:mode"){const m=config.modes.find(m=>m.id===value);if(!m)throw Error("Invalid mode.");return{response:message(rubricText(m.id,m.name).slice(0,1950))};}

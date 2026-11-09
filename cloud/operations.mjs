@@ -47,6 +47,8 @@ export async function runOperation(interaction,env,store,request=fetch) {
     case "rubric":return rubricText(mode().id,mode().name);
     case "request-test":{
       if(!["EU","NA","AS","SA","AU","AF","ME","OC"].includes(get("region")))throw Error("Choose a valid region.");
+      const m=mode().id,r=get('region'),session=await store.one('SELECT status,capacity FROM sessions WHERE mode=? AND region=?',m,r);
+      if(!session||session.status!=='open')return{content:`No open testing session for ${m} / ${r}. Save a waitlist preference to record demand for future testing. It reserves no active queue place. Verified ownership is required; no waiting time is promised.`,components:[{type:1,components:[{type:2,style:1,label:'Save waitlist preference',custom_id:`waitlist:join:${m}:${r}`}]}]};
       return "Test requested: "+await store.join(actor,mode().id,get("region"))+". Check /queue status for your progress. This is an official queue entry, subject to verification, capacity and cooldown.";
     }
     case "interests":{
@@ -161,7 +163,7 @@ export async function runOperation(interaction,env,store,request=fetch) {
       }
       if(['state','assign','note','notes'].includes(sub?.name)){
         if(!support||t.user===actor)throw Error('Only independent authorised support staff can update this case.');
-        if(t.status!=='open')throw Error('Only open cases can be updated.');
+        if(t.status!=='open'&&sub.name!=='notes')throw Error('Only open cases can be updated.');
         if(sub.name==='state'){
           if(!['waiting-staff','waiting-player','escalated'].includes(get('state')))throw Error('Choose a valid case state.');
           await store.db.batch([store.statement('UPDATE support_tickets SET workflow=? WHERE id=? AND status=\'open\'',get('state'),t.id),store.audit(actor,'ticket-state',t.id)]);
