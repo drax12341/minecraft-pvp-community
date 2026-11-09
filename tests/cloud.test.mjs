@@ -49,6 +49,35 @@ test('evidence substitution cannot reuse high-tier sign-off',async()=>{
     await op.reviewPlacement(id,'50002','HT2','Independent review of exact evidence','https://example.com/original');
     await assert.rejects(store.result(id,2,0,'https://example.com/substituted','50001',true),/assessment/);
     await store.result(id,2,0,'https://example.com/original','50001',true);
+    const appeal=await store.appeal(id,'60000','Please independently review the placement evidence');
+    await assert.rejects(store.review(appeal,'50002','uphold','Original sign-off reviewer cannot decide this appeal'),/independent/);
+  }finally{sql.close();}
+});
+
+test('claim-next follows deterministic order, excludes self and rejects simultaneous second assignments',async()=>{
+  const {sql,store}=await database();try{
+    await store.session('sword','EU','open','30000');
+    for(const [user,uuid]of[['60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'],['60001','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb']])await store.verify(user,uuid,'Player'+user,'30000');
+    const first=await store.join('60000','sword','EU'),second=await store.join('60001','sword','EU');
+    await store.statement('UPDATE queue SET created=? WHERE id=?','2026-01-01T00:00:00Z',first).run();
+    assert.equal(await store.claimNext('sword','EU','60000'),second);
+    await assert.rejects(store.claimNext('sword','EU','60000'),/already hold/);
+    assert.equal(await store.claimNext('sword','EU','50001'),first);
+  }finally{sql.close();}
+});
+
+test('a repeated interaction recovers a failed private reply without repeating the operation',async()=>{
+  const{sql,store}=await database();try{
+    const command=interaction('60000','practice','create',{mode:'sword',region:'EU',note:'Saturday 16 UTC, spacing practice'});
+    let calls=0;
+    const request=async()=>{calls++;if(calls===1)throw Error('Simulated reply timeout');return Response.json({});};
+    await assert.rejects(completeInteraction(command,env,store,request),/timeout/);
+    assert.equal((await store.one('SELECT count(*) n FROM practice_posts')).n,1);
+    await completeInteraction(command,env,store,request);
+    await completeInteraction(command,env,store,request);
+    assert.equal(calls,2);
+    assert.equal((await store.one('SELECT count(*) n FROM practice_posts')).n,1);
+    assert.equal((await store.one('SELECT delivered FROM interaction_receipts')).delivered,1);
   }finally{sql.close();}
 });
 
@@ -172,6 +201,7 @@ async function database() {
   );
   sql.exec(await readFile(new URL("../drizzle/0002_community_operations.sql",import.meta.url),"utf8"));
   sql.exec(await readFile(new URL('../drizzle/0003_journey_safety.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0004_interaction_delivery.sql',import.meta.url),'utf8'));
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({

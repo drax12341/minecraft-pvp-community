@@ -320,6 +320,15 @@ export class CloudStore {
     if (!outcomes[0].meta.changes)
       throw Error("Entry was already claimed, cancelled, or belongs to you.");
   }
+  async claimNext(mode,region,actor){
+    const row=await this.statement(`UPDATE queue SET status='claimed',tester=? WHERE id=(
+      SELECT q.id FROM queue q JOIN sessions s ON s.mode=q.mode AND s.region=q.region
+      WHERE q.mode=? AND q.region=? AND q.status='waiting' AND q.user<>? AND s.status='open'
+      ORDER BY q.created,q.id LIMIT 1) AND NOT EXISTS(SELECT 1 FROM queue WHERE tester=? AND status='claimed') RETURNING id`,actor,mode,region,actor,actor).first();
+    if(!row)throw Error('No eligible waiting player in an open session, or you already hold a claim.');
+    await this.audit(actor,'claim-next',row.id).run();
+    return row.id;
+  }
   async result(id, tier, pos, evidence, actor, enforceRubric = false) {
     const outcomes = await this.db.batch([
       this.statement(
@@ -401,11 +410,13 @@ export class CloudStore {
     const outcomes = await this.db.batch([
       this.statement(
         `UPDATE appeals SET status=?,reviewer=?,decision=? WHERE id=? AND status='pending' AND user<>?
-        AND EXISTS(SELECT 1 FROM results r WHERE r.id=appeals.result_id AND r.tester<>?)`,
+        AND EXISTS(SELECT 1 FROM results r WHERE r.id=appeals.result_id AND r.tester<>?)
+        AND NOT EXISTS(SELECT 1 FROM placement_reviews p WHERE p.id=appeals.result_id AND p.reviewer=?)`,
         decision,
         actor,
         reason.trim(),
         id,
+        actor,
         actor,
         actor,
       ),

@@ -51,7 +51,14 @@ export async function completeInteraction(
   store,
   request = fetch,
 ) {
-  if (!(await store.beginInteraction(interaction.id))) return;
+  if (!(await store.beginInteraction(interaction.id))) {
+    const saved=await store.one('SELECT status,response,delivered FROM interaction_receipts WHERE id=?',interaction.id);
+    if(saved?.status==='complete'&&!saved.delivered){
+      let message;try{message=JSON.parse(saved.response);}catch{message={content:saved.response,components:[]};}
+      await deliverInteraction(interaction,env,store,request,message);
+    }
+    return;
+  }
   let content;
   try {
     content = await runCommand(interaction, env, store, request);
@@ -64,7 +71,10 @@ export async function completeInteraction(
       : error.message;
   }
   const message = typeof content==='object' && content ? {...content,content:String(content.content).slice(0,1900)} : {content:String(content).slice(0,1900),components:[]};
-  await store.finishInteraction(interaction.id, message.content);
+  await store.finishInteraction(interaction.id, JSON.stringify(message));
+  await deliverInteraction(interaction,env,store,request,message);
+}
+async function deliverInteraction(interaction,env,store,request,message){
   const response = await request(
     `https://discord.com/api/v10/webhooks/${env.DISCORD_CLIENT_ID}/${interaction.token}/messages/@original`,
     {
@@ -76,6 +86,7 @@ export async function completeInteraction(
   );
   if (!response.ok)
     console.error("Discord reply delivery failed: HTTP " + response.status);
+  else await store.statement('UPDATE interaction_receipts SET delivered=1 WHERE id=?',interaction.id).run();
 }
 
 export default {

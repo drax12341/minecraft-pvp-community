@@ -24,7 +24,7 @@ Authenticated Discord API: **73 channels, 56 roles, 19 guild commands**. Local t
 
 ## Validation
 
-**29 automated tests pass** at this source stage. Added cases cover waitlist privacy/idempotence, per-mode authorisation, competing tester claims, evidence substitution, identity conflicts/timestamps, private drafts/internal notes/confidential reports, and room recovery after an API timeout with retained queue order. Existing SQL, migration, signature/replay, queue capacity, appeal independence, application privacy, browser-DOM website, saved-player, comparison and refresh tests still pass. Worker build/syntax and Git whitespace checks pass.
+**31 automated tests pass** at this source stage. Added cases cover waitlist privacy/idempotence, per-mode authorisation, competing tester claims, evidence substitution, identity conflicts/timestamps, private drafts/internal notes/confidential reports, and room recovery after an API timeout with retained queue order. Existing SQL, migration, signature/replay, queue capacity, appeal independence, application privacy, browser-DOM website, saved-player, comparison and refresh tests still pass. Worker build/syntax and Git whitespace checks pass.
 
 Browser DOM tests are not desktop/mobile visual QA. SQLite tests exercise the real migration SQL and a D1-compatible adapter; they are not a stress test of deployed D1 concurrency. No fake accounts or placements were inserted in production.
 
@@ -33,10 +33,10 @@ Browser DOM tests are not desktop/mobile visual QA. SQLite tests exercise the re
 - Browser access host and native Discord automation pipe unavailable; fresh reference-channel/kit-image research, visual desktop/mobile QA and member-driven Discord acceptance checks remain blocked. See [research evidence](RESEARCH-V5.md).
 - Authorised staff IDs/modes, real benchmark opponents and calibration evidence are still needed. No staff powers were assigned or testing sessions opened. Sword/Axe/Bow have pilot specifications; twelve other modes still need complete manifests. Those modes cannot open through the new session command.
 - Manual ownership verification has documented limitations; no trustworthy automated integration was found. Recovery transfers still require an independently reviewed migration plan. Existing verification timestamps remain unknown where not previously recorded.
-- Session alert roles are opt-in preferences; automatic session notification delivery is not yet implemented. Claims still select an explicit entry; there is no claim-next command. No automatic stale-room scheduler or readiness timeout release exists; staff perform archival/release.
+- Session alert roles are opt-in preferences; automatic session notification delivery is not yet implemented. Qualified testers can atomically claim the next eligible player in mode/region order. No automatic stale-room scheduler or readiness timeout release exists; staff perform archival/release.
 - Support reopening and automatic escalation notifications remain unimplemented. `/ticket recover` can recover an existing private channel; if no channel is found, the owner must investigate the retained reservation. It does not rebuild every missing welcome message.
 - Public tester aliases and complete shareable per-player history/revocation presentation remain unfinished. Current/peak rankings and ordinary/high result feeds remain available. Public feeds continue excluding private Discord IDs, applications, tickets, notes and internal assessments.
-- Historical staff-report channels need an explicit existing-access audit. New report routing does not remove old overwrites. Administrators inherently retain Discord channel access. Staff must recuse on conflicts, including original sign-off reviewers during appeals.
+- Historical staff-report channels need an explicit existing-access audit. New report routing does not remove old overwrites. Administrators inherently retain Discord channel access. Original sign-off reviewers are rejected by the appeal decision query; staff must also recuse on other conflicts.
 - Not all duplicated/legacy navigation was consolidated; preserving channel/message history took precedence over unverified channel removal. Existing unrelated and historical channels were retained.
 - A rollback to pre-v5 Workers needs care: old positional SQL inserts are incompatible with the expanded account/session tables. Prefer forward fixes; do not erase records to roll back schema.
 
@@ -47,3 +47,4 @@ Source: `cloud/journeys.mjs`, cloud operations/store/worker, Discord command/pan
 Staff checklist: approve real kits/benchmarks → appoint staff manually and record independent qualifications → review confidential channel access → run the two-person journey checks → complete desktop/mobile/keyboard QA → advertise only actually staffed sessions. Full procedures: [STAFF-OPERATIONS-V5.md](STAFF-OPERATIONS-V5.md).
 
 This is a tested platform stage, not a claim that all requested journeys are production-complete. No Minecraft hosting, plugins, worlds or gameplay configuration was changed.
+

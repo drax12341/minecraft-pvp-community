@@ -323,6 +323,11 @@ export async function runCommand(interaction, env, store, request = fetch) {
     }
     case "claim":
       requireTester();
+      if(get('action')==='next'){
+        await requireQualification(store,actor,mode());
+        const id=await store.claimNext(mode(),region(),actor);
+        return `Next eligible entry claimed: ${id}. Use /test-room open id:${id}.`;
+      }
       if (get("action") === "release") {
         const room=await store.one("SELECT 1 FROM test_rooms WHERE id=? AND state<>'archived'",get('id'));
         if(room)throw Error('Archive the private testing room before releasing this claim. This prevents the previous tester retaining access after handoff.');

@@ -20,7 +20,7 @@ for (const key of [
   "MODERATOR_ROLE_ID",
 ])
   if (!process.env[key]) throw Error(`${key} is required`);
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = process.argv.includes('--register-only') ? null : new Client({ intents: [GatewayIntentBits.Guilds] });
 const mode = (o) =>
   o
     .setName("mode")
@@ -61,7 +61,7 @@ const claim = new SlashCommandBuilder()
   .setName("claim")
   .setDescription("Tester: claim a queue entry")
   .addStringOption((o) =>
-    o.setName("id").setDescription("Queue entry ID").setRequired(true),
+    o.setName("id").setDescription("Queue entry ID; omit for next eligible player"),
   )
   .addStringOption((o) =>
     o
@@ -70,8 +70,10 @@ const claim = new SlashCommandBuilder()
       .addChoices(
         { name: "Claim", value: "claim" },
         { name: "Release", value: "release" },
+        { name:'Next eligible player',value:'next'},
       ),
   );
+claim.addStringOption(o=>mode(o).setRequired(false)).addStringOption(o=>o.setName('region').setDescription('Region for next eligible player').addChoices(...['EU','NA','AS','SA','AU','AF','ME','OC'].map(value=>({name:value,value}))));
 const result = new SlashCommandBuilder()
   .setName("result")
   .setDescription("Tester: publish your assigned test result")
@@ -420,10 +422,9 @@ await new REST()
 // Register cloud commands without starting the legacy local gateway.
 if (process.argv.includes("--register-only")) {
   console.log(
-    "Registered nineteen cloud guild commands, including tickets, staff applications, rubrics and assessments. No gateway started.",
+    `Registered ${12+communityCommands.length} cloud guild commands. No gateway started.`,
   );
-  process.exit(0);
-}
+} else {
 client.on("interactionCreate", async (i) => {
   if (!i.isChatInputCommand() || i.guildId !== process.env.DISCORD_GUILD_ID)
     return;
@@ -629,3 +630,4 @@ for (const signal of ["SIGTERM", "SIGINT"])
     process.exit(0);
   });
 await client.login(process.env.DISCORD_TOKEN);
+}
