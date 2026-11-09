@@ -1,5 +1,7 @@
 # Platform journey upgrade · 9 November 2026
 
+Final runtime publication: **Sites version 14**, source `85933e42bb08ce2c7ade1a7a2df714c185aa2db9`, deployment `appgdep_6af1f1d454d481918e6b4c3725ad68d2` (succeeded). The final patch also requires both participants' readiness and the current room kit version before assessment/publication, prevents cross-mode simultaneous player assignments, rejects paused-session claims, and synchronises the safe Verified Player role with an explicit partial-failure message. Thirty-two automated tests pass. The deployment archive is `C:/Users/garbo/IdeaProjects/community-v5-verified.tar.gz`.
+
 Website: https://minecraft-pvp-community.draxion0.chatgpt.site
 
 Discord testing desk: https://discord.com/channels/1568767259168608267/1569347570214506607
