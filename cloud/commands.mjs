@@ -1,3 +1,5 @@
+import { journeyNames, runJourney, requireQualification } from './journeys.mjs';
+import { kitManifests } from '../config/kit-manifests.mjs';
 import config from "../config/community.json" with { type: "json" };
 import { operationNames, runOperation } from "./operations.mjs";
 import { staffAccess } from "../config/community-roles.mjs";
@@ -17,6 +19,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
   const get = (name) => options.find((o) => o.name === name)?.value;
   const roles = interaction.member.roles || [];
   const {mod,tester} = staffAccess(interaction,env);
+  if(journeyNames.has(data.name))return runJourney(interaction,env,store,request);
   if(operationNames.has(data.name))return runOperation(interaction,env,store,request);
   const requireMod = () => {
     if (!mod) throw Error("Only moderators can use this command.");
@@ -134,7 +137,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
                   `${config.modes.find((k) => k.id === m)?.name || m}: ${r.pos === 0 ? "HT" : "LT"}${r.tier} · peak ${r.peak_pos === 0 ? "HT" : "LT"}${r.peak_tier}`,
               )
               .join("\n") +
-            `\nhttps://drax12341.github.io/minecraft-pvp-community/#rankings?player=${encodeURIComponent(p.uuid)}`
+            `\nhttps://minecraft-pvp-community.draxion0.chatgpt.site/#rankings?player=${encodeURIComponent(p.uuid)}`
         : "No published placement for that player on our tierlist. /guide start explains how to get tested.";
     }
     case "guide": {
@@ -155,7 +158,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
         throw Error("Choose a valid guide topic.");
       return (
         topics[topic] +
-        "\nhttps://drax12341.github.io/minecraft-pvp-community/#testing"
+        "\nhttps://minecraft-pvp-community.draxion0.chatgpt.site/#testing"
       );
     }
     case "availability": {
@@ -174,7 +177,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
                 `${s.mode} / ${s.region}: ${s.status} · ${s.waiting} waiting, ${s.claimed} claimed · capacity ${s.capacity} · cooldown ${s.cooldown}h`,
             )
             .join("\n") +
-            "\nSnapshot only; /queue join checks capacity again. No waiting-time guarantee. More: https://drax12341.github.io/minecraft-pvp-community/#testing"
+            "\nSnapshot only; /queue join checks capacity again. No waiting-time guarantee. More: https://minecraft-pvp-community.draxion0.chatgpt.site/#testing"
         : "No published sessions match. Testing is not open for this selection. Read /guide testing or find practice in #find-a-duel; do not join a different region unless you can play there.";
     }
     case "preferences": {
@@ -243,9 +246,14 @@ export async function runCommand(interaction, env, store, request = fetch) {
     }
     case "session": {
       requireTester();
+      await requireQualification(store,actor,mode());
       const status = { open: "open", pause: "paused", close: "closed" }[
         sub?.name
       ];
+      if(status==='open'){
+        if(!kitManifests.modes.some(m=>m.id===mode())||get('kit')!==kitManifests.version)throw Error('This mode needs a complete kit manifest. Review /standards.html and explicitly approve the current version in the kit option; keep other modes closed.');
+        store.reason(get('benchmarks'));
+      }
       await store.session(
         mode(),
         region(),
@@ -253,6 +261,8 @@ export async function runCommand(interaction, env, store, request = fetch) {
         actor,
         get("capacity") ?? 30,
         get("cooldown") ?? 72,
+        get('kit')||null,
+        get('benchmarks')||null,
       );
       return `${get("mode")} / ${get("region")} session ${status}. The public testing page updates automatically.`;
     }
@@ -314,13 +324,18 @@ export async function runCommand(interaction, env, store, request = fetch) {
     case "claim":
       requireTester();
       if (get("action") === "release") {
+        const room=await store.one("SELECT 1 FROM test_rooms WHERE id=? AND state<>'archived'",get('id'));
+        if(room)throw Error('Archive the private testing room before releasing this claim. This prevents the previous tester retaining access after handoff.');
         await store.release(get("id"), actor);
         return "Entry returned to waiting with its original queue time. No result was changed.";
       }
       if (get("action") && get("action") !== "claim")
         throw Error("Choose claim or release.");
+      const entry=await store.one('SELECT mode FROM queue WHERE id=?',get('id'));
+      if(!entry)throw Error('No waiting entry found.');
+      await requireQualification(store,actor,entry.mode);
       await store.claim(get("id"), actor);
-      return "Test claimed. Agree on the kit, server and rules with the player.";
+      return "Test claimed. Use /test-room open with this assessment ID for private coordination, readiness and written kit agreement.";
     case "result": {
       requireTester();
       const tier = get("tier"),
@@ -335,6 +350,9 @@ export async function runCommand(interaction, env, store, request = fetch) {
         throw Error(
           "A valid tier and shareable HTTPS evidence link are required.",
         );
+      const entry=await store.one('SELECT mode FROM queue WHERE id=?',get('id'));
+      if(!entry)throw Error('Assessment not found.');
+      await requireQualification(store,actor,entry.mode);
       await store.result(
         get("id"),
         Number(tier.slice(-1)),

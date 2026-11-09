@@ -176,6 +176,10 @@ for (const action of ["open", "pause", "close"])
           .setMaxValue(720),
       ),
   );
+// Approval applies to complete original pilot manifests; no unknown kits open.
+for(const command of session.options){
+  if(command.name==='open')command.addStringOption(o=>o.setName('kit').setDescription('Reviewed kit version, currently pilot-1-candidate').setRequired(false)).addStringOption(o=>o.setName('benchmarks').setDescription('Real benchmark opponents, consented evidence and calibration reference').setRequired(false));
+}
 const appeal = new SlashCommandBuilder()
   .setName("appeal")
   .setDescription("Private test appeals")

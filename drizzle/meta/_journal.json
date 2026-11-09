@@ -16,6 +16,19 @@
       "tag": "0001_player_workflows",
       "breakpoints": true
     },
-    {"idx":2,"version":"6","when":1794157200000,"tag":"0002_community_operations","breakpoints":true}
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794157200000,
+      "tag": "0002_community_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794236400000,
+      "tag": "0003_journey_safety",
+      "breakpoints": true
+    }
   ]
 }

@@ -45,15 +45,16 @@ export class OperationsStore {
     const assessment=calculateAssessment(q.mode,scores);
     const revision=crypto.randomUUID(),now=new Date().toISOString();
     const r=await this.store.db.batch([
-      this.statement("INSERT INTO assessments(id,tester,mode,version,scores,total,rationale,created,revision) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM queue WHERE id=? AND tester=? AND status='claimed') ON CONFLICT(id) DO UPDATE SET tester=excluded.tester,scores=excluded.scores,total=excluded.total,rationale=excluded.rationale,created=excluded.created,revision=excluded.revision",id,actor,q.mode,rubricVersion,JSON.stringify(assessment.scores),assessment.total,rationale.trim(),now,revision,id,actor),
+      this.statement("INSERT INTO assessments(id,tester,mode,version,scores,total,rationale,created,revision,kit_version) SELECT ?,?,?,?,?,?,?,?,?,(SELECT kit_version FROM test_rooms WHERE id=?) WHERE EXISTS(SELECT 1 FROM queue WHERE id=? AND tester=? AND status='claimed') ON CONFLICT(id) DO UPDATE SET tester=excluded.tester,scores=excluded.scores,total=excluded.total,rationale=excluded.rationale,created=excluded.created,revision=excluded.revision,kit_version=excluded.kit_version",id,actor,q.mode,rubricVersion,JSON.stringify(assessment.scores),assessment.total,rationale.trim(),now,revision,id,id,actor),
       this.statement("INSERT INTO assessment_history SELECT revision,id,tester,scores,total,rationale,created FROM assessments WHERE id=? AND revision=?",id,revision),
     ]);
     if(!r[0].meta.changes)throw Error("Assessment could not be saved; the claim may have changed.");
     return assessment;
   }
-  async reviewPlacement(id,actor,tier,reason) {
+  async reviewPlacement(id,actor,tier,reason,evidence) {
+    if(typeof evidence!=="string" || !URL.canParse(evidence) || new URL(evidence).protocol!=="https:" || evidence.length>1000)throw Error("Review requires the exact shareable HTTPS evidence to be published.");
     this.store.reason(reason); if(!/^(HT|LT)[1-2]$/.test(tier||""))throw Error("Senior sign-off is for HT1/LT1/HT2/LT2.");
-    const r=await this.statement("INSERT INTO placement_reviews(review_id,id,reviewer,tier,reason,created,assessment_revision) SELECT ?,?,?,?,?,?,a.revision FROM queue q JOIN assessments a ON a.id=q.id WHERE q.id=? AND q.status='claimed' AND q.tester<>? AND q.user<>?",crypto.randomUUID(),id,actor,tier,reason.trim(),new Date().toISOString(),id,actor,actor).run();
+    const r=await this.statement("INSERT INTO placement_reviews(review_id,id,reviewer,tier,reason,created,assessment_revision,evidence) SELECT ?,?,?,?,?,?,a.revision,? FROM queue q JOIN assessments a ON a.id=q.id WHERE q.id=? AND q.status='claimed' AND q.tester<>? AND q.user<>?",crypto.randomUUID(),id,actor,tier,reason.trim(),new Date().toISOString(),evidence,id,actor,actor).run();
     if(!r.meta.changes)throw Error("An assessed claim and independent senior reviewer are required.");
   }
   async warn(user,actor,reason) {

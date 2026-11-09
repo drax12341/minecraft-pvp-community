@@ -10,7 +10,8 @@ export function componentRoute(i) {
   const modes=config.modes.map(m=>({label:m.name,value:m.id,description:m.group}));
   if(i.type===5){
     const fields=Object.fromEntries((i.data.components||[]).flatMap(row=>(row.components||[]).map(f=>[f.custom_id,f.value])));
-    if(id.startsWith("ticket:open:")){const kind=id.slice(12);if(!ticketKinds.includes(kind))throw Error("Invalid ticket category.");return {command:command(i,"ticket","open",{kind,subject:fields.subject,detail:fields.detail})};}
+    if(id.startsWith("ticket:open:")){const kind=id.slice(12);if(!ticketKinds.includes(kind))throw Error("Invalid ticket category.");return {command:command(i,"ticket","prepare",{kind,subject:fields.subject,detail:fields.detail})};}
+    if(id.startsWith('ticket:resolution:'))return{command:command(i,'ticket','close',{id:id.slice(18),reason:fields.reason})};
     if(id.startsWith("apply:open:")){const track=id.slice(11);if(!staffTracks.includes(track))throw Error("Invalid application track.");return{command:command(i,"staff-apply","submit",{track,experience:fields.experience,availability:fields.availability})};}
     throw Error("This form has expired. Open the panel again.");
   }
@@ -27,9 +28,10 @@ export function componentRoute(i) {
   if(id==="roles:mode")return{command:command(i,"preferences",null,{mode:value})};
   if(id==="hub:interests")return{response:message("Choose a casual game interest or opt-in alert role.",menu("roles:interest","Toggle an interest or alert",Object.entries(extraInterests).map(([value,label])=>({label,value}))))};
   if(id==="roles:interest")return{command:command(i,"interests",null,{role:value})};
-  if(id==="hub:ticket")return{response:message("Choose your ticket category. Staff reports are restricted to moderators; other cases can be handled by the support team.",menu("ticket:kind","What do you need help with?",ticketKinds.map(value=>({label:{support:"General support",account:"Minecraft account verification",report:"Player report","staff-report":"Confidential staff report"}[value],value}))))};
-  if(id==="ticket:kind"){if(!ticketKinds.includes(value))throw Error("Invalid ticket category.");return{response:modal("ticket:open:"+value,"Contact the team",[["subject","Subject — no passwords or tokens",1,5,100],["detail","Describe the problem and relevant links",2,10,1500]])};}
-  if(id.startsWith("ticket:close:"))return{command:command(i,"ticket","close",{id:id.slice(13),reason:"Closed using the ticket's close button."})};
+  if(id==="hub:ticket")return{response:message("Choose a category. Two active cases per member, one per category. Use /appeal submit for disputed placements. Staff reports go only to moderators; administrators can access private channels.",menu("ticket:kind","What do you need help with?",ticketKinds.map(value=>({label:{support:"General support",account:"Account verification or recovery",report:"Player report","staff-report":"Confidential staff report",technical:"Website or bot problem"}[value],value}))))};
+  if(id==="ticket:kind"){if(!ticketKinds.includes(value))throw Error("Invalid ticket category.");const prompts={support:"What happened? What help do you need?",account:"IGN, verification or recovery? Never secrets",report:"Who, when (UTC), what happened, evidence?","staff-report":"Staff involved, UTC date, facts and evidence?",technical:"Page/command, UTC time, steps, expected result?"};return{response:modal("ticket:open:"+value,"Contact the team",[["subject","Subject — no passwords or tokens",1,5,100],["detail",prompts[value],2,10,1500]])};}
+  if(id.startsWith("ticket:submit:"))return{command:command(i,"ticket","submit",{id:id.slice(14)})};
+  if(id.startsWith("ticket:close:"))return{response:modal('ticket:resolution:'+id.slice(13),'Close this private case',[['reason','Resolution summary or reason for closure',2,10,1000]])};
   if(id==="hub:apply")return{response:message("Choose a staff application track. Minecraft ownership verification is required; no application automatically grants a role.",menu("apply:track","Choose a volunteer role",staffTracks.map(value=>({label:value.replaceAll("-"," "),value}))))};
   if(id==="apply:track"){if(!staffTracks.includes(value))throw Error("Invalid application track.");return{response:modal("apply:open:"+value,"Volunteer application",[["experience","Relevant experience and why you want to help",2,30,1500],["availability","UTC availability and weekly commitment",2,10,300]])};}
   if(id==="hub:guide")return{command:command(i,"guide",null,{topic:"start"})};

@@ -2,6 +2,7 @@ import { CloudStore } from "./store.mjs";
 import { runCommand } from "./commands.mjs";
 import config from "../config/community.json" with { type: "json" };
 import { componentRoute } from "./components.mjs";
+import { kitManifests } from '../config/kit-manifests.mjs';
 
 const website = "https://drax12341.github.io/minecraft-pvp-community";
 const json = (value, status = 200) =>
@@ -62,14 +63,14 @@ export async function completeInteraction(
       ? "The request could not be saved. Check for an existing entry or account, then try again or contact staff."
       : error.message;
   }
-  content = String(content).slice(0, 1900);
-  await store.finishInteraction(interaction.id, content);
+  const message = typeof content==='object' && content ? {...content,content:String(content.content).slice(0,1900)} : {content:String(content).slice(0,1900),components:[]};
+  await store.finishInteraction(interaction.id, message.content);
   const response = await request(
     `https://discord.com/api/v10/webhooks/${env.DISCORD_CLIENT_ID}/${interaction.token}/messages/@original`,
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+      body: JSON.stringify({ ...message, allowed_mentions: { parse: [] } }),
       signal: AbortSignal.timeout(10000),
     },
   );
@@ -124,6 +125,8 @@ export default {
     }
     if (!["GET", "HEAD"].includes(request.method))
       return json({ error: "Method not allowed" }, 405);
+    if(url.pathname==='/data/community.json')return json(config);
+    if(url.pathname==='/api/kits')return json(kitManifests);
     if (
       [
         "/healthz",
@@ -145,12 +148,15 @@ export default {
           await store.one("SELECT 1 FROM practice_posts LIMIT 1");
           await store.one("SELECT 1 FROM support_tickets LIMIT 1");
           await store.one("SELECT 1 FROM assessments LIMIT 1");
+          await store.one('SELECT 1 FROM tester_qualifications LIMIT 1');
+          await store.one('SELECT 1 FROM test_rooms LIMIT 1');
+          await store.one('SELECT 1 FROM ticket_drafts LIMIT 1');
           return json({
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "community-v4",
-            commands: 19,
+            release: "community-v5",
+            commands: 22,
           });
         }
         return json(
@@ -174,7 +180,7 @@ export default {
       return json({ error: "Not found" }, 404);
     if(typeof siteAssets!=="undefined" && Object.hasOwn(siteAssets,path)){
       const asset=siteAssets[path];
-      return new Response(request.method==="HEAD"?null:asset.body,{headers:{"Content-Type":asset.type,"X-Content-Type-Options":"nosniff","Cache-Control":"public, max-age=60","Referrer-Policy":"strict-origin-when-cross-origin"}});
+      return new Response(request.method==="HEAD"?null:asset.binary?Uint8Array.from(atob(asset.body),c=>c.charCodeAt(0)):asset.body,{headers:{"Content-Type":asset.type,"X-Content-Type-Options":"nosniff","Cache-Control":"public, max-age=60","Referrer-Policy":"strict-origin-when-cross-origin"}});
     }
     const upstream = await fetch(website + path, {
       method: request.method,

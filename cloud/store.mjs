@@ -160,18 +160,21 @@ export class CloudStore {
     );
   }
   async verify(user, uuid, name, actor) {
+    const existing=await this.one('SELECT uuid FROM accounts WHERE discord=?',user);
+    if(existing&&existing.uuid!==uuid)throw Error('This Discord account is linked to another UUID. Open a private recovery ticket; existing identity is preserved.');
     await this.db.batch([
       this.statement(
-        "INSERT INTO accounts VALUES(?,?,?,?) ON CONFLICT(discord) DO UPDATE SET uuid=excluded.uuid,name=excluded.name,verified_by=excluded.verified_by",
+        "INSERT INTO accounts(discord,uuid,name,verified_by,verified_at) VALUES(?,?,?,?,?) ON CONFLICT(discord) DO UPDATE SET name=excluded.name,verified_by=excluded.verified_by,verified_at=excluded.verified_at WHERE accounts.uuid=excluded.uuid",
         user,
         uuid,
         name,
         actor,
+        new Date().toISOString(),
       ),
       this.audit(actor, "verify", uuid),
     ]);
   }
-  async session(mode, region, status, actor, capacity = 30, cooldown = 72) {
+  async session(mode, region, status, actor, capacity = 30, cooldown = 72, kitVersion=null, benchmarks=null) {
     if (
       !["open", "paused", "closed"].includes(status) ||
       !Number.isInteger(capacity) ||
@@ -184,7 +187,7 @@ export class CloudStore {
       throw Error("Invalid session settings.");
     await this.db.batch([
       this.statement(
-        "INSERT INTO sessions VALUES(?,?,?,?,?,?,?) ON CONFLICT(mode,region) DO UPDATE SET status=excluded.status,capacity=excluded.capacity,cooldown=excluded.cooldown,actor=excluded.actor,updated=excluded.updated",
+        "INSERT INTO sessions(mode,region,status,capacity,cooldown,actor,updated,kit_version,benchmarks) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(mode,region) DO UPDATE SET status=excluded.status,capacity=excluded.capacity,cooldown=excluded.cooldown,actor=excluded.actor,updated=excluded.updated,kit_version=COALESCE(excluded.kit_version,sessions.kit_version),benchmarks=COALESCE(excluded.benchmarks,sessions.benchmarks)",
         mode,
         region,
         status,
@@ -192,6 +195,8 @@ export class CloudStore {
         cooldown,
         actor,
         new Date().toISOString(),
+        kitVersion,
+        benchmarks,
       ),
       this.audit(actor, "session-" + status, mode + "/" + region),
     ]);
@@ -244,7 +249,7 @@ export class CloudStore {
   }
   async list() {
     return this.all(
-      "SELECT id,user,mode,region,status,created FROM queue WHERE status IN ('waiting','claimed') ORDER BY created,id",
+      "SELECT id,user,mode,region,status,created FROM queue WHERE status IN ('waiting','claimed') ORDER BY created,id LIMIT 200",
     );
   }
   async status(user, mode, region) {
@@ -304,9 +309,10 @@ export class CloudStore {
   async claim(id, actor) {
     const outcomes = await this.db.batch([
       this.statement(
-        "UPDATE queue SET status='claimed',tester=? WHERE id=? AND status='waiting' AND user<>?",
+        "UPDATE queue SET status='claimed',tester=? WHERE id=? AND status='waiting' AND user<>? AND NOT EXISTS(SELECT 1 FROM queue WHERE tester=? AND status='claimed')",
         actor,
         id,
+        actor,
         actor,
       ),
       this.audit(actor, "claim-attempt", id),
@@ -317,12 +323,13 @@ export class CloudStore {
   async result(id, tier, pos, evidence, actor, enforceRubric = false) {
     const outcomes = await this.db.batch([
       this.statement(
-        `INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created)
-        SELECT q.id,a.uuid,a.name,q.region,q.mode,?,?,q.tester,?,? FROM queue q JOIN accounts a ON a.discord=q.user
+        `INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created,assessment_revision,kit_version,rubric_version)
+        SELECT q.id,a.uuid,a.name,q.region,q.mode,?,?,q.tester,?,?,
+        (SELECT revision FROM assessments WHERE id=q.id),(SELECT kit_version FROM assessments WHERE id=q.id),(SELECT version FROM assessments WHERE id=q.id) FROM queue q JOIN accounts a ON a.discord=q.user
         WHERE q.id=? AND q.tester=? AND q.status='claimed'
         AND (?=0 OR EXISTS(SELECT 1 FROM assessments a WHERE a.id=q.id AND a.tester=q.tester
           AND a.version='community-1' AND (? > 2 OR EXISTS(SELECT 1 FROM placement_reviews p
-            WHERE p.id=q.id AND p.assessment_revision=a.revision AND p.tier=? AND p.reviewer<>q.tester AND p.reviewer<>q.user))))`,
+            WHERE p.id=q.id AND p.assessment_revision=a.revision AND p.tier=? AND p.reviewer<>q.tester AND p.reviewer<>q.user AND p.evidence=?))))`,
         tier,
         pos,
         evidence,
@@ -332,6 +339,7 @@ export class CloudStore {
         enforceRubric ? 1 : 0,
         tier,
         `${pos === 0 ? "HT" : "LT"}${tier}`,
+        evidence,
       ),
       this.statement(
         "UPDATE queue SET status='complete' WHERE id=? AND tester=? AND status='claimed' AND EXISTS(SELECT 1 FROM results WHERE id=? AND tester=?)",
@@ -379,11 +387,11 @@ export class CloudStore {
   async appeals(actor) {
     return actor
       ? this.all(
-          "SELECT id,result_id,reason,status,decision,created FROM appeals WHERE user=? ORDER BY created DESC",
+          "SELECT id,result_id,reason,status,decision,created FROM appeals WHERE user=? ORDER BY created DESC LIMIT 50",
           actor,
         )
       : this.all(
-          "SELECT * FROM appeals WHERE status='pending' ORDER BY created",
+          "SELECT * FROM appeals WHERE status='pending' ORDER BY created LIMIT 50",
         );
   }
   async review(id, actor, decision, reason) {

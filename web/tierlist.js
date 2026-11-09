@@ -852,18 +852,18 @@ function testingPage() {
       })
       .join(
         "",
-      )}</div><div class="section-heading"><h2>Prepare your test request</h2></div><div class="two-col"><section class="panel" id="request"><form id="request-form"><div class="form-grid"><label class="field">Minecraft username<input name="name" required minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" placeholder="Your in-game name"></label><label class="field">Region<select name="region">${["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"].map((r) => `<option>${r}</option>`).join("")}</select></label><label class="field">Testing mode${selectModes("request-mode")}</label><label class="field">Availability<input name="availability" required maxlength="100" placeholder="e.g. Saturday 16:00–18:00 UTC"></label></div><label class="field"><span><input type="checkbox" name="rules" required> I have read the kit rules and will verify account ownership with staff.</span></label><button class="button" type="submit">Create request summary</button><p class="fine">Your entries stay in this browser. Share the summary in our Discord to request testing. This form does not verify your account or reserve a queue position.</p></form></section><section class="panel steps">${[
+      )}</div><div class="section-heading"><h2>Prepare your test request</h2></div><div class="two-col"><section class="panel" id="request"><form id="request-form"><div class="form-grid"><label class="field">Minecraft username<input name="name" required minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" placeholder="Your in-game name"></label><label class="field">Region<select name="region">${["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"].map((r) => `<option>${r}</option>`).join("")}</select></label><label class="field">Testing mode${selectModes("request-mode")}</label><label class="field">Availability<input name="availability" required maxlength="100" placeholder="e.g. Saturday 16:00–18:00 UTC"></label></div><label class="field"><span><input type="checkbox" name="rules" required> I have read the kit rules and will verify account ownership with staff.</span></label><button class="button" type="submit">Create request summary</button><p class="fine">Your entries stay in this browser. Your draft survives page refreshes on this device. Submit an authenticated command in Discord to join a waitlist or open queue. This form does not verify your account or reserve a queue position.</p></form></section><section class="panel steps">${[
       [
         "Verify your Minecraft account",
         "Staff confirm ownership before you can join an open queue. A username alone is not verification.",
       ],
       [
         "Join a session",
-        "Use /availability with optional mode and region filters, then /queue join. /queue status mode region privately shows verification, waiting position, your latest valid result ID and the session’s retest cooldown. Positions exclude claimed tests and do not predict waiting time.",
+        "Use /waitlist join mode region to record future demand. A waitlist reserves no active queue place. Use /availability with optional mode and region filters, then /queue join. /queue status mode region privately shows verification, waiting position, your latest valid result ID and the session’s retest cooldown. Positions exclude claimed tests and do not predict waiting time.",
       ],
       [
         "Play your test",
-        "One tester claims your entry. Agree on equipment, arena and evidence before the match.",
+        "A qualified tester claims your entry and opens a private room. Use /test-room ready within five minutes. A missed call awards no result or cooldown; staff release your claim with its original order. Agree the versioned kit, arena and evidence before play.",
       ],
       [
         "Review and appeal",
@@ -992,6 +992,13 @@ function testingPage() {
     drawSessions();
   };
   drawSessions();
+  const draftForm=main.querySelector('#request-form');
+  const draft=readPreference('testingDraft',{});
+  for(const key of ['name','region','availability'])if(typeof draft[key]==='string')draftForm.elements.namedItem(key).value=draft[key];
+  if(config.modes.some(m=>m.id===draft.mode))main.querySelector('#request-mode').value=draft.mode;
+  const saveDraft=()=>writePreference('testingDraft',{name:draftForm.elements.namedItem('name').value,region:draftForm.elements.namedItem('region').value,availability:draftForm.elements.namedItem('availability').value,mode:main.querySelector('#request-mode').value});
+  draftForm.addEventListener('input',saveDraft);
+  draftForm.addEventListener('change',saveDraft);
   main.querySelector("form").onsubmit = (e) => {
     e.preventDefault();
     const f = new FormData(e.target),
@@ -1021,15 +1028,15 @@ function kits() {
   main.innerHTML =
     intro(
       "Know your kit. Own your fight.",
-      "Dedicated rankings for main modes and submodes. Agree on the exact kit with your tester before every test.",
+      "Read the versioned pilot manifests and original inventory diagrams. Other modes await complete standards and stay closed.",
     ) +
-    `<div class="grid">${config.modes.map((m) => `<article class="kit-card">${art(m.id)}<small>${m.group}</small><h3>${m.name}</h3><p>${m.description}</p><button data-rules="${m.id}">Kit rules & testing ↗</button></article>`).join("")}</div><div class="notice">Main modes and submodes are independently scored in this tierlist. Proposed specialist kit rules must be announced by staff before their first testing session.</div>`;
+    `<p><a class="button" href="/standards.html">Versioned manifests & inventory diagrams ↗</a></p><div class="grid">${config.modes.map((m) => `<article class="kit-card">${art(m.id)}<small>${m.group}</small><h3>${m.name}</h3><p>${m.description}</p><button data-rules="${m.id}">Kit rules & testing ↗</button></article>`).join("")}</div><div class="notice">Sword, Axe and Bow have original pilot specifications awaiting human calibration. Other modes remain preparation-only until complete standards are approved.</div>`;
   main.querySelectorAll("[data-rules]").forEach(
     (b) =>
       (b.onclick = () => {
         const m = kit(b.dataset.rules);
         show(
-          `<h2>${m.name} testing</h2>${art(m.id)}<p class="fine">${m.description}</p><ul>${m.rules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul><p class="fine">Default retest cooldown: ${config.testing.cooldownHours} hours. A session can announce a different cooldown before it opens. HT1–HT3 results can require additional staff review under the published kit rubric.</p><a class="button" href="#testing" id="kit-request">Prepare a ${m.name} request</a>`,
+          `<h2>${m.name} testing</h2>${art(m.id)}<p class="fine">${m.description}</p><ul>${m.rules.map((r) => `<li>${esc(r)}</li>`).join("")}</ul><p class="fine">Default retest cooldown: ${config.testing.cooldownHours} hours. A session can announce a different cooldown before it opens. HT1/LT1/HT2/LT2 require independent senior review of the exact assessment revision, proposed tier and evidence.</p><a class="button" href="#testing" id="kit-request">Prepare a ${m.name} request</a>`,
         );
         body.querySelector("img").style.width = "75px";
         body.querySelector("#kit-request").onclick = () => {
@@ -1117,7 +1124,7 @@ function about() {
       )
       .join(
         " ",
-      )}</div><h2 style="margin-top:25px">Testing & appeals</h2><p>Sessions open by mode and region. Account ownership must be verified by staff. A tester cannot claim their own test. Results require evidence. Appeals are private staff records and cannot be reviewed by the original tester. Revoked results remain in the audit trail and are excluded from rankings.</p><p>Do not install unknown files, share passwords or expose personal information for a test. No cheating, boosting, harassment or account sharing.</p></section><section class="panel"><h2>Privacy & freshness</h2><p>The website refreshes this community’s live public cloud rankings and session counts. If refresh fails, the last loaded snapshot is clearly marked. Discord account IDs, practice-post owners and private application or appeal text are never published in these feeds. No sign-in or analytics run on this static website.</p><p>Google Fonts and mc-heads.net serve fonts and avatars and receive normal network requests. Saved players and your calm-view preference are stored only in this browser. Request forms stay in the page until you choose to copy, download or share them. Preview players are visibly marked and never become test records.</p><p>Ask staff in Discord for corrections, appeals or deletion. No affiliation with Mojang or Microsoft.</p><a class="button secondary" href="${config.invite}" target="_blank" rel="noopener">Contact staff ↗</a></section></div>`;
+      )}</div><h2 style="margin-top:25px">Testing & appeals</h2><p>Sessions open by mode and region. Account ownership must be verified by staff. A tester cannot claim their own test. Results require evidence. Appeals are private staff records and cannot be reviewed by the original tester. Revoked results remain in the audit trail and are excluded from rankings.</p><p>Do not install unknown files, share passwords or expose personal information for a test. No cheating, boosting, harassment or account sharing.</p></section><section class="panel"><h2>Privacy & freshness</h2><p>The website refreshes this community’s live public cloud rankings and session counts. If refresh fails, the last loaded snapshot is clearly marked. Discord account IDs, practice-post owners and private application or appeal text are never published in these feeds. No sign-in or analytics run on this static website.</p><p>Google Fonts and mc-heads.net serve fonts and avatars and receive normal network requests. Saved players and your calm-view preference are stored only in this browser. Testing drafts are saved in this browser so a refresh does not erase them. They are never submitted to the server by this website. Preview players are visibly marked and never become test records.</p><p>Ask staff in Discord for corrections, appeals or deletion. No affiliation with Mojang or Microsoft.</p><a class="button secondary" href="${config.invite}" target="_blank" rel="noopener">Contact staff ↗</a></section></div>`;
 }
 function staff() {
   main.innerHTML =
@@ -1125,7 +1132,7 @@ function staff() {
       "Staff operations",
       "Testing operations are managed through the installed Discord bot. Public pages never accept a staff service token.",
     ) +
-    `<div class="panel"><h2>Commands</h2><p>/session open · /session pause · /queue join · /claim · /result · /appeal submit · /appeal review</p><p>Account verification is restricted to moderators. Test claims and results require a tester role. Appeals require an independent moderator.</p><a class="button" href="${config.invite}" target="_blank" rel="noopener">Open staff Discord ↗</a></div>`;
+    `<div class="panel"><h2>Commands</h2><p>/session open · /session pause · /waitlist join · /queue join · /claim · /test-room open · /test-room ready · /result · /appeal submit · /appeal review</p><p>Account verification is restricted to moderators. Test claims and results require a tester role and a human-approved qualification for that mode. Trainees cannot publish independently. Appeals require an independent moderator.</p><a class="button" href="${config.invite}" target="_blank" rel="noopener">Open staff Discord ↗</a></div>`;
 }
 modal.querySelector(".close").onclick = () => modal.close();
 document.querySelector(".skip").onclick = (e) => {
