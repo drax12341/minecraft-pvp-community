@@ -1,9 +1,15 @@
 import config from '../config/community.json' with {type:'json'};
 import { staffAccess } from '../config/community-roles.mjs';
+import { kitManifests } from '../config/kit-manifests.mjs';
 export const journeyNames = new Set(['waitlist','qualification','test-room']);
 export async function requireQualification(store,actor,mode,senior=false) {
   const q=await store.one('SELECT senior FROM tester_qualifications WHERE user=? AND mode=?',actor,mode);
   if(!q || (senior&&!q.senior)) throw Error('An authorised human must record your qualification for this mode using /qualification grant. Trainees cannot assess or publish independently.');
+}
+export async function requireReadyRoom(store,id,actor){
+  const room=await store.one("SELECT r.*,q.mode,q.status AS queue_status FROM test_rooms r JOIN queue q ON q.id=r.id WHERE r.id=? AND q.tester=? AND r.tester=q.tester",id,actor);
+  if(!room||room.queue_status!=='claimed'||room.state==='archived'||!room.player_ready||!room.tester_ready||room.kit_version!==kitManifests.version||!kitManifests.modes.some(m=>m.id===room.mode))throw Error('Both participants must confirm readiness in the assigned private room using the approved session kit version before assessment or publication.');
+  return room;
 }
 export function roomOverwrites(env,player,tester,archived=false){
   const view=1024n,send=2048n,history=65536n;

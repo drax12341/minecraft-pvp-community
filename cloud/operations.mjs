@@ -1,4 +1,4 @@
-import { requireQualification } from './journeys.mjs';
+import { requireQualification, requireReadyRoom } from './journeys.mjs';
 import { OperationsStore } from "./operations-store.mjs";
 import { extraInterests, staffAccess, ticketKinds } from "../config/community-roles.mjs";
 import { rubricText } from "../config/rubrics.mjs";
@@ -65,6 +65,7 @@ export async function runOperation(interaction,env,store,request=fetch) {
         const q=await store.one('SELECT mode FROM queue WHERE id=?',get('id'));
         if(!q)throw Error('Assessment not found.');
         await requireQualification(store,actor,q.mode);
+        await requireReadyRoom(store,get('id'),actor);
         const a=await op.assess(get("id"),actor,get("scores"),get("reason"));
         return `Rubric ${a.version} assessment saved: ${a.total}/100. Scores are feedback, not an automatic tier conversion. Use /assessment review for independent HT1/LT1/HT2/LT2 sign-off before /result.`;
       }

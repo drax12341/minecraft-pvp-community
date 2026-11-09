@@ -1,4 +1,4 @@
-import { journeyNames, runJourney, requireQualification } from './journeys.mjs';
+import { journeyNames, runJourney, requireQualification, requireReadyRoom } from './journeys.mjs';
 import { kitManifests } from '../config/kit-manifests.mjs';
 import config from "../config/community.json" with { type: "json" };
 import { operationNames, runOperation } from "./operations.mjs";
@@ -368,6 +368,9 @@ export async function runCommand(interaction, env, store, request = fetch) {
       const entry=await store.one('SELECT mode FROM queue WHERE id=?',get('id'));
       if(!entry)throw Error('Assessment not found.');
       await requireQualification(store,actor,entry.mode);
+      const room=await requireReadyRoom(store,get('id'),actor);
+      const assessment=await store.one('SELECT kit_version FROM assessments WHERE id=?',get('id'));
+      if(assessment?.kit_version!==room.kit_version)throw Error('Record a new assessment against the current private-room kit version before publishing.');
       await store.result(
         get("id"),
         Number(tier.slice(-1)),

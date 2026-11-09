@@ -123,7 +123,7 @@ test('room provisioning reconciles an API timeout without creating a duplicate, 
     const configured={...env,DISCORD_TICKET_CATEGORY_ID:'80000'};
     await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
     await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001','sword',0,'30000','Supervised calibration',new Date().toISOString()).run();
-    await store.session('sword','EU','open','50001');const id=await store.join('60000','sword','EU');await store.claim(id,'50001');
+    await store.session('sword','EU','open','50001',30,72,'pilot-1-candidate','Consented benchmark calibration');const id=await store.join('60000','sword','EU');await store.claim(id,'50001');
     const channels=[];let creates=0;
     const request=async(url,opts)=>{
       if(opts.method==='GET')return Response.json(channels);
@@ -135,6 +135,11 @@ test('room provisioning reconciles an API timeout without creating a duplicate, 
     await assert.rejects(runCommand(open,configured,store,request),/timeout/);
     assert.match(await runCommand(open,configured,store,request),/81000/);assert.equal(creates,1);
     await runCommand(interaction('60000','test-room','ready',{id}),configured,store);
+    const assessment=interaction('50001','assessment','record',{id,scores:'3,3,3,3,3,3',reason:'Strength: spacing. Practise hit selection and recovery.'},['50000']);
+    await assert.rejects(runCommand(assessment,configured,store),/Both participants/);
+    await runCommand(interaction('50001','test-room','ready',{id},['50000']),configured,store);
+    await runCommand(assessment,configured,store);
+    assert.equal((await store.one('SELECT kit_version FROM assessments WHERE id=?',id)).kit_version,'pilot-1-candidate');
     await assert.rejects(runCommand(interaction('60001','test-room','status',{id}),configured,store),/Only the player/);
     await assert.rejects(runCommand(interaction('50001','claim',null,{id,action:'release'},['50000']),configured,store),/Archive/);
     await store.statement('UPDATE test_rooms SET ready_by=? WHERE id=?','2020-01-01T00:00:00Z',id).run();
