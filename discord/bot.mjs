@@ -166,9 +166,9 @@ for (const action of ["open", "pause", "close"])
       .addIntegerOption((o) =>
         o
           .setName("capacity")
-          .setDescription("Maximum open entries, 1–200")
+          .setDescription("Maximum open entries, 1–20")
           .setMinValue(1)
-          .setMaxValue(200),
+          .setMaxValue(20),
       )
       .addIntegerOption((o) =>
         o

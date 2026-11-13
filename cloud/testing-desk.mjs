@@ -44,7 +44,7 @@ export async function runTestingDesk(i,env,store,request=fetch,dispatch){
  if(i.data.name==='tier-path'){if(!deskPaths[get('tier')])throw Error('Choose a target tier.');return `**Testing for ${get('tier')}**\n`+deskPaths[get('tier')].map((s,n)=>`**Phase ${n+1}:** ${s}`).join('\n')+'\n\nFailed tests: 30-day cooldown. Staff adjudicate replacements, forfeits and demotions using the ranked rubric.';}
  if(i.data.name==='tier-list'){
   const m=checkMode();if(!/^(HT|LT)[1-5]$/.test(get('tier')||''))throw Error('Choose a target tier.');if(get('region')&&!deskRegions.includes(get('region')))throw Error('Choose a region.');
-  const players=(await store.rankings(config.points)).players.filter(p=>p.rankings[m]&&deskRank(p.rankings[m])===get('tier')&&(!get('region')||(p.rankings[m].region||p.region)===get('region')));
+  const players=(await store.rankings(config.points)).players.filter(p=>p.rankings[m]&&!p.rankings[m].retired&&deskRank(p.rankings[m])===get('tier')&&(!get('region')||(p.rankings[m].region||p.region)===get('region')));
   return `**${config.modes.find(x=>x.id===m).name} · ${get('tier')}**\n`+(players.slice(0,40).map(p=>`${p.name} · ${p.region}`).join('\n')||'No published players in this tier yet.')+`\n${players.length} total. Full roster: https://minecraft-pvp-community.draxion0.chatgpt.site/#high-tiers`;
  }
  if(i.data.name==='tester-roster'){

@@ -175,17 +175,17 @@ export class CloudStore {
     ]);
     if(!outcomes[0].meta.changes)throw Error('Account link changed during verification. Review the private recovery case; no identity was replaced.');
   }
-  async session(mode, region, status, actor, capacity = 30, cooldown = 72, kitVersion=null, benchmarks=null) {
+  async session(mode, region, status, actor, capacity = 20, cooldown = 72, kitVersion=null, benchmarks=null) {
     if (
       !["open", "paused", "closed"].includes(status) ||
       !Number.isInteger(capacity) ||
       capacity < 1 ||
-      capacity > 200 ||
+      capacity > 20 ||
       !Number.isInteger(cooldown) ||
       cooldown < 0 ||
       cooldown > 720
     )
-      throw Error("Invalid session settings.");
+      throw Error("Invalid session settings. Capacity must be 1–20 and cooldown 0–720 hours.");
     await this.db.batch([
       this.statement(
         "INSERT INTO sessions(mode,region,status,capacity,cooldown,actor,updated,kit_version,benchmarks) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(mode,region) DO UPDATE SET status=excluded.status,capacity=excluded.capacity,cooldown=excluded.cooldown,actor=excluded.actor,updated=excluded.updated,kit_version=COALESCE(excluded.kit_version,sessions.kit_version),benchmarks=COALESCE(excluded.benchmarks,sessions.benchmarks)",
@@ -217,7 +217,7 @@ export class CloudStore {
       AND EXISTS(SELECT 1 FROM accounts WHERE discord=?)
       AND NOT EXISTS(SELECT 1 FROM test_restrictions tr WHERE tr.user=? AND tr.mode=s.mode AND tr.until_at>?)
       AND NOT EXISTS(SELECT 1 FROM queue WHERE user=? AND mode=? AND status IN ('waiting','claimed'))
-      AND (SELECT count(*) FROM queue WHERE mode=s.mode AND region=s.region AND status IN ('waiting','claimed')) < s.capacity
+      AND (SELECT count(*) FROM queue WHERE mode=s.mode AND region=s.region AND status IN ('waiting','claimed')) < min(s.capacity,20)
       AND NOT EXISTS(SELECT 1 FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE a.discord=? AND r.mode=s.mode
         AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id)
         AND julianday(?) - julianday(r.created) < s.cooldown / 24.0)`,
@@ -262,7 +262,7 @@ export class CloudStore {
       user,
     );
     const session = await this.one(
-      "SELECT status,capacity,cooldown FROM sessions WHERE mode=? AND region=?",
+      "SELECT status,min(capacity,20) AS capacity,cooldown FROM sessions WHERE mode=? AND region=?",
       mode,
       region,
     );
@@ -441,7 +441,7 @@ export class CloudStore {
       updatedAt: new Date().toISOString(),
       activation: "active",
       sessions: await this.all(
-        "SELECT mode,region,status,capacity,cooldown,updated,(SELECT count(*) FROM queue q WHERE q.mode=s.mode AND q.region=s.region AND q.status='waiting') AS waiting,(SELECT count(*) FROM queue q WHERE q.mode=s.mode AND q.region=s.region AND q.status='claimed') AS claimed FROM sessions s",
+        "SELECT mode,region,status,min(capacity,20) AS capacity,cooldown,updated,(SELECT count(*) FROM queue q WHERE q.mode=s.mode AND q.region=s.region AND q.status='waiting') AS waiting,(SELECT count(*) FROM queue q WHERE q.mode=s.mode AND q.region=s.region AND q.status='claimed') AS claimed FROM sessions s",
       ),
     };
   }
@@ -450,7 +450,9 @@ export class CloudStore {
       "SELECT * FROM results r WHERE NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence",
     );
     const players = new Map();
+    const latestPlacementIds = new Map();
     for (const r of rows) {
+      latestPlacementIds.set(r.uuid + '/' + r.mode, r.id);
       const p = players.get(r.uuid) || {
         uuid: r.uuid,
         name: r.name,
@@ -479,9 +481,14 @@ export class CloudStore {
         evidence: r.evidence,
       };
     }
+    const retirements = await this.all("SELECT uuid,mode,result_id FROM retirements WHERE status='approved'");
+    for (const retired of retirements) {
+      const p = players.get(retired.uuid);
+      if(p?.rankings[retired.mode] && latestPlacementIds.get(retired.uuid+'/'+retired.mode)===retired.result_id) p.rankings[retired.mode].retired=true;
+    }
     for (const p of players.values())
       p.points = Object.values(p.rankings).reduce(
-        (sum, r) => sum + points[`${r.pos === 0 ? "HT" : "LT"}${r.tier}`],
+        (sum, r) => sum + (r.retired ? 0 : points[`${r.pos === 0 ? "HT" : "LT"}${r.tier}`]),
         0,
       );
     return {

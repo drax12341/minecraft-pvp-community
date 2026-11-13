@@ -9,14 +9,44 @@ function command(i,name,sub,values={}) { const opts=Object.entries(values).map((
 export function componentRoute(i) {
   const id=i.data.custom_id,value=i.data.values?.[0];
   const modes=config.modes.map(m=>({label:m.name,value:m.id,description:m.group,...(m.emoji?{emoji:{id:m.emoji}}:{})}));
+  if(id.startsWith('board:')){
+    if(id.startsWith('board:region:')){
+      const mode=id.slice(13);
+      if(!config.modes.some(m=>m.id===mode)||!deskRegions.includes(value))throw Error('Choose a valid mode and region.');
+      return{command:command(i,'queue-board',null,{mode,region:value})};
+    }
+    const [,action,mode,region]=id.split(':');
+    if(!config.modes.some(m=>m.id===mode)||!deskRegions.includes(region)||!['join','leave','status','refresh'].includes(action))throw Error('Choose a valid waitlist action.');
+    return{command:command(i,action==='refresh'?'queue-board':'queue',action==='refresh'?null:action,{mode,region})};
+  }
+  if(id==='community:self'||id==='community:history')return{command:command(i,'player',id==='community:self'?'self':'history')};
+  if(id==='community:desk')return{command:command(i,'desk',null)};
+  if(id==='community:staff')return{command:command(i,'tester','desk')};
+  if(id==='community:boards')return{response:message('Choose a gamemode to see its live testing waitlist.',menu('community:board-mode','Testing gamemode',modes))};
+  if(id==='community:board-mode'){
+    if(!config.modes.some(m=>m.id===value))throw Error('Choose a valid gamemode.');
+    return{response:message('Choose your playing region.',menu('community:board-region:'+value,'Region',deskRegions.map(r=>({label:r,value:r}))))};
+  }
+  if(id.startsWith('community:board-region:'))return{command:command(i,'queue-board',null,{mode:id.slice(23),region:value})};
   if(i.type===5){
     const fields=Object.fromEntries((i.data.components||[]).flatMap(row=>(row.components||[]).map(f=>[f.custom_id,f.value])));
+    if(id.startsWith('room:submit:')){
+      const [, ,action,testId]=id.split(':');
+      if(!['assess','result'].includes(action))throw Error('Invalid assessment form.');
+      return{command:command(i,action==='assess'?'assessment':'result',action==='assess'?'record':null,{id:testId,...fields})};
+    }
     if(id.startsWith('testform:submit:')){const [, ,action,testId,phase,opponent]=id.split(':');const values={id:testId,...fields};if(action==='score'){values.phase=Number(phase);values.opponent=opponent;values.wins=Number(fields.wins);values.losses=Number(fields.losses);}return{command:command(i,'high-test',action,values)};}
     if(id.startsWith('desk:apply:')){const [, ,kind,mode,tier,region]=id.split(':');if(!['player','tester'].includes(kind))throw Error('Invalid application.');return{command:command(i,kind==='tester'?'tester-desk':'high-test','apply',{mode,tier,region,availability:fields.availability,...(kind==='tester'?{experience:fields.experience}:{})})};}
     if(id.startsWith("ticket:open:")){const kind=id.slice(12);if(!ticketKinds.includes(kind))throw Error("Invalid ticket category.");return {command:command(i,"ticket","prepare",{kind,subject:fields.subject,detail:fields.detail})};}
     if(id.startsWith('ticket:resolution:'))return{command:command(i,'ticket','close',{id:id.slice(18),reason:fields.reason})};
     if(id.startsWith("apply:open:")){const track=id.slice(11);if(!staffTracks.includes(track))throw Error("Invalid application track.");return{command:command(i,"staff-apply","submit",{track,experience:fields.experience,availability:fields.availability})};}
     throw Error("This form has expired. Open the panel again.");
+  }
+  if(id.startsWith('room:')){
+    const [,action,testId]=id.split(':');
+    if(['open','ready','status','archive'].includes(action))return{command:command(i,'test-room',action,{id:testId})};
+    if(action==='assess')return{response:modal('room:submit:assess:'+testId,'Record assessment',[['scores','Six rubric scores, 0–4 separated by commas',1,11,30],['reason','Assessment rationale',2,10,1000]])};
+    if(action==='result')return{response:modal('room:submit:result:'+testId,'Publish test result',[['tier','Earned tier (for example LT3)',1,3,3],['evidence','Shareable HTTPS match evidence',1,8,1000]])};
   }
   if(id==='desk:player'||id==='desk:tester')return{response:message('Choose the gamemode for your private application.',menu('desk:mode:'+id.slice(5),'Testing gamemode',modes))};
   if(id.startsWith('desk:fixed:')){const [, ,kind,mode]=id.split(':');return{response:message('Choose the target tier.',menu(`desk:tier:${kind}:${mode}`,'Target tier',deskTiers.map(t=>({label:t,value:t}))))};}

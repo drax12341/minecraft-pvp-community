@@ -11,6 +11,14 @@ Commands now use the deployed [cloud HTTP endpoint and D1 storage](FREE-CLOUD.md
 so a local runtime is not required. The gateway install instructions below remain
 an optional fallback; do not run them expecting to replace cloud command delivery.
 
+## Community desk rebuild
+
+The [community desk rebuild](TIERBOT-REBUILD.md) adds `/desk`, live 20-slot
+waitlist boards, `/pull`, player history, tester statistics and reviewed
+retirement. Session capacity is now 1–20 (default 20); previously stored larger
+settings are capped by queue admission. Boards show assigned tester/player
+activity, keep other waiting players private, and offer a region selector.
+
 ## Install
 
 1. Use a dedicated bot application from the official Discord Developer Portal. Never use a personal account token/self-bot.

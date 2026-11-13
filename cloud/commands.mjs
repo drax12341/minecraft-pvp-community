@@ -4,6 +4,7 @@ import config from "../config/community.json" with { type: "json" };
 import { operationNames, runOperation } from "./operations.mjs";
 import { staffAccess } from "../config/community-roles.mjs";
 import { testingDeskNames, runTestingDesk } from './testing-desk.mjs';
+import { communityDeskNames, runCommunityDesk } from './community-desk.mjs';
 
 const regions = ["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"];
 export async function runCommand(interaction, env, store, request = fetch) {
@@ -20,6 +21,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
   const get = (name) => options.find((o) => o.name === name)?.value;
   const roles = interaction.member.roles || [];
   const {mod,tester} = staffAccess(interaction,env);
+  if(communityDeskNames.has(data.name))return runCommunityDesk(interaction,env,store,request,next=>runCommand(next,env,store,request));
   if(journeyNames.has(data.name))return runJourney(interaction,env,store,request);
   if(testingDeskNames.has(data.name))return runTestingDesk(interaction,env,store,request,next=>runCommand(next,env,store,request));
   if(operationNames.has(data.name))return runOperation(interaction,env,store,request);
@@ -137,7 +139,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
             Object.entries(p.rankings)
               .map(
                 ([m, r]) =>
-                  `${config.modes.find((k) => k.id === m)?.name || m}: ${r.pos === 0 ? "HT" : "LT"}${r.tier} · peak ${r.peak_pos === 0 ? "HT" : "LT"}${r.peak_tier}`,
+                  `${config.modes.find((k) => k.id === m)?.name || m}: ${r.pos === 0 ? "HT" : "LT"}${r.tier}${r.retired ? ' · Retired' : ''} · peak ${r.peak_pos === 0 ? "HT" : "LT"}${r.peak_tier}`,
               )
               .join("\n") +
             `\nhttps://minecraft-pvp-community.draxion0.chatgpt.site/#rankings?player=${encodeURIComponent(p.uuid)}`
@@ -272,7 +274,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
         region(),
         status,
         actor,
-        get("capacity") ?? 30,
+        get("capacity") ?? 20,
         get("cooldown") ?? 72,
         get('kit')||null,
         get('benchmarks')||null,

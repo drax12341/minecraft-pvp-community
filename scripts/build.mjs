@@ -1,9 +1,10 @@
 ﻿import { cp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 await mkdir("dist/data", { recursive: true });
 const {deskPaths,deskTiers,testingDeskCommands}=await import('../config/testing-desk.mjs');
+const {communityDeskCommands}=await import('../config/community-desk.mjs');
 await mkdir('web/data',{recursive:true});
-await writeFile('web/data/testing-desk.json',JSON.stringify({paths:deskPaths,tiers:deskTiers,commands:testingDeskCommands}));
-await writeFile('dist/data/testing-desk.json',JSON.stringify({paths:deskPaths,tiers:deskTiers,commands:testingDeskCommands}));
+await writeFile('web/data/testing-desk.json',JSON.stringify({paths:deskPaths,tiers:deskTiers,commands:[...testingDeskCommands,...communityDeskCommands]}));
+await writeFile('dist/data/testing-desk.json',JSON.stringify({paths:deskPaths,tiers:deskTiers,commands:[...testingDeskCommands,...communityDeskCommands]}));
 await cp("web", "dist", { recursive: true });
 for (const name of ["community", "results", "testing"])
   await cp(

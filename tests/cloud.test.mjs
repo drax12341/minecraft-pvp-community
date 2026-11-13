@@ -17,6 +17,143 @@ import { ticketOverwrites, assertPrivateTicket } from "../cloud/operations.mjs";
 import { componentRoute } from "../cloud/components.mjs";
 import {deskPublic} from '../cloud/testing-desk.mjs';
 import {checkTierPhase} from '../config/phase-checks.mjs';
+import { communityQueueBoard, refreshCommunityBoards } from '../cloud/community-desk.mjs';
+
+test('community desk and queue board show real tester/player activity and enforce 20 slots without exposing waiting players', async () => {
+ const {sql,store}=await database();try{
+  const call=(actor,name,sub,values={},roles=[])=>runCommand(interaction(actor,name,sub,values,roles),env,store);
+  assert.match((await call('60000','desk')).content,/Minecraft PvP Tierlist/);
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  await store.verify('60001','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','WaitingPlayer','30000');
+  await store.session('mace','EU','open','50001');
+  const entry=await store.join('60000','mace','EU');await store.claim(entry,'50001');
+  await store.join('60001','mace','EU');
+  const board=await communityQueueBoard(store,'mace','EU');
+  assert.match(board.embeds[0].description,/2\/20/);assert.match(board.embeds[0].description,/1 waiting/);
+  assert.match(JSON.stringify(board),/50001/);assert.match(JSON.stringify(board),/PlayerOne/);
+  assert.doesNotMatch(JSON.stringify(board),/WaitingPlayer|60001/);
+  assert.equal(board.components[0].components.length,5);
+  assert.deepEqual(board.allowed_mentions,{parse:[]});
+  assert.equal((await store.one('SELECT capacity FROM sessions')).capacity,20);
+  await assert.rejects(store.session('mace','EU','open','50001',21),/20/);
+  const other=await communityQueueBoard(store,'mace','NA');assert.match(JSON.stringify(other),/NOT SCHEDULED/);
+  await assert.rejects(communityQueueBoard(store,'sword','EU'),/valid/);
+ }finally{sql.close();}
+});
+
+test('pull checks qualifications, creates a private room and retries the same claim after Discord fails',async()=>{
+ const {sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  await store.session('mace','EU','open','50001');const id=await store.join('60000','mace','EU');
+  const call=()=>runCommand(interaction('50001','pull',null,{mode:'mace',region:'EU'},['50000']),{...env,DISCORD_TICKET_CATEGORY_ID:'80000'},store,request);
+  let fail=true,created,posts=0;
+  const request=async(url,o)=>{
+   if(o.method==='GET')return Response.json(created?[created]:[]);
+   if(url.endsWith('/channels')&&o.method==='POST'){posts++;created={...JSON.parse(o.body),id:'81000',guild_id:'20000'};if(fail)throw Error('Simulated room response timeout');return Response.json(created);}
+   return Response.json({id:'82000'});
+  };
+  await assert.rejects(call(),/qualification/);assert.equal((await store.one('SELECT status FROM queue')).status,'waiting');
+  await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001','mace',0,'30000','Approved supervised tester',new Date().toISOString()).run();
+  await assert.rejects(call(),/timeout/);assert.equal((await store.one('SELECT id FROM queue WHERE status=\'claimed\'')).id,id);
+  fail=false;assert.match((await call()).content,/81000/);assert.equal(posts,1);
+  assert.ok(created.permission_overwrites.some(o=>o.id==='60000'&&o.type===1&&(BigInt(o.allow)&1024n)));
+ }finally{sql.close();}
+});
+
+test('tester statistics use UTC month boundaries and exclude revoked results and do not expose evidence or appeal text',async()=>{
+ const {sql,store}=await database();try{
+  const stamp=new Date(),old=new Date(Date.UTC(stamp.getUTCFullYear(),stamp.getUTCMonth()-1,15)).toISOString();
+  for(const [id,date] of [['old',old],['current',stamp.toISOString()],['revoked',stamp.toISOString()]])await store.statement('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created) VALUES(?,?,?,?,?,?,?,?,?,?)',id,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','EU','mace',3,0,'50001','https://example.com/private-recording',date).run();
+  await store.statement('INSERT INTO revoked VALUES(?,?,?,?)','revoked','30000','Confidential appeal text',stamp.toISOString()).run();
+  const month=await runCommand(interaction('60000','tester','leaderboard',{period:'month'}),env,store);
+  assert.match(month.content,/1 documented test/);assert.doesNotMatch(JSON.stringify(month),/private-recording|Confidential/);
+  const overall=await runCommand(interaction('60000','tester','leaderboard',{period:'overall'}),env,store);assert.match(overall.content,/2 documented tests/);
+  await assert.rejects(runCommand(interaction('60000','tester','desk'),env,store),/Only testers/);
+ }finally{sql.close();}
+});
+
+test('retirement requires independent review of the exact placement, retains peak/history and reactivates on a new result',async()=>{
+ const {sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  const seed=(id,tier,pos)=>store.statement('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created) VALUES(?,?,?,?,?,?,?,?,?,?)',id,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','EU','mace',tier,pos,'50001','https://example.com/match',new Date().toISOString()).run();
+  const call=(actor,sub,values={},roles=[])=>runCommand(interaction(actor,'retire',sub,values,roles),env,store);
+  await seed('initial',2,1);await call('60000','request',{mode:'mace',reason:'Taking a break from competitive play'});
+  const {id}=await store.one('SELECT id FROM retirements');
+  await assert.rejects(call('60001','review',{id,decision:'approved',reason:'Reviewed the current placement'}),/moderator/);
+  await assert.rejects(call('60000','review',{id,decision:'approved',reason:'Reviewed my current placement'},['40000']),/independent/);
+  await call('30000','review',{id,decision:'approved',reason:'Confirmed the player retirement request'});
+  let p=(await store.rankings(config.points)).players[0];assert.equal(p.rankings.mace.retired,true);assert.equal(p.points,0);assert.equal(p.rankings.mace.peak_tier,2);
+  await seed('return-result',2,0);p=(await store.rankings(config.points)).players[0];assert.equal(p.rankings.mace.retired,false);assert.equal(p.points,30);
+  await call('60000','request',{mode:'mace',reason:'Request retirement for the new placement'});const pending=await store.one("SELECT id FROM retirements WHERE status='pending'");
+  await seed('newer',1,1);await assert.rejects(call('30000','review',{id:pending.id,decision:'approved',reason:'A newer result invalidates this request'}),/changed/);
+  await call('60000','cancel',{mode:'mace'});
+  const history=await runCommand(interaction('60001','player','history',{name:'PlayerOne'}),env,store);assert.match(history.content,/return-result/);assert.doesNotMatch(history.content,/Taking a break/);
+ }finally{sql.close();}
+});
+
+test('queue buttons route through authorised commands and board refresh failures preserve completed queue operations',async()=>{
+ const route=id=>componentRoute({type:3,data:{custom_id:id}}).command;
+ assert.equal(route('board:join:mace:EU').data.name,'queue');
+ assert.equal(route('board:leave:mace:EU').data.options[0].name,'leave');
+ assert.equal(route('board:status:mace:EU').data.options[0].name,'status');
+ assert.equal(route('board:refresh:mace:EU').data.name,'queue-board');
+ assert.throws(()=>route('board:join:sword:EU'),/valid/);
+ const {sql,store}=await database();try{
+  await store.statement('INSERT INTO queue_boards VALUES(?,?,?,?)','mace','EU','81000','82000').run();
+  const result=await refreshCommunityBoards(store,env,async()=>new Response(null,{status:403}),'mace','EU');
+  assert.equal(result.failed,1);assert.equal((await store.one('SELECT count(*) n FROM queue_boards')).n,1);
+ }finally{sql.close();}
+});
+
+test('public board publishing is moderator-only, reuses its message and reconciles a Discord success before database save',async()=>{
+ const {sql,store}=await database();try{
+  let posts=0,patches=0,saved;
+  const request=async(url,o)=>{
+   if(url.endsWith('/channels/81000'))return Response.json({id:'81000',type:0,guild_id:'20000'});
+   if(o.method==='GET')return Response.json(saved?[saved]:[]);
+   if(o.method==='POST'){posts++;const body=JSON.parse(o.body);assert.equal(body.enforce_nonce,true);assert.ok(body.nonce.length<=25);saved={...body,id:'82000',author:{id:'10000'}};return Response.json(saved);}
+   patches++;return Response.json(saved);
+  };
+  const call=actor=>runCommand({...interaction(actor,'queue-board',null,{mode:'mace',region:'EU',publish:true}),channel_id:'81000'},env,store,request);
+  await assert.rejects(call('60000'),/Only moderators/);assert.equal(posts,0);
+  await call('30000');await call('30000');assert.equal(posts,1);assert.equal(patches,1);
+  await store.statement('DELETE FROM queue_boards').run();await call('30000');assert.equal(posts,1);assert.equal(patches,2);
+  const different={...interaction('30000','queue-board',null,{mode:'mace',region:'EU',publish:true}),channel_id:'83000'};
+  await assert.rejects(runCommand(different,env,store,async()=>Response.json({id:'83000',type:0,guild_id:'20000'})),/already published/);
+ }finally{sql.close();}
+});
+
+test('legacy session settings cannot exceed the new 20-slot limit under simultaneous join requests',async()=>{
+ const {sql,store}=await database();try{
+  await store.session('mace','EU','open','50001');await store.statement('UPDATE sessions SET capacity=30').run();
+  for(let n=0;n<21;n++)await store.verify(String(60000+n),n.toString(16).padStart(8,'0')+'-aaaa-aaaa-aaaa-aaaaaaaaaaaa','Player'+n,'30000');
+  const outcomes=await Promise.allSettled(Array.from({length:21},(_,n)=>store.join(String(60000+n),'mace','EU')));
+  assert.equal(outcomes.filter(r=>r.status==='fulfilled').length,20);assert.equal(outcomes.filter(r=>r.status==='rejected').length,1);
+  assert.equal((await store.testing()).sessions[0].capacity,20);
+  assert.equal((await store.status('60000','mace','EU')).session.capacity,20);
+ }finally{sql.close();}
+});
+
+test('a real deferred queue interaction refreshes its public board once and room forms cannot elevate the player',async()=>{
+ const {sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  await store.session('mace','EU','open','50001');
+  await store.statement('INSERT INTO queue_boards VALUES(?,?,?,?)','mace','EU','81000','82000').run();
+  const calls=[],request=async(url,o)=>{calls.push({url,body:JSON.parse(o.body)});return Response.json({id:'82000'});};
+  const join=interaction('60000','queue','join',{mode:'mace',region:'EU'});
+  await completeInteraction(join,env,store,request);await completeInteraction(join,env,store,request);
+  const updates=calls.filter(c=>c.url.endsWith('/channels/81000/messages/82000'));
+  assert.equal(updates.length,1);assert.match(updates[0].body.embeds[0].description,/1\/20/);
+  assert.equal((await store.one('SELECT count(*) n FROM queue')).n,1);
+  const id=(await store.one('SELECT id FROM queue')).id;
+  const form=componentRoute({...interaction('60000','unused'),type:5,data:{custom_id:'room:submit:result:'+id,components:[{components:[{custom_id:'tier',value:'HT1'},{custom_id:'evidence',value:'https://example.com/match'}]}]}}).command;
+  await assert.rejects(runCommand(form,env,store,request),/Only testers/);
+  const region=componentRoute({type:3,data:{custom_id:'board:region:mace',values:['NA']}}).command;
+  assert.equal(region.data.options.find(o=>o.name==='region').value,'NA');
+  const picker=componentRoute({type:3,data:{custom_id:'community:board-region:mace',values:['EU']}}).command;
+  assert.equal(picker.data.options.find(o=>o.name==='mode').value,'mace');
+ }finally{sql.close();}
+});
 
 test('connected promotion prepares, readies, scores, independently reviews and publishes within one existing ticket',async()=>{
  const {sql,store}=await database();try{
@@ -271,7 +408,7 @@ test('room provisioning reconciles an API timeout without creating a duplicate, 
     const configured={...env,DISCORD_TICKET_CATEGORY_ID:'80000'};
     await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
     await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001','mace',0,'30000','Supervised calibration',new Date().toISOString()).run();
-    await store.session('mace','EU','open','50001',30,72,'pilot-1-candidate','Consented benchmark calibration');const id=await store.join('60000','mace','EU');await store.claim(id,'50001');
+    await store.session('mace','EU','open','50001',20,72,'pilot-1-candidate','Consented benchmark calibration');const id=await store.join('60000','mace','EU');await store.claim(id,'50001');
     const channels=[];let creates=0;
     const request=async(url,opts)=>{
       if(opts.method==='GET')return Response.json(channels);
@@ -369,6 +506,7 @@ async function database() {
   sql.exec(await readFile(new URL('../drizzle/0004_interaction_delivery.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0005_testing_desk.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0006_connected_tests.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0007_community_desk.sql',import.meta.url),'utf8'));
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({

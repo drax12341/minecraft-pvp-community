@@ -1,5 +1,6 @@
 import config from "../config/community.json" with { type: "json" };
 import { testingDeskCommands } from '../config/testing-desk.mjs';
+import { communityDeskCommands } from '../config/community-desk.mjs';
 import { extraInterests, ticketKinds, staffTracks } from "../config/community-roles.mjs";
 const string=(name,description,required=false,choices)=>({type:3,name,description,required,...(choices?{choices:choices.map(v=>typeof v==="string"?{name:v,value:v}:v)}:{})});
 const user=(required=false)=>({type:6,name:"user",description:"Community member",required});
@@ -8,6 +9,7 @@ const id=(required=true)=>string("id","Case, application or test ID",required);
 const reason=()=>string("reason","Clear explanation; at least 10 characters",true);
 const mode=()=>string("mode","PvP testing mode",true,config.modes.map(m=>({name:m.name,value:m.id})));
 export const communityCommands=[
+  ...communityDeskCommands,
   ...testingDeskCommands,
   {name:'waitlist',description:'Future testing demand, separate from active queues',options:[sub('join','Save mode and region preference',[mode(),string('region','Playing region',true,['EU','NA','AS','SA','AU','AF','ME','OC'])]),sub('leave','Remove a preference',[mode()]),sub('status','View your private preferences')]},
   {name:'qualification',description:'Moderator: maintain mode-specific tester approvals',options:[sub('grant','Record a supervised qualification',[user(true),mode(),reason(),{type:5,name:'senior',description:'Approved for independent high-tier review'}]),sub('revoke','Revoke a mode approval',[user(true),mode(),reason()]),sub('list','View the qualified tester roster')]},

@@ -16,6 +16,8 @@
     "discord:upgrade": "node --env-file=.env discord/upgrade.mjs",
     "discord:upgrade:apply": "node --env-file=.env discord/upgrade.mjs --apply",
     "discord:register": "node --env-file=.env discord/bot.mjs --register-only",
+    "discord:desk": "node discord/community-desk-setup.mjs",
+    "discord:desk:apply": "node --env-file=.env discord/community-desk-setup.mjs --apply",
     "bot": "node --env-file=.env discord/bot.mjs",
     "start:community": "node --env-file-if-exists=.env server/runtime.mjs"
   },
