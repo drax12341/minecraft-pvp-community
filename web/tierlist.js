@@ -1,5 +1,5 @@
-import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=impact-v9';
-import {renderLeagueHome,mountLeagueShell,renderLeagueWatchlist,renderLeagueInsights,renderLeaguePlanner} from './league.js?v=impact-v9';
+import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=eclipse-v10';
+import {renderLeagueHome,mountLeagueShell,renderLeagueWatchlist,renderLeagueInsights,renderLeaguePlanner} from './league.js?v=eclipse-v10';
 const main = document.querySelector("main"),
   modal = document.querySelector("dialog"),
   body = document.querySelector("#modal-body");
@@ -153,6 +153,7 @@ function render() {
   );
   document.querySelector(".compare-dock")?.remove();
   const route = location.hash.slice(1).split("?")[0] || "home";
+  const pageChanged = document.body.dataset.page !== route;
   document.querySelectorAll("nav a").forEach((a) => {
     a.classList.toggle("active", a.hash === "#" + route);
     if (a.hash === "#" + route) a.setAttribute("aria-current", "page");
@@ -183,6 +184,8 @@ function render() {
     })[route] || rankings
   )();
   decoratePage();
+  if (pageChanged && !new URLSearchParams(location.hash.split("?")[1]).has("section"))
+    main.scrollIntoView?.({ block: "start", behavior: "instant" });
   if(deskTitles[route])document.title=deskTitles[route]+' · Minecraft PvP Tierlist';
   const id = requestedPlayer;
   if (id) {
@@ -894,9 +897,9 @@ function kits() {
   main.innerHTML =
     intro(
       "Know your kit. Own your fight.",
-      "Read the versioned pilot manifests and original inventory diagrams. Other modes await complete standards and stay closed.",
+      "Choose your Mace discipline and confirm its approved loadout, Minecraft version and testing rules.",
     ) +
-    `<p><a class="button" href="/standards.html">Versioned manifests & inventory diagrams ↗</a></p><div class="grid">${config.modes.map((m) => `<article class="kit-card">${art(m.id)}<small>${m.group}</small><h3>${m.name}</h3><p>${m.description}</p><button data-rules="${m.id}">Kit rules & testing ↗</button></article>`).join("")}</div><div class="notice">Sword, Axe and Bow have original pilot specifications awaiting human calibration. Other modes remain preparation-only until complete standards are approved.</div>`;
+    `<p><a class="button" href="./standards.html">View approved Mace loadouts ↗</a></p><div class="grid">${config.modes.map((m) => `<article class="kit-card">${art(m.id)}<small>${m.group}</small><h3>${m.name}</h3><p>${m.description}</p><button data-rules="${m.id}">Kit rules & testing ↗</button></article>`).join("")}</div><div class="notice">Each Mace discipline needs an approved, versioned loadout before official testing opens. Confirm equipment and reset rules with your assigned tester.</div>`;
   main.querySelectorAll("[data-rules]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -918,7 +921,7 @@ function tagger() {
       "Your tier. In the game.",
       "A dedicated tagger for this tierlist, with readable mode labels and no external ranking providers.",
     ) +
-    `<div class="two-col"><section class="panel"><div class="tag-scene"><div class="nametag"><span id="tag-label">[Sword HT3]</span> YourName</div></div><label class="field" style="margin-top:20px">Preferred mode${selectModes("tag-mode")}</label><label class="field">Fallback policy<select id="tag-fallback"><option value="false">Only show the selected mode</option><option value="true">Highest active tier when selected mode is unranked</option></select></label><label class="field">Tag color<input type="color" id="tag-color" value="#69d6ed"></label><div class="actions"><button class="button" id="tag-download">Save configuration</button><a href="https://github.com/drax12341/minecraft-pvp-community/releases/tag/v0.2.0-experimental" target="_blank" rel="noopener" class="button secondary">Experimental Fabric JAR ↗</a></div><p class="fine">Illustrative preview, not your actual rank. Minecraft Java 1.21.1. The experimental build requires in-game compatibility testing.</p></section><section class="panel"><h2>Built around your placements.</h2><ul><li>Our tierlist results only, identified by Minecraft UUID.</li><li>Nametag and tablist labels with mode and tier.</li><li>Async snapshot loading; rendering never waits on a network request.</li><li>Highest-active fallback is your choice. Retired tiers are hidden by default.</li><li>Mode switching and toggles with /communitytag.</li></ul><div class="notice">A name gets a label only after a verified result is published on this tierlist. Missing players are not assigned a fake tier.</div><p>Place the downloaded configuration in your Minecraft config folder as community-tagger.json before starting the game.</p></section></div>`;
+    `<div class="two-col"><section class="panel"><div class="tag-scene"><div class="nametag"><span id="tag-label">[Mace HT3]</span> YourName</div></div><label class="field" style="margin-top:20px">Preferred mode${selectModes("tag-mode")}</label><label class="field">Fallback policy<select id="tag-fallback"><option value="false">Only show the selected mode</option><option value="true">Highest active tier when selected mode is unranked</option></select></label><label class="field">Tag color<input type="color" id="tag-color" value="#69d6ed"></label><div class="actions"><button class="button" id="tag-download">Save configuration</button><a href="https://github.com/drax12341/minecraft-pvp-community/releases/tag/v0.2.0-experimental" target="_blank" rel="noopener" class="button secondary">Experimental Fabric JAR ↗</a></div><p class="fine">Illustrative preview, not your actual rank. Minecraft Java 1.21.1. The experimental build requires in-game compatibility testing.</p></section><section class="panel"><h2>Built around your placements.</h2><ul><li>Our tierlist results only, identified by Minecraft UUID.</li><li>Nametag and tablist labels with mode and tier.</li><li>Async snapshot loading; rendering never waits on a network request.</li><li>Highest-active fallback is your choice. Retired tiers are hidden by default.</li><li>Mode switching and toggles with /communitytag.</li></ul><div class="notice">A name gets a label only after a verified result is published on this tierlist. Missing players are not assigned a fake tier.</div><p>Place the downloaded configuration in your Minecraft config folder as community-tagger.json before starting the game.</p></section></div>`;
   const update = () => {
     main.querySelector("#tag-label").textContent =
       `[${kit(main.querySelector("#tag-mode").value).name} HT3]`;
@@ -1035,6 +1038,7 @@ try {
   window.addEventListener("hashchange", () => {
     modal.close();
     render();
+    main.focus({ preventScroll: true });
   });
   setInterval(() => {
     if (
@@ -1126,7 +1130,7 @@ function decoratePage() {
         ? "Refresh failed · showing the last loaded snapshot"
         : location.hostname === "localhost" || location.hostname === "127.0.0.1"
           ? "Local preview snapshot"
-          : "Public cloud data") +
+          : "Community data") +
       '</span><span class="checked-at">Checked ' +
       esc(
         lastChecked.toLocaleTimeString([], {

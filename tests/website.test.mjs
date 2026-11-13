@@ -22,7 +22,7 @@ async function website(
   host = 'example.com',
 ) {
   const dom = new JSDOM(await readFile("web/index.html", "utf8"), {
-      url: `https://${host}/` + (route ? "#" + route : ""),
+      url: `https://${host}/${host==='drax12341.github.io'?'minecraft-pvp-community/':''}` + (route ? "#" + route : ""),
       runScripts: "outside-only",
     }),
     w = dom.window;
@@ -52,10 +52,10 @@ async function website(
   return dom;
 }
 
-test('Champion-inspired home filters real queue occupancy by region and exposes the interactive Mace without fake players',async()=>{
+test('home showcase filters real queue occupancy by region without inventing players',async()=>{
  const dom=await website([],[{mode:'mace',region:'EU',status:'open',capacity:20,waiting:3,claimed:1},{mode:'mace_rod',region:'NA',status:'paused',capacity:20,waiting:2,claimed:0}],'home'),w=dom.window,d=w.document;
- assert.ok(d.querySelector('#impact-trigger'));assert.equal(d.querySelectorAll('[data-home-player]').length,0);
- d.querySelector('#impact-trigger').click();assert.match(d.querySelector('#impact-readout').textContent,/Impact/);
+ assert.ok(d.querySelector('.emblem-orbit img'));assert.equal(d.querySelectorAll('[data-home-player]').length,0);
+ d.querySelector('[data-showcase="queues"]').click();assert.equal(d.querySelector('#showcase-queues').hidden,false);
  d.querySelector('#home-region').value='NA';d.querySelector('#home-region').dispatchEvent(new w.Event('change'));
  assert.equal(d.querySelectorAll('#home-queues [data-queue-region]').length,1);assert.match(d.querySelector('#home-queues').textContent,/Rod Mace/);assert.match(d.querySelector('#home-queues').textContent,/2\/20/);
  assert.doesNotMatch(d.querySelector('#home-queues').textContent,/4\/20/);
@@ -93,10 +93,11 @@ test('tier explorer calculates the actual point gap and preserves mode and targe
  assert.match(d.querySelector('#planner-result').textContent,/not a prediction/);dom.window.close();
 });
 
-test('global motion preference persists and changes the custom animation controls',async()=>{
+test('global motion preference persists while background scene controls remain usable',async()=>{
  const dom=await website([],[],'home'),w=dom.window,d=w.document;
  d.querySelector('#motion-toggle').click();assert.ok(d.body.classList.contains('calm-view'));assert.equal(w.localStorage.getItem('pvp:calm'),'true');
- d.querySelector('#impact-trigger').click();assert.match(d.querySelector('#impact-readout').textContent,/reduced motion/);assert.equal(d.querySelector('#impact-trigger').classList.contains('striking'),false);dom.window.close();
+ d.querySelector('[data-scene-choice="quiet"]').click();assert.equal(d.querySelector('.eclipse-hero').dataset.scene,'quiet');assert.equal(d.querySelector('[data-scene-choice="quiet"]').getAttribute('aria-pressed'),'true');
+ w.location.hash='kits';await new Promise(r=>w.setTimeout(r,10));w.location.hash='home';await new Promise(r=>w.setTimeout(r,10));assert.equal(d.querySelector('.eclipse-hero').dataset.scene,'quiet');assert.ok(d.body.classList.contains('calm-view'));dom.window.close();
 });
 
 test('watchlist comparison can be cleared without requiring the rankings page',async()=>{
@@ -114,9 +115,43 @@ test('finder escapes public player names and keyboard navigation reaches results
  input.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowDown',cancelable:true}));assert.ok(d.activeElement.hasAttribute('data-search-player'));dom.window.close();
 });
 
-test('the operating-system reduced-motion preference suppresses the impact sequence independently of Calm view',async()=>{
+test('showcase keyboard navigation works with reduced motion and exposes only the selected panel',async()=>{
  const dom=await website([],[],'home'),w=dom.window,d=w.document;w.matchMedia=()=>({matches:true});
- d.querySelector('#impact-trigger').click();assert.equal(d.querySelector('#impact-trigger').classList.contains('striking'),false);assert.match(d.querySelector('#impact-readout').textContent,/reduced motion/);dom.window.close();
+ const first=d.querySelector('[data-showcase="rankings"]');first.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowRight',cancelable:true}));
+ assert.equal(d.activeElement.dataset.showcase,'queues');assert.equal(d.querySelector('#showcase-rankings').hidden,true);assert.equal(d.querySelector('#showcase-queues').hidden,false);
+ d.activeElement.dispatchEvent(new w.KeyboardEvent('keydown',{key:'End',cancelable:true}));assert.equal(d.activeElement.dataset.showcase,'profiles');assert.equal(d.querySelector('#showcase-profiles').hidden,false);
+ assert.equal(d.querySelectorAll('.showcase-tabs [aria-selected="true"]').length,1);assert.equal(d.querySelectorAll('.showcase-tabs [tabindex="0"]').length,1);dom.window.close();
+});
+
+test('testing walkthrough supports keyboard steps, accurate commands and native FAQ disclosures',async()=>{
+ const dom=await website([],[],'home'),w=dom.window,d=w.document;
+ const verify=d.querySelector('[data-guide-step="verify"]');
+ assert.match(d.querySelector('#guide-detail code').textContent,/^\/desk$/);
+ verify.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowDown',cancelable:true}));
+ assert.equal(d.activeElement.dataset.guideStep,'queue');assert.equal(d.querySelector('#guide-detail').getAttribute('aria-labelledby'),'guide-tab-queue');
+ assert.equal(d.querySelector('#guide-detail code').textContent,'/queue status');
+ assert.equal(d.querySelectorAll('.walkthrough-steps [aria-selected="true"]').length,1);
+ assert.equal(d.querySelectorAll('.eclipse-faq details>summary').length,6);assert.match(d.querySelector('#home-faq').textContent,/assigned tester/);
+ d.querySelector('#tag-preview-cycle').click();assert.doesNotMatch(d.querySelector('#home-tag-preview').textContent,/HT3/);
+ dom.window.close();
+});
+
+test('GitHub Pages uses project-relative assets, the correct canonical URL and live public data',async()=>{
+ const dom=await website([player],[],'home',[],'drax12341.github.io'),w=dom.window,d=w.document;
+ assert.equal(d.querySelector('link[rel="canonical"]').href,'https://drax12341.github.io/minecraft-pvp-community/');
+ const css=[...d.querySelectorAll('link[rel="stylesheet"]')].filter(a=>!a.href.includes('googleapis'));assert.equal(css.length,1);assert.match(css[0].getAttribute('href'),/^\.\/site.css/);
+ assert.ok(w.__requests.includes('https://minecraft-pvp-community.draxion0.chatgpt.site/data/results.json'));
+ assert.ok(w.__requests.includes('https://minecraft-pvp-community.draxion0.chatgpt.site/data/testing.json'));
+ w.location.hash='kits';await new Promise(r=>w.setTimeout(r,10));assert.equal(d.querySelector('a[href="./standards.html"]').href,'https://drax12341.github.io/minecraft-pvp-community/standards.html');assert.doesNotMatch(d.querySelector('main').textContent,/Sword|Axe|Bow/);
+ dom.window.close();
+});
+
+test('the standalone design parses with explicit hidden-panel and reduced-motion safeguards',async()=>{
+ const css=await readFile('web/site.css','utf8'),dom=new JSDOM('<!doctype html><style>'+css+'</style>');
+ const rules=[...dom.window.document.styleSheets[0].cssRules];
+ assert.ok(rules.some(r=>r.selectorText==='[hidden]'&&r.style.getPropertyValue('display')==='none'));
+ assert.ok(rules.some(r=>r.conditionText?.includes('prefers-reduced-motion:reduce')||r.conditionText?.includes('prefers-reduced-motion: reduce')));
+ dom.window.close();
 });
 
 test('standards show only this community’s modes and escaped approved equipment, with usable mode filtering',async()=>{
@@ -170,11 +205,11 @@ test("league homepage uses real counts, a compact navigation shell and direct ga
     w = dom.window,
     d = w.document;
   assert.equal(d.body.dataset.page, "home");
-  assert.match(d.querySelector('.league-page-heading h1').textContent,/Every tier/);
+  assert.match(d.querySelector('#hero-title').textContent,/MACETIERLIST/);
   assert.equal(d.querySelectorAll('[data-league-mode]').length,7);
-  assert.match(d.querySelector('.league-live-pill').textContent,/Next sessions/);
+  assert.equal(d.querySelector('.eclipse-hero').dataset.scene,'night');
   assert.match(d.querySelector('.league-empty').textContent,/first results/);
-  assert.equal(d.querySelector('.league-bottom-strip strong').textContent,'0');
+  assert.equal(d.querySelector('.community-stats strong').textContent,'0');
   d.querySelector('#mobile-navigation').click();assert.equal(d.querySelector('#mobile-navigation').getAttribute('aria-expanded'),'true');
   d.querySelector('.league-rail a').click();assert.equal(d.querySelector('#mobile-navigation').getAttribute('aria-expanded'),'false');
   await new Promise(r=>w.setTimeout(r,10));
