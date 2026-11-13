@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { JSDOM } from "jsdom";
 import {deskPaths,deskTiers,testingDeskCommands} from '../config/testing-desk.mjs';
+import {communityDeskCommands} from '../config/community-desk.mjs';
 const config = JSON.parse(await readFile("config/community.json"));
 const player = {
   uuid: "00000000-0000-0000-0000-000000000001",
@@ -30,7 +31,7 @@ async function website(
     ok: true,
     json: async () =>
       url.endsWith('testing-desk.json')||url.endsWith('/api/testing-desk')
-        ? {paths:deskPaths,tiers:deskTiers,commands:testingDeskCommands,demand:[],leaderboard:[]}
+        ? {paths:deskPaths,tiers:deskTiers,commands:[...testingDeskCommands,...communityDeskCommands],demand:[],leaderboard:[]}
         : url.endsWith("community.json")
         ? config
         : url.endsWith("testing.json")
@@ -50,6 +51,82 @@ async function website(
   await w.eval(`(async()=>{${deskSource}\n${leagueSource}\n${appSource}\n})()`);
   return dom;
 }
+
+test('Champion-inspired home filters real queue occupancy by region and exposes the interactive Mace without fake players',async()=>{
+ const dom=await website([],[{mode:'mace',region:'EU',status:'open',capacity:20,waiting:3,claimed:1},{mode:'mace_rod',region:'NA',status:'paused',capacity:20,waiting:2,claimed:0}],'home'),w=dom.window,d=w.document;
+ assert.ok(d.querySelector('#impact-trigger'));assert.equal(d.querySelectorAll('[data-home-player]').length,0);
+ d.querySelector('#impact-trigger').click();assert.match(d.querySelector('#impact-readout').textContent,/Impact/);
+ d.querySelector('#home-region').value='NA';d.querySelector('#home-region').dispatchEvent(new w.Event('change'));
+ assert.equal(d.querySelectorAll('#home-queues [data-queue-region]').length,1);assert.match(d.querySelector('#home-queues').textContent,/Rod Mace/);assert.match(d.querySelector('#home-queues').textContent,/2\/20/);
+ assert.doesNotMatch(d.querySelector('#home-queues').textContent,/4\/20/);
+ d.querySelector('#refresh-public').click();await new Promise(r=>w.setTimeout(r,20));assert.equal(d.querySelector('#home-region').value,'NA');dom.window.close();
+});
+
+test('universal finder searches real players and opens their existing profile',async()=>{
+ const dom=await website([player],[],'home'),w=dom.window,d=w.document;
+ d.querySelector('#global-kit-search').click();const input=d.querySelector('#kit-search');input.value='TestPlayer';input.dispatchEvent(new w.Event('input'));
+ assert.equal(d.querySelectorAll('[data-search-player]').length,1);d.querySelector('[data-search-player]').click();
+ assert.match(d.querySelector('#modal-body').textContent,/TestPlayer/);assert.ok(d.querySelector('#save-player'));dom.window.close();
+});
+
+test('saved-player watchlist persists through navigation and can remove a saved player without changing rankings',async()=>{
+ const dom=await website([player],[],'rankings?player='+player.uuid),w=dom.window,d=w.document;
+ d.querySelector('#save-player').click();d.querySelector('.close').click();w.location.hash='watchlist';await new Promise(r=>w.setTimeout(r,10));
+ assert.equal(d.querySelectorAll('[data-watch-player]').length,1);assert.match(d.querySelector('#watchlist-count').textContent,/1/);
+ d.querySelector('[data-watch-remove]').click();assert.equal(d.querySelectorAll('[data-watch-player]').length,0);assert.deepEqual(JSON.parse(w.localStorage.getItem('pvp:savedPlayers')),[]);
+ w.location.hash='rankings';await new Promise(r=>w.setTimeout(r,10));assert.equal(d.querySelectorAll('[data-player]').length,1);dom.window.close();
+});
+
+test('insights compute the active tier distribution from real placements and apply mode and region filters',async()=>{
+ const retired={...player,uuid:'retired',name:'RetiredPlayer',region:'NA',rankings:{mace:{tier:1,pos:0,retired:true}}};
+ const dom=await website([player,retired],[],'insights'),w=dom.window,d=w.document;
+ assert.equal(d.querySelector('#insight-total').textContent,'1');assert.match(d.querySelector('#tier-distribution').textContent,/HT3/);
+ d.querySelector('#insight-region').value='NA';d.querySelector('#insight-region').dispatchEvent(new w.Event('change'));
+ assert.equal(d.querySelector('#insight-total').textContent,'0');assert.match(d.querySelector('#tier-distribution').textContent,/No active placements/);dom.window.close();
+});
+
+test('tier explorer calculates the actual point gap and preserves mode and target in the application link',async()=>{
+ const dom=await website([],[],'planner'),w=dom.window,d=w.document;
+ d.querySelector('#planner-current').value='LT3';d.querySelector('#planner-target').value='HT3';d.querySelector('#planner-mode').value='mace_rod';
+ d.querySelector('#planner-target').dispatchEvent(new w.Event('change'));
+ assert.match(d.querySelector('#planner-gap').textContent,/4 points/);assert.match(d.querySelector('#planner-next').hash,/mode=mace_rod/);assert.match(d.querySelector('#planner-next').hash,/tier=HT3/);
+ assert.match(d.querySelector('#planner-result').textContent,/not a prediction/);dom.window.close();
+});
+
+test('global motion preference persists and changes the custom animation controls',async()=>{
+ const dom=await website([],[],'home'),w=dom.window,d=w.document;
+ d.querySelector('#motion-toggle').click();assert.ok(d.body.classList.contains('calm-view'));assert.equal(w.localStorage.getItem('pvp:calm'),'true');
+ d.querySelector('#impact-trigger').click();assert.match(d.querySelector('#impact-readout').textContent,/reduced motion/);assert.equal(d.querySelector('#impact-trigger').classList.contains('striking'),false);dom.window.close();
+});
+
+test('watchlist comparison can be cleared without requiring the rankings page',async()=>{
+ const dom=await website([player],[],'rankings?player='+player.uuid),w=dom.window,d=w.document;
+ d.querySelector('#save-player').click();d.querySelector('.close').click();w.location.hash='watchlist';await new Promise(r=>w.setTimeout(r,10));
+ d.querySelector('[data-watch-compare]').click();assert.ok(d.querySelector('.compare-dock'));assert.equal(d.querySelector('[data-watch-compare]').getAttribute('aria-pressed'),'true');
+ d.querySelector('#clear-compare').click();assert.equal(d.querySelector('.compare-dock'),null);assert.equal(d.querySelector('[data-watch-compare]').getAttribute('aria-pressed'),'false');assert.equal(d.body.dataset.page,'watchlist');dom.window.close();
+});
+
+test('finder escapes public player names and keyboard navigation reaches results',async()=>{
+ const malicious={...player,name:'<img src=x onerror=alert(1)>'};
+ const dom=await website([malicious],[],'home'),w=dom.window,d=w.document;
+ d.querySelector('#global-kit-search').click();const input=d.querySelector('#kit-search');input.value='onerror';input.dispatchEvent(new w.Event('input'));
+ assert.equal(d.querySelector('#kit-picker img[onerror]'),null);assert.match(d.querySelector('[data-search-player]').textContent,/onerror/);
+ input.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowDown',cancelable:true}));assert.ok(d.activeElement.hasAttribute('data-search-player'));dom.window.close();
+});
+
+test('the operating-system reduced-motion preference suppresses the impact sequence independently of Calm view',async()=>{
+ const dom=await website([],[],'home'),w=dom.window,d=w.document;w.matchMedia=()=>({matches:true});
+ d.querySelector('#impact-trigger').click();assert.equal(d.querySelector('#impact-trigger').classList.contains('striking'),false);assert.match(d.querySelector('#impact-readout').textContent,/reduced motion/);dom.window.close();
+});
+
+test('standards show only this community’s modes and escaped approved equipment, with usable mode filtering',async()=>{
+ const dom=new JSDOM(await readFile('web/standards.html','utf8'),{url:'https://example.com/standards.html',runScripts:'outside-only'}),w=dom.window;
+ w.fetch=async url=>({ok:true,json:async()=>String(url).includes('community.json')?config:{loadouts:[{mode:'mace',version:'mace-v1',loadout:'Mace & fishing rod <img src=x onerror=alert(1)>',created:'2026-11-13T00:00:00Z'}]}});
+ await w.eval('(async()=>{'+await readFile('web/standards.js','utf8')+'})()');const d=w.document;
+ assert.equal(d.querySelectorAll('[data-loadout-mode]').length,7);assert.match(d.querySelector('#standards').textContent,/mace-v1/);assert.equal(d.querySelector('#standards img[onerror]'),null);
+ d.querySelector('#loadout-mode').value='mace_rod';d.querySelector('#loadout-mode').dispatchEvent(new w.Event('change'));
+ assert.equal(d.querySelectorAll('[data-loadout-mode]').length,1);assert.match(d.querySelector('#standards').textContent,/Rod Mace/);assert.doesNotMatch(d.querySelector('#standards').textContent,/Sword|Axe|Bow/);dom.window.close();
+});
 test('high-tier roster filters real placements, excludes lower tiers and never renders sample players',async()=>{
  const dom=await website([player,{...player,uuid:'lower',name:'LowerPlayer',rankings:{mace:{tier:3,pos:1}}}],[],'high-tiers');const d=dom.window.document;
  assert.equal(d.querySelectorAll('.rank-lane').length,5);assert.equal(d.querySelectorAll('[data-high-player]').length,1);assert.match(d.querySelector('#high-board').textContent,/TestPlayer/);assert.doesNotMatch(d.querySelector('#high-board').textContent,/LowerPlayer|PreviewPlayer/);

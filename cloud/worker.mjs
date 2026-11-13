@@ -155,6 +155,14 @@ export default {
       return json({ error: "Method not allowed" }, 405);
     if(url.pathname==='/data/community.json')return json(config);
     if(url.pathname==='/api/kits')return json(kitManifests);
+    if(url.pathname==='/api/loadouts'){
+      if(!env.DB)return json({error:'Cloud storage unavailable'},503);
+      try{
+        const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);
+        const loadouts=await store.all('SELECT mode,version,loadout,created FROM (SELECT mode,version,loadout,created,ROW_NUMBER() OVER(PARTITION BY mode ORDER BY created DESC,version DESC) AS position FROM mode_loadouts WHERE revoked=0) WHERE position<=8 ORDER BY mode,created DESC,version DESC LIMIT 56');
+        return json({loadouts});
+      }catch{return json({error:'Approved loadouts unavailable'},503);}
+    }
     if (
       [
         "/healthz",

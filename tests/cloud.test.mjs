@@ -123,6 +123,19 @@ test('retirement enforces 35 days of inactivity before a request can be accepted
  }finally{sql.close();}
 });
 
+test('public loadout catalogue exposes approved equipment without staff calibration evidence or reviewer identities',async()=>{
+ const {sql,adapter,store}=await database();try{
+  for(const [version,revoked] of [['mace-v1',1],['mace-v2',0]])await store.statement('INSERT INTO mode_loadouts VALUES(?,?,?,?,?,?,?)','mace',version,'Approved equipment and reset rules','Private benchmark recording and opponent IDs','30000',new Date().toISOString(),revoked).run();
+  const response=await worker.fetch(new Request('https://example.com/api/loadouts'),{DB:adapter},{});assert.equal(response.status,200);
+  const body=await response.json();assert.equal(body.loadouts.length,1);assert.equal(body.loadouts[0].version,'mace-v2');assert.equal(body.loadouts[0].loadout,'Approved equipment and reset rules');
+  assert.doesNotMatch(JSON.stringify(body),/Private benchmark|30000|approver|benchmarks/);
+  for(let n=3;n<12;n++)await store.statement('INSERT INTO mode_loadouts VALUES(?,?,?,?,?,?,?)','mace','mace-v'+n,'Equipment version '+n,'Private calibration','30000',new Date().toISOString(),0).run();
+  await store.statement('INSERT INTO mode_loadouts VALUES(?,?,?,?,?,?,?)','mace_rod','rod-v1','Rod equipment','Private calibration','30000',new Date().toISOString(),0).run();
+  const bounded=await (await worker.fetch(new Request('https://example.com/api/loadouts'),{DB:adapter},{})).json();
+  assert.equal(bounded.loadouts.filter(l=>l.mode==='mace').length,8);assert.equal(bounded.loadouts.filter(l=>l.mode==='mace_rod').length,1);
+ }finally{sql.close();}
+});
+
 test('queue buttons route through authorised commands and board refresh failures preserve completed queue operations',async()=>{
  const route=id=>componentRoute({type:3,data:{custom_id:id}}).command;
  assert.equal(route('board:join:mace:EU').data.name,'queue');

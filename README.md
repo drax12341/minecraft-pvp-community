@@ -5,6 +5,11 @@ waitlist boards with tester/player activity, recoverable `/pull` rooms, tester
 statistics, placement history and independently reviewed retirement. The current
 seven Mace disciplines and all existing placements remain the source of truth.
 
+[Champion-inspired website rebuild](docs/CHAMPION-WEBSITE-REBUILD.md): an original
+interactive Mace scene, player index with live session sidebar, universal finder,
+saved-player watchlist, real-data insights, tier explorer and approved Mace
+loadouts. Motion can be reduced globally and follows the device preference.
+
 [Design study](docs/DESIGN-STUDY.md): 18 reference projects, six visually inspected screenshots/concepts, and the resulting navigation, ranking and testing refinements. Evidence limits are recorded in the study.
 
 **One independent tierlist. Every placement comes from this community’s tests.**

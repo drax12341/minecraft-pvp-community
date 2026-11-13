@@ -1,5 +1,5 @@
-import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js';
-import {renderLeagueHome,mountLeagueShell} from './league.js';
+import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=impact-v9';
+import {renderLeagueHome,mountLeagueShell,renderLeagueWatchlist,renderLeagueInsights,renderLeaguePlanner} from './league.js?v=impact-v9';
 const main = document.querySelector("main"),
   modal = document.querySelector("dialog"),
   body = document.querySelector("#modal-body");
@@ -113,6 +113,7 @@ function download(content, name, type = "application/json") {
 }
 function show(html) {
   body.innerHTML = html;
+  const heading=body.querySelector('h2');if(heading)heading.id='modal-title';
   if (!modal.open) modal.showModal();
 }
 const demoPlayers = () =>
@@ -160,7 +161,7 @@ function render() {
   if (route === "rankings") readRankingScope();
   document.body.dataset.page = route;
   const deskTitles={'high-tiers':'HT3+ roster','test-desk':'Testing desk',commands:'Testing commands'};
-  document.title = `${{ home: "Home", rankings: "Rankings", testing: "Testing center", kits: "Kits & rules", tagger: "Tier tagger", sponsors: "Support us", about: "Rules & privacy", staff: "Staff console", results: "Results", community: "Community" }[route] || "Rankings"} · Minecraft PvP Tierlist`;
+  document.title = `${{ home: "The arena", rankings: "Rankings", testing: "Testing center", kits: "Kits & rules", tagger: "Tier tagger", sponsors: "Support us", about: "Rules & privacy", staff: "Staff console", results: "Results", community: "Community", watchlist: "Saved players", insights: "Community insights", planner: "Tier explorer" }[route] || "Rankings"} · Minecraft PvP Tierlist`;
   (
     ({
       home,
@@ -176,6 +177,9 @@ function render() {
       'high-tiers':()=>renderHighTiers({main,config,data,profile}),
       'test-desk':()=>renderTestDesk({main,config}),
       commands:()=>renderCommandLibrary({main}),
+      watchlist:()=>renderLeagueWatchlist({main,config,data,saved:savedPlayers,selected,profile,onRemove:id=>{savedPlayers.delete(id);writePreference('savedPlayers',[...savedPlayers]);},onCompare:id=>{selected.has(id)?selected.delete(id):selected.add(id);compareDock();}}),
+      insights:()=>renderLeagueInsights({main,config,data,testing}),
+      planner:()=>renderLeaguePlanner({main,config}),
     })[route] || rankings
   )();
   decoratePage();
@@ -425,11 +429,14 @@ function rankings() {
 }
 function browseModes() {
   show(
-    '<h2>Choose your kit</h2><p class="fine">Main modes and specialist submodes belong to this tierlist.</p><label class="field">Search kits<input type="search" id="kit-search" placeholder="Sword, Mace, Bow…" autocomplete="off"></label><div class="kit-picker" id="kit-picker"></div>',
+    '<div class="finder-heading"><span aria-hidden="true">⌕</span><h2>Find your next move.</h2><kbd>Esc to close</kbd></div><label class="field finder-field">Search players, disciplines and pages<input type="search" id="kit-search" placeholder="A player, Rod Mace, live queues…" autocomplete="off" maxlength="64"></label><div class="kit-picker" id="kit-picker" aria-live="polite"></div>',
   );
   const draw = () => {
-    const q = body.querySelector("#kit-search").value.toLowerCase();
+    const q = body.querySelector("#kit-search").value.toLowerCase().trim();
+    const players=q?data.players.filter(p=>p.name.toLowerCase().includes(q)).slice(0,8):[];
+    const pages=[['testing','Live queues','Sessions, regions and testing availability'],['test-desk','Testing desk','Applications and next-tier paths'],['watchlist','Saved players','Your personal watchlist'],['insights','Community insights','Tier distribution and mode statistics'],['planner','Tier explorer','Point values and your next tier'],['commands','Command library','Find the Discord command you need'],['community','Practice & community','Find your next sparring partner']].filter(p=>!q||p.join(' ').toLowerCase().includes(q));
     body.querySelector("#kit-picker").innerHTML =
+      players.map(p=>'<button data-search-player="'+esc(p.uuid)+'">'+avatar(p)+'<span><strong>'+esc(p.name)+'</strong><small>Published player · '+esc(p.region)+'</small></span><span aria-hidden="true">↗</span></button>').join('')+
       config.modes
         .filter((m) => m.name.toLowerCase().includes(q))
         .map(
@@ -444,7 +451,10 @@ function browseModes() {
             m.group +
             '</small></span><span aria-hidden="true">↗</span></button>',
         )
-        .join("") || '<p class="fine">No matching kits. Try another name.</p>';
+        .join("")+pages.map(([route,title,description])=>'<button data-search-route="'+route+'"><span class="finder-page-icon" aria-hidden="true">⌘</span><span><strong>'+title+'</strong><small>'+description+'</small></span><span aria-hidden="true">↗</span></button>').join('');
+    if(!body.querySelector('#kit-picker').children.length)body.querySelector('#kit-picker').innerHTML='<p class="fine">No matches. Try a Minecraft name, Mace discipline or “queues”.</p>';
+    body.querySelectorAll('[data-search-player]').forEach(b=>b.onclick=()=>profile(data.players.find(p=>p.uuid===b.dataset.searchPlayer)));
+    body.querySelectorAll('[data-search-route]').forEach(b=>b.onclick=()=>{modal.close();location.hash=b.dataset.searchRoute;});
     body.querySelectorAll("[data-pick]").forEach(
       (b) =>
         (b.onclick = () => {
@@ -458,6 +468,7 @@ function browseModes() {
     );
   };
   body.querySelector("#kit-search").oninput = draw;
+  body.querySelector('#kit-search').onkeydown=e=>{if(e.key==='ArrowDown'){e.preventDefault();body.querySelector('#kit-picker button')?.focus();}};
   draw();
   body.querySelector("#kit-search").focus();
 }
@@ -605,18 +616,19 @@ function compareDock() {
   if (!selected.size) return;
   const el = document.createElement("div");
   el.className = "compare-dock";
+  const comparisonSource=document.body.dataset.page==='watchlist'?data.players:source();
   const ps = [...selected]
-    .map((id) => source().find((p) => p.uuid === id))
+    .map((id) => comparisonSource.find((p) => p.uuid === id))
     .filter(Boolean);
   el.innerHTML = `<span>${ps.map((p) => esc(p.name)).join(" vs ")}</span><button id="compare" ${ps.length < 2 ? "disabled" : ""}>Compare tiers</button><button id="clear-compare" aria-label="Clear comparison">×</button>`;
   document.body.append(el);
   el.querySelector("#clear-compare").onclick = () => {
     selected.clear();
-    renderBoard();
+    if(document.body.dataset.page==='watchlist')render();else renderBoard();
   };
   el.querySelector("#compare").onclick = () =>
     show(
-      `<h2>Player comparison</h2><p class="fine">${preview ? "Sample data preview." : "Our tierlist results only. Comparisons do not predict a match."}</p><div class="table-wrap"><table><thead><tr><th>Kit</th>${ps.map((p) => `<th>${esc(p.name)}</th>`).join("")}</tr></thead><tbody>${config.modes.map((m) => `<tr><td>${m.name}</td>${ps.map((p) => `<td>${p.rankings[m.id] ? chip(p.rankings[m.id]) : "Unranked"}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`,
+      `<h2>Player comparison</h2><p class="fine">${preview&&document.body.dataset.page==='rankings' ? "Sample data preview." : "Our tierlist results only. Comparisons do not predict a match."}</p><div class="table-wrap"><table><thead><tr><th>Kit</th>${ps.map((p) => `<th>${esc(p.name)}</th>`).join("")}</tr></thead><tbody>${config.modes.map((m) => `<tr><td>${m.name}</td>${ps.map((p) => `<td>${p.rankings[m.id] ? chip(p.rankings[m.id]) : "Unranked"}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`,
     );
 }
 function profile(p) {
@@ -648,6 +660,7 @@ function profile(p) {
       ? savedPlayers.delete(p.uuid)
       : savedPlayers.add(p.uuid);
     writePreference("savedPlayers", [...savedPlayers]);
+    if(document.body.dataset.page==='watchlist')render();
     profile(p);
   };
   body.querySelectorAll('.profile-next').forEach(a=>a.addEventListener('click',()=>modal.close()));
@@ -1037,7 +1050,7 @@ try {
   console.error(e);
 }
 
-mountLeagueShell({browseModes:()=>{if(config)browseModes();}});
+mountLeagueShell({browseModes:()=>{if(config)browseModes();},onMotionToggle:()=>{writePreference('calm',!readPreference('calm',false));decoratePage();}});
 
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
@@ -1102,6 +1115,8 @@ function commandRow(command, description) {
 }
 function decoratePage() {
   document.body.classList.toggle("calm-view", readPreference("calm", false));
+  const motion=document.querySelector('#motion-toggle');
+  if(motion){motion.setAttribute('aria-pressed',String(readPreference('calm',false)));motion.textContent=readPreference('calm',false)?'Motion reduced':'Motion on';}
   const status = document.querySelector("#data-status");
   if (status) {
     status.classList.toggle("stale", dataStale);

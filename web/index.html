@@ -3,57 +3,64 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#0b1220" />
+    <meta name="theme-color" content="#080e16" />
     <meta
       name="description"
-      content="The Minecraft PvP Tierlist. Earn your tier through independent testing across main modes and submodes."
+      content="Seven Mace disciplines. One earned rank. Explore live community rankings, testing queues, player profiles and your path to the next tier."
     />
     <title>Minecraft PvP Tierlist</title>
+    <meta name="community-site-build" content="impact-v9" />
+    <meta property="og:title" content="Macetiers · Minecraft PvP Community" />
+    <meta property="og:description" content="Seven Mace disciplines. Live community rankings, testing queues and your next earned tier." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://minecraft-pvp-community.draxion0.chatgpt.site/brand/discord-icon.png" />
     <link rel="icon" href="./mark.svg" /><link rel="apple-touch-icon" href="/brand/discord-icon.png" />
-    <link rel="stylesheet" href="./tierlist.css" />
-    <link rel="stylesheet" href="./arena.css" />
-    <link rel="stylesheet" href="./testing-desk.css" />
-    <link rel="stylesheet" href="./league.css" />
-    <script type="module" src="./tierlist.js"></script>
+    <link rel="stylesheet" href="./tierlist.css?v=impact-v9" />
+    <link rel="stylesheet" href="./testing-desk.css?v=impact-v9" />
+    <link rel="stylesheet" href="./impact.css?v=impact-v9" />
+    <script type="module" src="./tierlist.js?v=impact-v9"></script>
   </head>
   <body>
+    <noscript><section class="notice">Enable JavaScript to explore live rankings and player tools. You can still <a href="https://discord.gg/a36rg6BxuX">open the community Discord</a> for testing and support.</section></noscript>
     <div class="reading-progress" aria-hidden="true"></div>
     <a href="#main" class="skip">Skip to content</a>
     <header class="topbar">
       <button id="mobile-navigation" class="mobile-navigation" aria-label="Toggle navigation" aria-expanded="false" aria-controls="league-rail">☰</button>
       <a href="#home" class="brand"
         ><img src="./mark.svg" alt="" width="38" height="38" /><span
-          ><strong class="brand-wordmark">Mace<span>tiers</span></strong><small>Community player index</small></span
+          ><strong class="brand-wordmark">Mace<span>tiers</span></strong><small>Minecraft PvP Community</small></span
         ></a
       >
-      <button id="global-kit-search" class="global-kit-search"><span aria-hidden="true">⌕</span> Find a gamemode <kbd>Ctrl K</kbd></button>
-      <span class="header-community">Independent Mace rankings</span>
+      <button id="global-kit-search" class="global-kit-search" aria-label="Find players, modes and pages"><span aria-hidden="true">⌕</span><span class="search-prompt">Find a player, mode or page</span><kbd>Ctrl K</kbd></button>
+      <button id="motion-toggle" class="motion-toggle" aria-pressed="false" aria-label="Reduce animation">Motion on</button>
       <a
         class="button discord"
         href="https://discord.gg/a36rg6BxuX"
         target="_blank"
         rel="noopener"
-        >Join Discord <span>↗</span></a
+        ><span class="discord-label">Join the community</span> <span aria-hidden="true">↗</span></a
       >
     </header>
     <aside class="league-rail" id="league-rail">
       <nav aria-label="Main navigation">
-        <a href="#home" data-nav-icon="home"><i aria-hidden="true"></i><span>Overview</span></a>
+        <a href="#home" data-nav-icon="home"><i aria-hidden="true"></i><span>The arena</span></a>
         <a href="#rankings" data-nav-icon="rankings"><i aria-hidden="true"></i><span>Rankings</span></a>
-        <a href="#high-tiers" data-nav-icon="high-tiers"><i aria-hidden="true"></i><span>HT3+ players</span></a>
+        <a href="#testing" data-nav-icon="testing"><i aria-hidden="true"></i><span>Live queues</span></a>
         <a href="#test-desk" data-nav-icon="test-desk"><i aria-hidden="true"></i><span>Testing desk</span></a>
         <a href="#results" data-nav-icon="results"><i aria-hidden="true"></i><span>Match results</span></a>
-        <a href="#community" data-nav-icon="community"><i aria-hidden="true"></i><span>Community</span></a>
+        <a href="#insights" data-nav-icon="insights"><i aria-hidden="true"></i><span>Insights</span></a>
       </nav>
-      <div class="rail-divider"></div>
-      <nav aria-label="Testing resources">
+      <details class="resource-menu"><summary>More from the arena <span aria-hidden="true">⌄</span></summary><nav aria-label="Community resources">
+        <a href="#watchlist"><i aria-hidden="true">☆</i><span>Saved players</span></a>
+        <a href="#planner"><i aria-hidden="true">◇</i><span>Tier explorer</span></a>
+        <a href="#high-tiers" data-nav-icon="high-tiers"><i aria-hidden="true"></i><span>HT3+ roster</span></a>
+        <a href="#community" data-nav-icon="community"><i aria-hidden="true"></i><span>Community & practice</span></a>
         <a href="#commands" data-nav-icon="commands"><i aria-hidden="true"></i><span>Command library</span></a>
         <a href="#kits" data-nav-icon="kits"><i aria-hidden="true"></i><span>Kits & rules</span></a>
-        <a href="#testing"><i aria-hidden="true">◷</i><span>Live sessions</span></a>
         <a href="#tagger" data-nav-icon="tagger"><i aria-hidden="true"></i><span>Tier tagger</span></a>
-      </nav>
-      <div class="rail-community"><img src="./mark.svg" width="28" height="28" alt=""><strong>Find your next fight.</strong><p>Practice, test and improve with the community.</p><a href="https://discord.gg/a36rg6BxuX" target="_blank" rel="noopener">Join the Discord ↗</a></div>
-      <a class="rail-privacy" href="#about">Rules & privacy</a>
+        <a href="#about"><i aria-hidden="true">ⓘ</i><span>Rules & privacy</span></a>
+      </nav></details>
+      <a class="nav-testing-link" href="https://discord.com/channels/1568767259168608267/1569347570214506607" target="_blank" rel="noopener">Open the Discord desk ↗</a>
     </aside>
     <div
       class="data-status"
@@ -79,7 +86,7 @@
         >Open source ↗</a
       ><span>Not affiliated with Mojang or Microsoft.</span>
     </footer>
-    <dialog id="modal">
+    <dialog id="modal" aria-labelledby="modal-title">
       <button class="close" aria-label="Close dialog">×</button>
       <div id="modal-body"></div>
     </dialog>
