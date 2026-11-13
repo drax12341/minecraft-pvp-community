@@ -486,11 +486,13 @@ export class CloudStore {
       const p = players.get(retired.uuid);
       if(p?.rankings[retired.mode] && latestPlacementIds.get(retired.uuid+'/'+retired.mode)===retired.result_id) p.rankings[retired.mode].retired=true;
     }
-    for (const p of players.values())
-      p.points = Object.values(p.rankings).reduce(
+    for (const p of players.values()) {
+      p.activePoints = Object.values(p.rankings).reduce(
         (sum, r) => sum + (r.retired ? 0 : points[`${r.pos === 0 ? "HT" : "LT"}${r.tier}`]),
         0,
       );
+      p.points = Object.values(p.rankings).reduce((sum,r)=>sum+points[`${r.pos===0?'HT':'LT'}${r.tier}`],0);
+    }
     return {
       updatedAt: new Date().toISOString(),
       players: [...players.values()].sort(

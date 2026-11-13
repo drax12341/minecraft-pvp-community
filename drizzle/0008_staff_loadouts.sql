@@ -1,0 +1,1 @@
+CREATE TABLE mode_loadouts(mode TEXT NOT NULL,version TEXT NOT NULL,loadout TEXT NOT NULL,benchmarks TEXT NOT NULL,approver TEXT NOT NULL,created TEXT NOT NULL,revoked INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(mode,version));

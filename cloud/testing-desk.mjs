@@ -2,7 +2,7 @@ import config from '../config/community.json' with {type:'json'};
 import { deskTiers,deskRegions,deskPaths,testingDeskCommands } from '../config/testing-desk.mjs';
 import { staffAccess } from '../config/community-roles.mjs';
 import { requireQualification } from './journeys.mjs';
-import {kitManifests} from '../config/kit-manifests.mjs';
+import { approvedCommunityLoadout } from './loadouts.mjs';
 import {checkTierPhase} from '../config/phase-checks.mjs';
 export const testingDeskNames=new Set(testingDeskCommands.map(c=>c.name));
 const deskRank=r=>`${r.pos===0?'HT':'LT'}${r.tier}`;
@@ -156,18 +156,18 @@ export async function runTestingDesk(i,env,store,request=fetch,dispatch){
  if(sub?.name==='prepare'){
   if(!r.channel)throw Error('Open the application ticket first with /high-test room.');
   const session=await store.one('SELECT * FROM sessions WHERE mode=? AND region=?',r.mode,r.region);
-  if(!session||session.status!=='open'||session.kit_version!==kitManifests.version||!kitManifests.modes.some(m=>m.id===r.mode))throw Error('An open session with an approved kit version is required. Ask qualified staff to approve the gamemode loadout and open its session.');
+  if(!session||session.status!=='open'||!await approvedCommunityLoadout(store,r.mode,session.kit_version))throw Error('An open session with an approved kit version is required. Ask qualified staff to approve the gamemode loadout and open its session.');
   const restriction=await store.one('SELECT 1 FROM test_restrictions WHERE user=? AND mode=? AND until_at>?',r.user,r.mode,now());if(restriction)throw Error('This player has an active failed-test restriction.');
   if(!r.queue_id){
    await store.statement("UPDATE queue SET status='waiting',tester=NULL WHERE id=? AND status='cancelled' AND NOT EXISTS(SELECT 1 FROM results WHERE id=?) AND NOT EXISTS(SELECT 1 FROM queue active WHERE active.user=? AND active.mode=? AND active.status IN ('waiting','claimed'))",r.id,r.id,r.user,r.mode).run();
-   await store.statement(`INSERT OR IGNORE INTO queue(id,user,mode,region,created) SELECT ?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM queue WHERE user=? AND mode=? AND status IN ('waiting','claimed')) AND (SELECT count(*) FROM queue WHERE mode=? AND region=? AND status IN ('waiting','claimed'))<?`,r.id,r.user,r.mode,r.region,now(),r.user,r.mode,r.mode,r.region,session.capacity).run();
+   await store.statement(`INSERT OR IGNORE INTO queue(id,user,mode,region,created) SELECT ?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM queue WHERE user=? AND mode=? AND status IN ('waiting','claimed')) AND (SELECT count(*) FROM queue WHERE mode=? AND region=? AND status IN ('waiting','claimed'))<?`,r.id,r.user,r.mode,r.region,now(),r.user,r.mode,r.mode,r.region,Math.min(session.capacity,20)).run();
    const q=await store.one('SELECT * FROM queue WHERE id=?',r.id);if(!q)throw Error('Another queue entry or session capacity blocks preparation. Resolve it before preparing this test.');
    await store.statement('UPDATE high_tests SET queue_id=? WHERE id=? AND queue_id IS NULL',q.id,r.id).run();r.queue_id=q.id;
   }
   const q=await store.one('SELECT * FROM queue WHERE id=?',r.queue_id);if(q.status==='waiting')await store.claim(q.id,actor);else if(q.status!=='claimed'||q.tester!==actor)throw Error('The linked queue assignment has changed. Ask management to review it.');
   const room=await store.one('SELECT * FROM test_rooms WHERE id=?',r.queue_id);if(room&&room.tester!==actor&&room.state!=='archived')throw Error('The previous tester must release or archive the old assignment first.');
-  if(!room)await store.statement('INSERT INTO test_rooms(id,channel,assignment,tester,state,ready_by,kit_version,updated) VALUES(?,?,?,?,?,?,?,?)',r.queue_id,r.channel,crypto.randomUUID(),actor,'ready-check',new Date(Date.now()+15*60000).toISOString(),kitManifests.version,now()).run();
-  else if(room.state==='archived'||Date.parse(room.ready_by)<Date.now())await store.statement("UPDATE test_rooms SET state='ready-check',tester=?,player_ready=0,tester_ready=0,ready_by=?,updated=? WHERE id=?",actor,new Date(Date.now()+15*60000).toISOString(),now(),r.queue_id).run();
+  if(!room)await store.statement('INSERT INTO test_rooms(id,channel,assignment,tester,state,ready_by,kit_version,updated) VALUES(?,?,?,?,?,?,?,?)',r.queue_id,r.channel,crypto.randomUUID(),actor,'ready-check',new Date(Date.now()+15*60000).toISOString(),session.kit_version,now()).run();
+  else if(room.state==='archived'||Date.parse(room.ready_by)<Date.now()||room.kit_version!==session.kit_version)await store.statement("UPDATE test_rooms SET state='ready-check',tester=?,player_ready=0,tester_ready=0,kit_version=?,ready_by=?,updated=? WHERE id=?",actor,session.kit_version,new Date(Date.now()+15*60000).toISOString(),now(),r.queue_id).run();
   await event(r.id,'prepare','Linked official assessment '+r.queue_id+' in the existing application ticket').run();
   return {content:'The assessment is connected to this same ticket. Both participants must confirm readiness within 15 minutes. Record the agreed kit, arena and recording terms here before playing.',components:[{type:1,components:[action('Confirm readiness','flow:ready:'+r.id,1),action('Test dashboard','flow:status:'+r.id)]}]};
  }

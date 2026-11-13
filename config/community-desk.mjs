@@ -11,6 +11,11 @@ const cdReason = () => cdString('reason', 'Explain your request or decision in 1
 const cdUser = () => ({ type: 6, name: 'user', description: 'Community member' });
 
 export const communityDeskCommands = [
+  {name:'loadout',description:'Versioned community loadouts and documented staff calibration',options:[
+    cdSub('show','Read a staff-approved loadout',[cdMode(),cdString('version','Exact version; omit for latest approved')]),
+    cdSub('approve','Moderator: record a complete, calibrated loadout',[cdMode(),cdString('version','New version, for example mace-2026-11-v1',true),cdString('loadout','Exact version, equipment, enchantments, inventory, arena and reset rules (80–1500 chars)',true),cdString('benchmarks','Consented calibration evidence and benchmark opponents (30–1000 chars)',true),{type:5,name:'calibrated',description:'Confirm real staff calibration has been completed',required:true}]),
+    cdSub('revoke','Moderator: stop using an unsafe or superseded version',[cdMode(),cdString('version','Exact approved version',true),cdReason()]),
+  ]},
   { name: 'desk', description: 'Your community profile, tests, support and next steps' },
   { name: 'queue-board', description: 'Live testing availability and private queue controls', options: [cdMode(), cdRegion(), {type:5,name:'publish',description:'Moderator: publish or recover this board in the current channel'}] },
   { name: 'pull', description: 'Qualified tester: pull the next player into a private room', options: [cdMode(), cdRegion()] },

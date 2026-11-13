@@ -75,19 +75,51 @@ test('tester statistics use UTC month boundaries and exclude revoked results and
 test('retirement requires independent review of the exact placement, retains peak/history and reactivates on a new result',async()=>{
  const {sql,store}=await database();try{
   await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
-  const seed=(id,tier,pos)=>store.statement('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created) VALUES(?,?,?,?,?,?,?,?,?,?)',id,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','EU','mace',tier,pos,'50001','https://example.com/match',new Date().toISOString()).run();
+  const seed=(id,tier,pos)=>store.statement('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created) VALUES(?,?,?,?,?,?,?,?,?,?)',id,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','EU','mace',tier,pos,'50001','https://example.com/match',new Date(Date.now()-36*86400000).toISOString()).run();
   const call=(actor,sub,values={},roles=[])=>runCommand(interaction(actor,'retire',sub,values,roles),env,store);
   await seed('initial',2,1);await call('60000','request',{mode:'mace',reason:'Taking a break from competitive play'});
   const {id}=await store.one('SELECT id FROM retirements');
   await assert.rejects(call('60001','review',{id,decision:'approved',reason:'Reviewed the current placement'}),/moderator/);
   await assert.rejects(call('60000','review',{id,decision:'approved',reason:'Reviewed my current placement'},['40000']),/independent/);
   await call('30000','review',{id,decision:'approved',reason:'Confirmed the player retirement request'});
-  let p=(await store.rankings(config.points)).players[0];assert.equal(p.rankings.mace.retired,true);assert.equal(p.points,0);assert.equal(p.rankings.mace.peak_tier,2);
+  let p=(await store.rankings(config.points)).players[0];assert.equal(p.rankings.mace.retired,true);assert.equal(p.points,20);assert.equal(p.activePoints,0);assert.equal(p.rankings.mace.peak_tier,2);
   await seed('return-result',2,0);p=(await store.rankings(config.points)).players[0];assert.equal(p.rankings.mace.retired,false);assert.equal(p.points,30);
   await call('60000','request',{mode:'mace',reason:'Request retirement for the new placement'});const pending=await store.one("SELECT id FROM retirements WHERE status='pending'");
   await seed('newer',1,1);await assert.rejects(call('30000','review',{id:pending.id,decision:'approved',reason:'A newer result invalidates this request'}),/changed/);
   await call('60000','cancel',{mode:'mace'});
   const history=await runCommand(interaction('60001','player','history',{name:'PlayerOne'}),env,store);assert.match(history.content,/return-result/);assert.doesNotMatch(history.content,/Taking a break/);
+ }finally{sql.close();}
+});
+
+test('Mace loadout approval is explicit, versioned and revocable throughout session, room and assessment checks',async()=>{
+ const {sql,store}=await database();try{
+  const mode='mace_rod',version='rod-2026-v1';
+  const loadout='Java 1.21.1; approved diamond armour and mace with listed enchantments, fishing rod in slot 1; full reset after each first-to-10 round in the agreed arena.';
+  const benchmarks='Consented benchmark players and calibration recording: https://example.com/calibration';
+  const call=(actor,name,sub,values={},roles=[])=>runCommand(interaction(actor,name,sub,values,roles),env,store);
+  const values={mode,version,loadout,benchmarks,calibrated:true};
+  await assert.rejects(call('60000','loadout','approve',values),/moderator/);
+  await assert.rejects(call('30000','loadout','approve',{...values,calibrated:false}),/calibration/);
+  await call('30000','loadout','approve',values);await assert.rejects(call('30000','loadout','approve',values),/new version/);
+  await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001',mode,0,'30000','Supervised mode qualification',new Date().toISOString()).run();
+  const open={mode,region:'EU',kit:version,benchmarks};
+  await assert.rejects(call('50001','session','open',{...open,kit:'missing'},['50000']),/approved/);
+  await call('50001','session','open',open,['50000']);
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  const id=await store.join('60000',mode,'EU');await store.claim(id,'50001');
+  await store.statement('INSERT INTO test_rooms(id,channel,assignment,tester,state,ready_by,player_ready,tester_ready,kit_version,updated) VALUES(?,?,?,?,?,?,?,?,?,?)',id,'81000','assignment','50001','ready-check',new Date(Date.now()+60000).toISOString(),1,1,version,new Date().toISOString()).run();
+  assert.match(await call('50001','assessment','record',{id,scores:'3,3,3,3,3,3',reason:'Complete reviewed recording and calibrated benchmark sets'},['50000']),/saved/);
+  await call('30000','loadout','revoke',{mode,version,reason:'Equipment details need a corrected calibrated version'});
+  assert.equal((await store.one('SELECT status FROM sessions')).status,'paused');
+  await assert.rejects(call('50001','assessment','record',{id,scores:'3,3,3,3,3,3',reason:'Complete reviewed recording and calibrated benchmark sets'},['50000']),/approved session kit/);
+ }finally{sql.close();}
+});
+
+test('retirement enforces 35 days of inactivity before a request can be accepted',async()=>{
+ const {sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  await store.statement('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created) VALUES(?,?,?,?,?,?,?,?,?,?)','recent','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','EU','mace',2,1,'50001','https://example.com/match',new Date().toISOString()).run();
+  await assert.rejects(runCommand(interaction('60000','retire','request',{mode:'mace',reason:'Taking a break from competitive play'}),env,store),/35 days/);
  }finally{sql.close();}
 });
 
@@ -507,6 +539,7 @@ async function database() {
   sql.exec(await readFile(new URL('../drizzle/0005_testing_desk.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0006_connected_tests.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0007_community_desk.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0008_staff_loadouts.sql',import.meta.url),'utf8'));
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({

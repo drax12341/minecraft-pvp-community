@@ -75,7 +75,7 @@ export async function completeInteraction(
   const message = typeof content==='object' && content ? {...content,content:String(content.content).slice(0,1900)} : {content:String(content).slice(0,1900),components:[]};
   await store.finishInteraction(interaction.id, JSON.stringify(message));
   await deliverInteraction(interaction,env,store,request,message);
-  if(['queue','queue-board','session','claim','result','pull','high-test'].includes(interaction.data.name)){
+  if(['queue','queue-board','session','claim','result','pull','high-test','loadout'].includes(interaction.data.name)){
     try{
       const sub=interaction.data.options?.find(o=>o.type===1),opts=sub?.options||interaction.data.options||[];
       const get=name=>opts.find(o=>o.name===name)?.value;
@@ -87,7 +87,7 @@ export async function completeInteraction(
           : mode ? await store.one('SELECT mode,region FROM queue WHERE user=? AND mode=? ORDER BY created DESC,id DESC LIMIT 1',interaction.member.user.id,mode) : null;
         mode=scope?.mode||mode;region=scope?.region||region;
       }
-      if(mode&&region){const result=await refreshCommunityBoards(store,env,request,mode,region);if(result.failed)console.error('Waitlist board refresh failed; members can use Refresh.');}
+      if(mode&&(region||interaction.data.name==='loadout')){const result=await refreshCommunityBoards(store,env,request,mode,region||'');if(result.failed)console.error('Waitlist board refresh failed; members can use Refresh.');}
     }catch{console.error('Waitlist board refresh failed; the command response was delivered.');}
   }
 }
@@ -183,6 +183,7 @@ export default {
           await store.one('SELECT 1 FROM high_tests LIMIT 1');
           await store.one('SELECT 1 FROM retirements LIMIT 1');
           await store.one('SELECT 1 FROM queue_boards LIMIT 1');
+          await store.one('SELECT 1 FROM mode_loadouts LIMIT 1');
           return json({
             ok: true,
             runtime: "cloud-http",

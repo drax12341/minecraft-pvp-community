@@ -34,9 +34,10 @@ scope and validation rather than introducing another approval cycle.
 - Private rooms continue to grant the player and assigned tester explicit access;
   readiness and independent high-tier review remain mandatory.
 - Statistics count real, non-revoked results and use UTC month boundaries.
-- Retiring requires an owner request and an independent moderator decision tied
-  to the exact placement. It retains peak/history and excludes the retired mode
-  from active points. A later valid result reactivates that mode.
+- Retiring requires 35 days of inactivity, an owner request and an independent
+  moderator decision tied to the exact placement. It retains peak/history and
+  earned points, separately reporting active points. A later valid result
+  reactivates that mode.
 - Existing commands stay compatible. New command definitions must fit Discord's
   option ordering, component limits and custom ID length limits.
 - Migrations are additive. Tests exercise the actual SQLite/D1 statements and
@@ -91,8 +92,11 @@ and changes no roles or permissions.
 - `/leaderboard mode`: active placements using the existing paginated roster.
 - `/tester desk|stats|leaderboard`: current assignment and monthly/overall activity.
 - `/retire request|status|cancel|review`: reviewed retirement and voluntary return.
+- `/loadout show|approve|revoke`: immutable, staff-calibrated kit versions for
+  the community's actual Mace modes. Revocation pauses affected sessions and
+  blocks assessment/publication using that version.
 
-Apply migration `0007_community_desk` through the existing Sites publishing flow
+Apply migrations `0007_community_desk` and `0008_staff_loadouts` through the existing Sites publishing flow
 before registering new commands. `npm.cmd run discord:register` registers them
 without starting the legacy gateway. Queue boards refresh after relevant
 interactions, with a manual Refresh fallback; they do not need a polling daemon.
@@ -108,8 +112,15 @@ review records. No Champion staff, accounts or role IDs are imported.
 The panel installer successfully updated nine existing-channel panels: seven
 waitlists, the player entry desk and the staff desk. Previous message payloads
 were snapshotted under ignored `.runtime/community-desk-before-*.json` files.
-The changes add eight integration checks to the original 45-test suite, including
+The changes add ten integration checks to the original 45-test suite, including
 simultaneous admission at the 20-slot cap and refresh after a deferred interaction.
 No sample match, fake placement or live test application was created for QA.
+
+The final audit found that the legacy manifest contained only unrelated pilot
+modes, preventing Mace sessions from opening. The new approval registry allows
+moderators to record the exact version, equipment, arena/reset rules and real
+benchmark calibration. `/session open kit:<version>` and both normal/promotion
+assessments check this approval. No loadout or calibration is invented or approved
+automatically. Staff must perform this real-world step before opening tests.
 
 Official API reference: [Discord interactions](https://github.com/discord/discord-api-docs/blob/main/developers/interactions/receiving-and-responding.mdx).

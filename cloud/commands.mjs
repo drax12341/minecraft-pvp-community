@@ -1,10 +1,10 @@
 import { journeyNames, runJourney, requireQualification, requireReadyRoom } from './journeys.mjs';
-import { kitManifests } from '../config/kit-manifests.mjs';
 import config from "../config/community.json" with { type: "json" };
 import { operationNames, runOperation } from "./operations.mjs";
 import { staffAccess } from "../config/community-roles.mjs";
 import { testingDeskNames, runTestingDesk } from './testing-desk.mjs';
 import { communityDeskNames, runCommunityDesk } from './community-desk.mjs';
+import { approvedCommunityLoadout } from './loadouts.mjs';
 
 const regions = ["EU", "NA", "AS", "SA", "AU", "AF", "ME", "OC"];
 export async function runCommand(interaction, env, store, request = fetch) {
@@ -266,7 +266,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
         sub?.name
       ];
       if(status==='open'){
-        if(!kitManifests.modes.some(m=>m.id===mode())||get('kit')!==kitManifests.version)throw Error('This mode needs a complete kit manifest. Review /standards.html and explicitly approve the current version in the kit option; keep other modes closed.');
+        if(!await approvedCommunityLoadout(store,mode(),get('kit')))throw Error('This mode needs an approved loadout version. Moderators record real calibration with /loadout approve; use that exact version in the kit option.');
         store.reason(get('benchmarks'));
       }
       await store.session(

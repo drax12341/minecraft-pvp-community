@@ -87,6 +87,30 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
   };
   const staffOnly = () => { if (!tester) throw Error('Only testers and moderators can open the staff workspace.'); };
   switch (i.data.name) {
+    case 'loadout': {
+      const m=mode(),version=get('version');
+      if(version&&!/^[a-z0-9][a-z0-9.-]{2,49}$/.test(version))throw Error('Use a version of 3–50 lowercase letters, numbers, dots or hyphens.');
+      if(sub?.name==='show'){
+        const row=version?await store.one('SELECT * FROM mode_loadouts WHERE mode=? AND version=?',m,version):await store.one('SELECT * FROM mode_loadouts WHERE mode=? AND revoked=0 ORDER BY created DESC,version DESC LIMIT 1',m);
+        if(!row)return communityMessage('No staff-approved loadout recorded. Moderators must complete real calibration, then /loadout approve before opening official sessions.');
+        return {...communityMessage(`**${communityMode(m).name} · ${row.version} · ${row.revoked?'Revoked':'Staff approved'}**`),embeds:[{title:'Recorded loadout and calibration',color:row.revoked?0xe4737d:0x58c89b,fields:[{name:'Exact loadout',value:row.loadout.slice(0,1000)},...(row.loadout.length>1000?[{name:'Loadout continued',value:row.loadout.slice(1000)}]:[]),{name:'Calibration record',value:row.benchmarks}],footer:{text:'Approved by '+row.approver+' · '+row.created}}]};
+      }
+      if(!mod)throw Error('Only moderators can approve or revoke calibrated loadouts.');
+      if(!version)throw Error('Choose an exact loadout version.');
+      if(sub?.name==='approve'){
+        const loadout=get('loadout'),benchmarks=get('benchmarks');
+        if(get('calibrated')!==true)throw Error('Complete real staff calibration before approving a loadout.');
+        if(typeof loadout!=='string'||loadout.trim().length<80||loadout.length>1500||typeof benchmarks!=='string'||benchmarks.trim().length<30||benchmarks.length>1000)throw Error('Provide the full loadout (80–1500 characters) and calibration evidence/opponents (30–1000 characters).');
+        const result=await store.db.batch([store.statement('INSERT OR IGNORE INTO mode_loadouts(mode,version,loadout,benchmarks,approver,created) VALUES(?,?,?,?,?,?)',m,version,loadout.trim(),benchmarks.trim(),actor,now()),store.audit(actor,'loadout-approve',m+'/'+version)]);
+        if(!result[0].meta.changes)throw Error('This version is immutable. Record a new version instead of replacing an existing approval.');
+        return communityMessage(`Staff approval recorded: ${communityMode(m).name} / ${version}. Qualified testers can now open /session with this kit version and their session benchmark record. Approval records the moderator’s real calibration decision; it does not create a player placement.`);
+      }
+      if(sub?.name!=='revoke')throw Error('Choose show, approve or revoke.');
+      const reason=explanation();
+      const result=await store.db.batch([store.statement('UPDATE mode_loadouts SET revoked=1 WHERE mode=? AND version=? AND revoked=0',m,version),store.statement("UPDATE sessions SET status='paused' WHERE mode=? AND kit_version=? AND EXISTS(SELECT 1 FROM mode_loadouts WHERE mode=? AND version=? AND revoked=1)",m,version,m,version),store.audit(actor,'loadout-revoke',m+'/'+version+': '+reason)]);
+      if(!result[0].meta.changes)throw Error('No active approval exists for that version.');
+      return communityMessage('Loadout revoked and its sessions paused. Existing rooms and records remain; readiness and publication require a valid approved version.');
+    }
     case 'desk': {
       const account = await store.one('SELECT name FROM accounts WHERE discord=?', actor);
       const entries = await store.one("SELECT count(*) n FROM queue WHERE user=? AND status IN ('waiting','claimed')", actor);
@@ -157,7 +181,7 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
         return communityMessage(`**${player?.name || account.name} · Placement history**\n` + (rows.map(r => `**${communityRank(r)} ${communityMode(r.mode).name}** · <t:${Math.floor(Date.parse(r.created)/1000)}:d>\n${r.id} · [Match evidence](${r.evidence})`).join('\n\n') || 'No published results yet.') + '\n\nLast 10 valid results. Revoked placements and private appeal notes are excluded.');
       }
       if (!player) return communityMessage(account ? `**${account.name}** · Verified, unranked\nRequest your first evaluation from /desk.` : 'No published placement found. Verify ownership through the private support panel in /desk.');
-      return communityMessage(`**${player.name} · ${player.region} · ${player.points} active points**\n` + Object.entries(player.rankings).map(([m,r]) => `${communityMode(m).name}: **${communityRank(r)}${r.retired ? ' · Retired' : ''}** · peak ${communityRank({tier:r.peak_tier,pos:r.peak_pos})}`).join('\n'), [communityRow({ type: 2, style: 5, label: 'Open player profile', url: communityURL + '/#rankings?player=' + encodeURIComponent(player.uuid) })]);
+      return communityMessage(`**${player.name} · ${player.region} · ${player.points} earned points**\n` + Object.entries(player.rankings).map(([m,r]) => `${communityMode(m).name}: **${communityRank(r)}${r.retired ? ' · Retired' : ''}** · peak ${communityRank({tier:r.peak_tier,pos:r.peak_pos})}`).join('\n'), [communityRow({ type: 2, style: 5, label: 'Open player profile', url: communityURL + '/#rankings?player=' + encodeURIComponent(player.uuid) })]);
     }
     case 'tester': {
       if (sub?.name === 'desk') {
@@ -188,6 +212,9 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
         if (!account) throw Error('Verify account ownership before requesting retirement.');
         const placement = await store.one('SELECT * FROM results r WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1', account.uuid, m);
         if (!placement || config.points[communityRank(placement)] < config.points.LT2) throw Error('Retirement requires a current LT2-or-higher placement.');
+        const lastTest=await store.one('SELECT max(created) stamp FROM results WHERE uuid=?',account.uuid);
+        const recentHigh=await store.one("SELECT 1 FROM high_tests WHERE user=? AND status IN ('passed','failed') AND updated>?",actor,new Date(Date.now()-35*86400000).toISOString());
+        if(Date.parse(lastTest.stamp)>Date.now()-35*86400000||recentHigh)throw Error('Retirement requires 35 days of inactivity since your last tier test under the community policy.');
         const active = await store.one("SELECT 1 FROM queue WHERE user=? AND mode=? AND status IN ('waiting','claimed')", actor, m);
         if (active) throw Error('Finish or leave your active evaluation before requesting retirement.');
         const id = crypto.randomUUID(), stamp = now();
@@ -221,7 +248,9 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
       const result = await store.db.batch([
         store.statement(`UPDATE retirements SET status=?,reviewer=?,decision=?,updated=? WHERE id=? AND status='pending' AND user<>?
           AND result_id=(SELECT id FROM results r WHERE r.uuid=retirements.uuid AND r.mode=retirements.mode AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1)
-          AND NOT EXISTS(SELECT 1 FROM queue q WHERE q.user=retirements.user AND q.mode=retirements.mode AND q.status IN ('waiting','claimed'))`, decision, actor, reason, now(), row.id, actor),
+          AND NOT EXISTS(SELECT 1 FROM queue q WHERE q.user=retirements.user AND q.mode=retirements.mode AND q.status IN ('waiting','claimed'))
+          AND NOT EXISTS(SELECT 1 FROM results r WHERE r.uuid=retirements.uuid AND r.created>?)
+          AND NOT EXISTS(SELECT 1 FROM high_tests h WHERE h.user=retirements.user AND h.status IN ('passed','failed') AND h.updated>?)`, decision, actor, reason, now(), row.id, actor,new Date(Date.now()-35*86400000).toISOString(),new Date(Date.now()-35*86400000).toISOString()),
         store.audit(actor, 'retirement-review', row.id),
       ]);
       if (!result[0].meta.changes) throw Error('The placement or queue changed, or this request was already reviewed. Recheck before deciding.');
