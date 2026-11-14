@@ -260,12 +260,12 @@ if (!process.argv.includes("--apply")) {
         new ButtonBuilder()
           .setLabel("Rankings")
           .setStyle(ButtonStyle.Link)
-          .setURL("https://drax12341.github.io/minecraft-pvp-community/"),
+          .setURL("https://minecraft-pvp-community.draxion0.chatgpt.site/"),
         new ButtonBuilder()
           .setLabel("Testing center")
           .setStyle(ButtonStyle.Link)
           .setURL(
-            "https://drax12341.github.io/minecraft-pvp-community/#testing",
+            "https://minecraft-pvp-community.draxion0.chatgpt.site/#testing",
           ),
       );
       await channel.send({

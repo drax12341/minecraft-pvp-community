@@ -115,7 +115,7 @@ const panels={
  suggestions:["Make a useful suggestion","**Problem:** what is difficult now?\n**Proposal:** what should change?\n**Benefit:** who would it help?\n**Trade-offs:** what might it cost or complicate?\n\nDo not include private reports or accusations. Suggestions do not guarantee implementation.",[]],
  "player-resources":["Your player toolkit","/guide for the basics · /rubric for assessment criteria · /availability for real sessions · /request-test for official queues · /practice for sparring partners · /profile for earned placements · /ticket for private help.\n\nNever install an untrusted file for testing. Our public website and official experimental mod release are linked below; no external rank providers are connected.",[]],
 };
-const page="https://drax12341.github.io/minecraft-pvp-community/";
+const page="https://minecraft-pvp-community.draxion0.chatgpt.site/";
 async function publish(name,title,description,buttons=[],suffix="main"){
  const c=channelName(name);if(!c){report.blocked.push(name+": missing");return;}
  const marker=`Minecraft PvP Tierlist · community-v4 · ${name} · ${suffix}`;

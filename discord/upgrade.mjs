@@ -53,7 +53,7 @@ const effective = (c) => {
   const own = all.find((o) => o.id === me.id && o.type === 1);
   return own ? (p & ~BigInt(own.deny)) | BigInt(own.allow) : p;
 };
-const page = "https://drax12341.github.io/minecraft-pvp-community/";
+const page = "https://minecraft-pvp-community.draxion0.chatgpt.site/";
 const topics = {
   welcome:
     "One independent tierlist. Cloud commands work with the owner PC off. Start in #help: /guide start → /preferences → ownership check → /availability → /queue join. Sessions open only after staff and kit rubrics are ready.",
