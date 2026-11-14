@@ -1,3 +1,4 @@
+import {lookupMinecraftAccount} from './minecraft-lookup.mjs';
 const utf8 = new TextEncoder();
 export async function tokenHash(value) {
   return Array.from(
@@ -12,6 +13,7 @@ export async function beginVerification(
   request = fetch,
   method = "online-server",
 ) {
+  name=typeof name==='string'?name.trim():name;
   if (!["online-server", "skin"].includes(method))
     throw Error("Invalid verification method.");
   if (!/^\w{3,16}$/.test(name || ""))
@@ -26,37 +28,8 @@ export async function beginVerification(
   );
   if (recent && Date.now() - Date.parse(recent.created) < 60000)
     throw Error("Wait one minute before replacing your challenge.");
-  let profile = null;
-  const signal = AbortSignal.timeout(10000);
-  for (const base of [
-    "https://api.mojang.com/users/profiles/minecraft/",
-    "https://api.minecraftservices.com/minecraft/profile/lookup/name/",
-  ]) {
-    try {
-      const response = await request(base + encodeURIComponent(name), {
-        headers: { Accept: "application/json" },
-        redirect: "error",
-        signal,
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
-        continue;
-      }
-      const candidate = await response.json();
-      if (
-        /^[a-f0-9]{32}$/i.test(candidate.id || "") &&
-        /^\w{3,16}$/.test(candidate.name || "") &&
-        candidate.name.toLowerCase() === name.toLowerCase()
-      ) {
-        profile = candidate;
-        break;
-      }
-    } catch {}
-  }
-  if (!profile)
-    throw Error(
-      "Minecraft could not confirm this Java username. Check the spelling and try again in a moment.",
-    );
+  const lookup=await lookupMinecraftAccount(name,request),profile=lookup.profile;
+  if(!profile){console.warn('Minecraft identity lookup failed',JSON.stringify(lookup.attempts));throw Error(lookup.reason==='not-found'?'No Minecraft Java account was found with the name '+name+'. Enter your in-game Java username.':'Minecraft’s account lookup service is not responding correctly. Your account has not been changed. Try verification again shortly.');}
   const uuid = profile.id
     .toLowerCase()
     .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5");

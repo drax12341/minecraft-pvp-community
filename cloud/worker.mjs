@@ -15,6 +15,7 @@ import {websiteApi} from './website-api.mjs';
 import {websiteAuth} from './website-auth.mjs';
 import {websiteShell,websiteDiscovery} from './website-shell.mjs';
 import {verificationDownload} from './skin-verification.mjs';
+import {minecraftVerificationHealth} from './minecraft-lookup.mjs';
 
 async function privateServiceAuth(request, secret) {
   if(typeof secret!=='string'||secret.length<32)return false;
@@ -138,6 +139,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const discovery=websiteDiscovery(url);if(discovery)return discovery;
+    if(url.pathname==='/api/internal/verification-health'){if(request.method!=='GET')return json({error:'Method not allowed'},405);if(!await privateServiceAuth(request,env.DISCORD_TOKEN))return json({error:'Unauthorized'},401);const name=url.searchParams.get('name')||'Notch';if(!/^[A-Za-z0-9_]{3,16}$/.test(name))return json({error:'Enter a Java username'},422);return json(await minecraftVerificationHealth(name));}
     if(url.pathname.startsWith('/verify/skin/')){if(!['GET','HEAD'].includes(request.method))return json({error:'Method not allowed'},405);if(!env.DB)return json({error:'Storage unavailable'},503);try{return await verificationDownload(request,new CloudStore(env.DB.withSession?.('first-primary')||env.DB));}catch{return json({error:'Verification skin unavailable. Please retry.'},503);}}
     if(url.pathname.startsWith('/api/v1/')||url.pathname.startsWith('/auth/discord/')){
       if(!env.DB)return json({error:'Storage unavailable'},503);
