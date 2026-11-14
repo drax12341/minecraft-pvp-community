@@ -311,7 +311,7 @@ async function skinCandidateMatches(challenge, candidate, provider) {
       return true;
     url.protocol = "https:";
     const image = await provider(url.href, {
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(4500),
     });
     if (

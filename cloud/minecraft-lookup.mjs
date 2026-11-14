@@ -104,7 +104,7 @@ export async function lookupMinecraftAccount(input, provider = fetch) {
       try {
         const r = await provider(url + encodeURIComponent(name), {
           headers: minecraftRequestHeaders,
-          redirect: "error",
+          redirect: "manual",
           signal: AbortSignal.timeout(4500),
         });
         if (!r.ok) {

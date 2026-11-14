@@ -12,6 +12,7 @@ const fixture = JSON.parse(
     "utf8",
   ),
 );
+test('profile fallback is compatible with Workers, which rejects redirect error before sending requests',async()=>{const candidates=await minecraftProfileCandidates(fixture.id,async(url,init)=>{if(init.redirect==='error')throw new TypeError('Workers does not support redirect error');return url.includes('sessionserver')?new Response('Forbidden',{status:403}):url.includes('minetools')?Response.json({raw:fixture}):new Response('Unavailable',{status:503});});assert.equal(candidates.length,1);assert.equal(candidates[0].signatureVerified,true);});
 test("real Mojang texture signatures verify against official public trust anchors", async () => {
   const property = fixture.properties.find((p) => p.name === "textures");
   const data = await verifyMojangTextureProperty(property, fixture.id);

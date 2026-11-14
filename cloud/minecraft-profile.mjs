@@ -51,7 +51,7 @@ export async function minecraftProfileCandidates(uuid, provider = fetch) {
         "?unsigned=false",
       {
         headers: profileHeaders,
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(4500),
       },
     );
@@ -72,7 +72,7 @@ export async function minecraftProfileCandidates(uuid, provider = fetch) {
       try {
         const r = await provider(url, {
           headers: profileHeaders,
-          redirect: "error",
+          redirect: "manual",
           signal: AbortSignal.timeout(4500),
         });
         if (!r.ok) {
