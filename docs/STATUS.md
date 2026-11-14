@@ -1,19 +1,26 @@
 ﻿# Delivery status · v0.2
 
-Latest website update (13 November 2026): the public frontend targets
+Latest website update (14 November 2026): the public frontend targets
 [GitHub Pages](https://drax12341.github.io/minecraft-pvp-community/), with a
-new Eclipse-inspired centered homepage, floating navigation, scene controls,
-interactive ranking/queue showcase, testing walkthrough and FAQ. A single
-stylesheet replaces six unused design layers. Live Discord and data feeds keep
-their existing cloud backend. See [the redesign contract](ECLIPSE-GITHUB-REDESIGN.md).
-All 69 automated tests and the static Pages build pass. Browser visual QA
-remains unavailable.
+Champion screenshot inspired control room in charcoal, gold and ice blue.
+The wide hero, original Minecraft challenger artwork, layered stats, substantial
+TierTagger preview, player index, live queues and evidence panels replace the
+rejected centered orbital homepage. Search, sorting, saved filters, pagination,
+table/card views, comparisons, shareable views, CSV downloads, tag controls,
+private command preparation and real-data charts are interactive.
+Public tester activity uses the existing public testing-desk feed.
+See [the design and behavior contract](CHAMPION-CONTROL-ROOM.md).
+All 77 automated tests and the static Pages build pass; 15 routes render with
+no missing local assets, duplicate IDs or script/CSS parse errors in jsdom.
+Browser visual QA remains unavailable.
 
 Earlier additive Discord upgrade: see [DISCORD-UPGRADE-STATUS.md](DISCORD-UPGRADE-STATUS.md) and [DISCORD-RESEARCH.md](DISCORD-RESEARCH.md). Sites version 8 adds cloud `/guide`, `/availability` and private `/queue status`; all nine commands registered, 15 tests passing. Older verification below describes the previous delivery checkpoint.
 
 ## Implemented
 
-- Eclipse-inspired homepage: orbital identity, floating violet navigation, background controls, feature grid, interactive walkthrough and FAQ. Existing rankings and testing routes remain available.
+- Champion-inspired control room: wide competition hero, original artwork,
+  live player/queue tools, detailed mod panel, analytics, testing guide and FAQ.
+  Existing rankings and testing workflows remain available.
 
 - One independent tierlist: external imports, provider switcher and community directory removed.
 - New five-tier board, original shaded pixel kit artwork, overall leaderboard, search/regions, profiles, comparisons, cards and explicit sample preview.

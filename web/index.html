@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#0b0a10" />
+    <meta name="theme-color" content="#090e15" />
     <meta
       name="description"
-      content="Seven Mace disciplines. One earned rank. Community rankings, live testing queues and tools for your next placement."
+      content="Mace Tierlist: the Minecraft PvP control room. Live rankings, testing queues, match evidence, community analytics and TierTagger."
     />
-    <meta name="community-site-build" content="eclipse-v10" />
+    <meta name="community-site-build" content="champion-v11" />
     <title>Mace Tierlist · Minecraft PvP Community</title>
     <meta
       property="og:title"
@@ -16,7 +16,7 @@
     />
     <meta
       property="og:description"
-      content="Seven disciplines. One earned rank. Find your place in the Minecraft PvP community."
+      content="Every placement. Every queue. Your Minecraft PvP community in one live control room."
     />
     <meta property="og:type" content="website" />
     <meta
@@ -27,16 +27,17 @@
       rel="canonical"
       href="https://drax12341.github.io/minecraft-pvp-community/"
     />
-    <link rel="icon" href="./assets/community-emblem.svg" />
+    <link rel="icon" href="./assets/control-room-mark.svg" />
     <link rel="apple-touch-icon" href="./brand/discord-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650;700;750;800;900&family=Orbitron:wght@600;700;800;900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;650;700;750;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./site.css?v=eclipse-v10" />
-    <script type="module" src="./tierlist.js?v=eclipse-v10"></script>
+    <link rel="stylesheet" href="./site.css?v=champion-v11" />
+    <link rel="stylesheet" href="./control-room.css?v=champion-v11" />
+    <script type="module" src="./tierlist.js?v=champion-v11"></script>
   </head>
   <body>
     <noscript
@@ -52,32 +53,29 @@
     <header class="topbar">
       <a href="#home" class="brand" aria-label="Mace Tierlist home"
         ><img
-          src="./assets/community-emblem.svg"
-          width="34"
-          height="34"
+          src="./assets/control-room-mark.svg"
+          width="42"
+          height="42"
           alt=""
-        /><span
-          ><strong class="brand-wordmark">MACE</strong
-          ><small>TIERLIST</small></span
-        ></a
+        /><span>Mace Tierlist<small>Minecraft PvP Community</small></span></a
       >
       <aside class="league-rail" id="league-rail">
         <nav aria-label="Main navigation">
-          <a href="#home?section=features">Features</a
-          ><a href="#rankings">Rankings</a><a href="#test-desk">Testing</a>
+          <a href="#home">Control room</a><a href="#rankings">Rankings</a
+          ><a href="#home?section=tagger">TierTagger</a
+          ><a href="#testing">Queues</a><a href="#insights">Analytics</a>
           <details class="resource-menu">
-            <summary>Explore <span aria-hidden="true">⌄</span></summary>
+            <summary>More <span aria-hidden="true">⌄</span></summary>
             <nav aria-label="Community resources">
-              <a href="#testing">Live queues</a
-              ><a href="#results">Match results</a
+              <a href="#test-desk">Testing desk</a
+              ><a href="#results">Match evidence</a
               ><a href="#high-tiers">High-tier roster</a
               ><a href="#watchlist">Saved players</a
-              ><a href="#insights">Tier insights</a
               ><a href="#planner">Tier explorer</a
-              ><a href="#tagger">Minecraft tagger</a
+              ><a href="#tagger">Tagger configuration</a
               ><a href="#kits">Kits & rules</a
               ><a href="#commands">Command library</a
-              ><a href="#community">Community</a
+              ><a href="#community">Practice & community</a
               ><a href="#about">Rules & privacy</a>
             </nav>
           </details>
@@ -100,7 +98,24 @@
           >
             <circle cx="10.5" cy="10.5" r="6.5" />
             <path d="m16 16 5 5" /></svg
-          ><kbd>Ctrl K</kbd></button
+          ><span>Quick search</span><kbd>Ctrl K</kbd></button
+        ><button
+          id="header-refresh"
+          class="cr-icon-button"
+          aria-label="Refresh community data"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M20 10a8 8 0 1 0-2 8M20 3v7h-7" />
+          </svg></button
         ><button
           id="motion-toggle"
           class="motion-toggle"
@@ -109,11 +124,22 @@
         >
           Motion on</button
         ><a
-          class="button discord"
+          class="cr-discord-button"
           href="https://discord.gg/a36rg6BxuX"
           target="_blank"
           rel="noopener"
-          >Join Discord <span aria-hidden="true">↗</span></a
+          ><svg
+            width="19"
+            height="16"
+            viewBox="0 0 24 20"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              d="M20 2a19 19 0 0 0-5-1l-.6 1.3a17 17 0 0 0-5 0L8.8 1a20 20 0 0 0-5 1C.7 6.6-.2 11.1.2 15.5A20 20 0 0 0 6.4 19l1.2-2a13 13 0 0 1-2-1l.5-.4a16 16 0 0 0 11.8 0l.5.4a14 14 0 0 1-2 1l1.2 2a20 20 0 0 0 6.2-3.5C24.4 10.3 22.9 5.9 20 2ZM8.3 13.4c-1.2 0-2.1-1.1-2.1-2.4s.9-2.4 2.1-2.4 2.1 1.1 2.1 2.4-.9 2.4-2.1 2.4Zm7.4 0c-1.2 0-2.1-1.1-2.1-2.4s.9-2.4 2.1-2.4 2.1 1.1 2.1 2.4-.9 2.4-2.1 2.4Z"
+            />
+          </svg>
+          Discord</a
         ><button
           id="mobile-navigation"
           class="mobile-navigation"
@@ -127,7 +153,7 @@
     </header>
     <div class="site-shell">
       <main id="main" tabindex="-1">
-        <div class="loading">Loading the tierlist…</div>
+        <div class="loading">Connecting to the community…</div>
       </main>
     </div>
     <div
@@ -140,28 +166,47 @@
       <div class="footer-top">
         <a href="#home" class="brand-footer"
           ><img
-            src="./assets/community-emblem.svg"
-            width="30"
-            height="30"
+            src="./assets/control-room-mark.svg"
+            width="40"
+            height="40"
             alt=""
-          />
-          Mace Tierlist</a
+          /><span
+            >Mace Tierlist<small>Built around the next good fight.</small></span
+          ></a
         >
-        <p>Earn your place. Keep improving.</p>
-        <nav aria-label="Footer">
-          <a href="#about">Rules & privacy</a><a href="#sponsors">Support us</a
-          ><a
+        <nav aria-label="Player resources">
+          <strong>For players</strong><a href="#rankings">Rankings</a
+          ><a href="#testing">Find a test</a
+          ><a href="#tagger">Minecraft TierTagger</a
+          ><a href="#watchlist">Saved players</a>
+        </nav>
+        <nav aria-label="Community resources">
+          <strong>The community</strong
+          ><a href="#community">Practice & coaching</a
+          ><a href="#commands">Command library</a
+          ><a href="#about">Rules & privacy</a
+          ><a href="#sponsors">Support the community</a>
+        </nav>
+        <div class="footer-source">
+          <strong>Made for this community.</strong>
+          <p>
+            Seven disciplines. Independent results. A place on the board that
+            means something.
+          </p>
+          <a
             href="https://github.com/drax12341/minecraft-pvp-community"
             target="_blank"
             rel="noopener"
-            >GitHub ↗</a
+            >Source on GitHub ↗</a
+          ><span
+            ><kbd>Ctrl K</kbd> quick search · <kbd>/</kbd> find a player</span
           >
-        </nav>
+        </div>
       </div>
-      <div class="footer-wordmark" aria-hidden="true">MACE</div>
       <div class="footer-bottom">
-        <span>A community made for Minecraft PvP.</span
-        ><span>Not affiliated with Mojang or Microsoft.</span>
+        <span>Minecraft PvP Community · Hosted on GitHub Pages</span
+        ><span>Not affiliated with Mojang or Microsoft.</span
+        ><a href="#home">Back to the control room ↑</a>
       </div>
     </footer>
     <dialog id="modal" aria-labelledby="modal-title">

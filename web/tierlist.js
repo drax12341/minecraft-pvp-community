@@ -1,5 +1,6 @@
-import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=eclipse-v10';
-import {renderLeagueHome,mountLeagueShell,renderLeagueWatchlist,renderLeagueInsights,renderLeaguePlanner} from './league.js?v=eclipse-v10';
+import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=champion-v11';
+import {mountLeagueShell,renderLeagueWatchlist,renderLeagueInsights,renderLeaguePlanner} from './league.js?v=champion-v11';
+import {renderControlRoomHome} from './control-room.js?v=champion-v11';
 const main = document.querySelector("main"),
   modal = document.querySelector("dialog"),
   body = document.querySelector("#modal-body");
@@ -197,7 +198,14 @@ function render() {
 function arenaHub() {
   return '<section class="arena-hub" aria-label="Community player hub"><div class="hub-identity"><img src="./mark.svg" alt="Community shield" width="68" height="68"><div><h2>Your community. In sync.</h2><p>Practice in Minecraft, request a test in Discord, follow your placements here.</p></div></div><div class="hub-destinations"><article><h3>Join the arena</h3><p>Java · Paper 1.21.11 · Europe</p><button class="server-copy" data-command="mcpvpcommunity.minekeep.gg" aria-label="Copy Minecraft server address">mcpvpcommunity.minekeep.gg <span>Copy</span></button><small>Practice setup in progress. The free host may sleep when empty.</small><details><summary>In-game commands</summary><p><code>/arena</code> Practice lobby<br><code>/play</code> Kit matchmaking<br><code>/duel player kit</code> Private challenge<br><code>/ffa</code> Sword free-for-all<br><code>/settings</code> Personal settings</p></details></article><article><h3>Request your test</h3><p>Choose a mode and region. Your verified account, cooldown and actual session capacity are checked.</p><a class="button secondary" href="https://discord.com/channels/1568767259168608267/1569347570214506607" target="_blank" rel="noopener">Open testing desk</a><small>Waiting does not guarantee a session or tier.</small></article><article><h3>Talk to the team</h3><p>Choose a category and fill out a short form. Support staff are notified inside your private ticket.</p><a class="button secondary" href="https://discord.com/channels/1568767259168608267/1569347634395746364" target="_blank" rel="noopener">Open a support ticket</a><small>Account help, player reports and confidential staff reports.</small></article></div></section>';
 }
-function home(){renderLeagueHome({main,config,data,testing,profile,openMode:id=>{mode=id;modeGroup=kit(id).group==='Main modes'?'main':'sub';preview=false;view='board';location.hash='rankings';}});}
+function home(){
+ renderControlRoomHome({main,config,data,testing,saved:savedPlayers,selected,profile,copy:copyText,download,
+  openMode:id=>{mode=id;modeGroup=kit(id).group==='Main modes'?'main':'sub';preview=false;view='board';location.hash='rankings';},
+  onSave:id=>{savedPlayers.has(id)?savedPlayers.delete(id):savedPlayers.add(id);writePreference('savedPlayers',[...savedPlayers]);},
+  onCompare:id=>{if(!selected.has(id)&&selected.size>=2){toast('Choose two players to compare.');return;}selected.has(id)?selected.delete(id):selected.add(id);compareDock();}
+ });
+ compareDock();
+}
 function rankings() {
   const visibleModes = config.modes.filter(
     (m) =>
@@ -619,7 +627,7 @@ function compareDock() {
   if (!selected.size) return;
   const el = document.createElement("div");
   el.className = "compare-dock";
-  const comparisonSource=document.body.dataset.page==='watchlist'?data.players:source();
+  const comparisonSource=document.body.dataset.page==='rankings'?source():data.players;
   const ps = [...selected]
     .map((id) => comparisonSource.find((p) => p.uuid === id))
     .filter(Boolean);
@@ -627,7 +635,7 @@ function compareDock() {
   document.body.append(el);
   el.querySelector("#clear-compare").onclick = () => {
     selected.clear();
-    if(document.body.dataset.page==='watchlist')render();else renderBoard();
+    if(document.body.dataset.page==='rankings')renderBoard();else render();
   };
   el.querySelector("#compare").onclick = () =>
     show(
@@ -1055,6 +1063,7 @@ try {
 }
 
 mountLeagueShell({browseModes:()=>{if(config)browseModes();},onMotionToggle:()=>{writePreference('calm',!readPreference('calm',false));decoratePage();}});
+document.querySelector('#header-refresh').onclick=()=>refreshPublicData(true);
 
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
@@ -1118,6 +1127,8 @@ function commandRow(command, description) {
   );
 }
 function decoratePage() {
+  const refresh=document.querySelector('#header-refresh');
+  if(refresh){refresh.disabled=refreshBusy;refresh.classList.toggle('refreshing',refreshBusy);}
   document.body.classList.toggle("calm-view", readPreference("calm", false));
   const motion=document.querySelector('#motion-toggle');
   if(motion){motion.setAttribute('aria-pressed',String(readPreference('calm',false)));motion.textContent=readPreference('calm',false)?'Motion reduced':'Motion on';}

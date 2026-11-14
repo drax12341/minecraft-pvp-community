@@ -20,6 +20,7 @@ async function website(
   route = "rankings",
   recent = [],
   host = 'example.com',
+  testerActivity = [],
 ) {
   const dom = new JSDOM(await readFile("web/index.html", "utf8"), {
       url: `https://${host}/${host==='drax12341.github.io'?'minecraft-pvp-community/':''}` + (route ? "#" + route : ""),
@@ -31,7 +32,7 @@ async function website(
     ok: true,
     json: async () =>
       url.endsWith('testing-desk.json')||url.endsWith('/api/testing-desk')
-        ? {paths:deskPaths,tiers:deskTiers,commands:[...testingDeskCommands,...communityDeskCommands],demand:[],leaderboard:[]}
+        ? {paths:deskPaths,tiers:deskTiers,commands:[...testingDeskCommands,...communityDeskCommands],demand:[],leaderboard:testerActivity}
         : url.endsWith("community.json")
         ? config
         : url.endsWith("testing.json")
@@ -47,15 +48,15 @@ async function website(
   };
   const deskSource=(await readFile('web/testing-desk.js','utf8')).replaceAll('export function','function').replaceAll('export async function','async function');
   const leagueSource=(await readFile('web/league.js','utf8')).replaceAll('export function','function');
+  const controlSource=(await readFile('web/control-room.js','utf8')).replaceAll('export function','function');
   const appSource=(await readFile('web/tierlist.js','utf8')).replace(/^import .*\r?\n/gm,'');
-  await w.eval(`(async()=>{${deskSource}\n${leagueSource}\n${appSource}\n})()`);
+  await w.eval(`(async()=>{${deskSource}\n${leagueSource}\n${controlSource}\n${appSource}\n})()`);
   return dom;
 }
 
 test('home showcase filters real queue occupancy by region without inventing players',async()=>{
  const dom=await website([],[{mode:'mace',region:'EU',status:'open',capacity:20,waiting:3,claimed:1},{mode:'mace_rod',region:'NA',status:'paused',capacity:20,waiting:2,claimed:0}],'home'),w=dom.window,d=w.document;
- assert.ok(d.querySelector('.emblem-orbit img'));assert.equal(d.querySelectorAll('[data-home-player]').length,0);
- d.querySelector('[data-showcase="queues"]').click();assert.equal(d.querySelector('#showcase-queues').hidden,false);
+ assert.ok(d.querySelector('.cr-challenger'));assert.equal(d.querySelectorAll('#home-player-index [data-cr-profile]').length,0);
  d.querySelector('#home-region').value='NA';d.querySelector('#home-region').dispatchEvent(new w.Event('change'));
  assert.equal(d.querySelectorAll('#home-queues [data-queue-region]').length,1);assert.match(d.querySelector('#home-queues').textContent,/Rod Mace/);assert.match(d.querySelector('#home-queues').textContent,/2\/20/);
  assert.doesNotMatch(d.querySelector('#home-queues').textContent,/4\/20/);
@@ -67,6 +68,41 @@ test('universal finder searches real players and opens their existing profile',a
  d.querySelector('#global-kit-search').click();const input=d.querySelector('#kit-search');input.value='TestPlayer';input.dispatchEvent(new w.Event('input'));
  assert.equal(d.querySelectorAll('[data-search-player]').length,1);d.querySelector('[data-search-player]').click();
  assert.match(d.querySelector('#modal-body').textContent,/TestPlayer/);assert.ok(d.querySelector('#save-player'));dom.window.close();
+});
+
+test('control room combines search, region and saved filters, resets pagination and retains scope across navigation',async()=>{
+ const players=Array.from({length:16},(_,n)=>({...player,uuid:'person-'+n,name:'Player'+String(n).padStart(2,'0'),region:n%2?'NA':'EU'}));
+ const dom=await website(players,[],'home'),w=dom.window,d=w.document;
+ assert.equal(d.querySelectorAll('.cr-ranking-table tbody tr').length,10);d.querySelector('#index-next').click();assert.equal(d.querySelectorAll('.cr-ranking-table tbody tr').length,6);
+ d.querySelector('#home-player-region').value='NA';d.querySelector('#home-player-region').dispatchEvent(new w.Event('change'));assert.equal(d.querySelector('#index-page').textContent,'1 / 1');assert.equal(d.querySelectorAll('.cr-ranking-table tbody tr').length,8);
+ d.querySelector('#home-player-search').value='Player03';d.querySelector('#home-player-search').dispatchEvent(new w.Event('input'));assert.equal(d.querySelectorAll('.cr-ranking-table tbody tr').length,1);
+ d.querySelector('[data-cr-save="person-3"]').click();assert.equal(d.querySelector('[data-cr-save="person-3"]').getAttribute('aria-pressed'),'true');assert.ok(JSON.parse(w.localStorage.getItem('pvp:savedPlayers')).includes('person-3'));
+ d.querySelector('#home-saved-only').click();assert.equal(d.querySelector('#index-count').textContent,'1');
+ w.location.hash='kits';await new Promise(r=>w.setTimeout(r,10));w.location.hash='home';await new Promise(r=>w.setTimeout(r,10));assert.equal(d.querySelector('#home-player-search').value,'Player03');assert.equal(d.querySelector('#home-player-region').value,'NA');assert.equal(d.querySelector('#home-saved-only').getAttribute('aria-pressed'),'true');dom.window.close();
+});
+
+test('home comparison uses real players and clearing it works outside the full rankings page',async()=>{
+ const dom=await website([player,{...player,uuid:'other',name:'OtherPlayer'}],[],'home'),w=dom.window,d=w.document;
+ for(const input of d.querySelectorAll('[data-cr-compare]')){input.checked=true;input.dispatchEvent(new w.Event('change'));}
+ assert.equal(d.querySelector('#compare').disabled,false);d.querySelector('#compare').click();assert.match(d.querySelector('#modal-body').textContent,/TestPlayer/);assert.match(d.querySelector('#modal-body').textContent,/OtherPlayer/);d.querySelector('.close').click();
+ d.querySelector('#clear-compare').click();assert.equal(d.querySelector('.compare-dock'),null);assert.equal(d.querySelectorAll('[data-cr-compare]:checked').length,0);assert.equal(d.body.dataset.page,'home');dom.window.close();
+});
+
+test('personal testing commands, shareable scope, tag controls and CSV downloads perform their stated action',async()=>{
+ const dom=await website([player],[],'home'),w=dom.window,d=w.document,copied=[];Object.defineProperty(w.navigator,'clipboard',{value:{writeText:async text=>copied.push(text)}});
+ d.querySelector('#quick-mode').value='mace_rod';d.querySelector('#quick-mode').dispatchEvent(new w.Event('change'));d.querySelector('#quick-region').value='NA';d.querySelector('#quick-region').dispatchEvent(new w.Event('change'));d.querySelector('#quick-copy').click();await Promise.resolve();assert.equal(copied.at(-1),'/queue status mode:mace_rod region:NA');
+ d.querySelector('[data-index-mode="mace"]').click();d.querySelector('[data-index-view="cards"]').click();d.querySelector('#index-share').click();await Promise.resolve();assert.match(copied.at(-1),/mode=mace/);assert.match(copied.at(-1),/view=cards/);
+ d.querySelector('#preview-mode').value='mace_rod';d.querySelector('#preview-tier').value='HT1';d.querySelector('#preview-tier').dispatchEvent(new w.Event('change'));assert.match(d.querySelector('#home-tag-preview').textContent,/Rod Mace HT1/);
+ let exported;w.Blob=Blob;w.URL.createObjectURL=blob=>{exported=blob;return 'blob:download';};w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=function(){};
+ d.querySelector('#index-export').click();assert.match(await exported.text(),/TestPlayer/);assert.match(await exported.text(),/Active points/);dom.window.close();
+});
+
+test('home shows escaped public tester activity, valid evidence and real analytics without fake identities',async()=>{
+ const recent=[{...player,mode:'mace',tier:3,pos:0,created:new Date().toISOString(),evidence:'javascript:alert(1)'}];
+ const dom=await website([player],[],'home',recent,'example.com',[{name:'<img src=x onerror=alert(1)>',tests:4}]),w=dom.window,d=w.document;await new Promise(r=>w.setTimeout(r,10));
+ assert.match(d.querySelector('#tester-activity').textContent,/4 tests/);assert.equal(d.querySelector('#tester-activity img[onerror]'),null);assert.equal(d.querySelector('#home-recent-results a'),null);
+ assert.equal(d.querySelector('.cr-donut-total').textContent,'1');assert.equal(d.querySelector('.cr-activity-total strong').textContent,'1');d.querySelector('[data-chart-days="7"]').click();assert.equal(d.querySelectorAll('.cr-activity-bars>div').length,7);
+ d.querySelector('[data-target-tier="LT1"]').click();assert.match(d.querySelector('#home-target-result .button').hash,/tier=LT1/);dom.window.close();
 });
 
 test('saved-player watchlist persists through navigation and can remove a saved player without changing rankings',async()=>{
@@ -96,8 +132,8 @@ test('tier explorer calculates the actual point gap and preserves mode and targe
 test('global motion preference persists while background scene controls remain usable',async()=>{
  const dom=await website([],[],'home'),w=dom.window,d=w.document;
  d.querySelector('#motion-toggle').click();assert.ok(d.body.classList.contains('calm-view'));assert.equal(w.localStorage.getItem('pvp:calm'),'true');
- d.querySelector('[data-scene-choice="quiet"]').click();assert.equal(d.querySelector('.eclipse-hero').dataset.scene,'quiet');assert.equal(d.querySelector('[data-scene-choice="quiet"]').getAttribute('aria-pressed'),'true');
- w.location.hash='kits';await new Promise(r=>w.setTimeout(r,10));w.location.hash='home';await new Promise(r=>w.setTimeout(r,10));assert.equal(d.querySelector('.eclipse-hero').dataset.scene,'quiet');assert.ok(d.body.classList.contains('calm-view'));dom.window.close();
+ d.querySelector('[data-scene-choice="quiet"]').click();assert.equal(d.querySelector('.control-hero').dataset.scene,'quiet');assert.equal(d.querySelector('[data-scene-choice="quiet"]').getAttribute('aria-pressed'),'true');
+ w.location.hash='kits';await new Promise(r=>w.setTimeout(r,10));w.location.hash='home';await new Promise(r=>w.setTimeout(r,10));assert.equal(d.querySelector('.control-hero').dataset.scene,'quiet');assert.ok(d.body.classList.contains('calm-view'));dom.window.close();
 });
 
 test('watchlist comparison can be cleared without requiring the rankings page',async()=>{
@@ -115,12 +151,12 @@ test('finder escapes public player names and keyboard navigation reaches results
  input.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowDown',cancelable:true}));assert.ok(d.activeElement.hasAttribute('data-search-player'));dom.window.close();
 });
 
-test('showcase keyboard navigation works with reduced motion and exposes only the selected panel',async()=>{
- const dom=await website([],[],'home'),w=dom.window,d=w.document;w.matchMedia=()=>({matches:true});
- const first=d.querySelector('[data-showcase="rankings"]');first.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowRight',cancelable:true}));
- assert.equal(d.activeElement.dataset.showcase,'queues');assert.equal(d.querySelector('#showcase-rankings').hidden,true);assert.equal(d.querySelector('#showcase-queues').hidden,false);
- d.activeElement.dispatchEvent(new w.KeyboardEvent('keydown',{key:'End',cancelable:true}));assert.equal(d.activeElement.dataset.showcase,'profiles');assert.equal(d.querySelector('#showcase-profiles').hidden,false);
- assert.equal(d.querySelectorAll('.showcase-tabs [aria-selected="true"]').length,1);assert.equal(d.querySelectorAll('.showcase-tabs [tabindex="0"]').length,1);dom.window.close();
+test('control room switches between table and player cards while preserving filtered results',async()=>{
+ const dom=await website([player],[],'home'),w=dom.window,d=w.document;w.matchMedia=()=>({matches:true});
+ d.querySelector('[data-index-view="cards"]').click();assert.equal(d.querySelectorAll('.cr-player-card').length,1);assert.equal(d.querySelector('.cr-ranking-table'),null);
+ d.querySelector('[data-index-mode="mace_rod"]').click();assert.equal(d.querySelectorAll('.cr-player-card').length,0);
+ d.querySelector('#index-reset').click();assert.equal(d.querySelectorAll('.cr-player-card').length,1);d.querySelector('[data-index-view="table"]').click();assert.equal(d.querySelectorAll('.cr-ranking-table tbody tr').length,1);
+ assert.equal(d.querySelector('[data-index-view="table"]').getAttribute('aria-pressed'),'true');dom.window.close();
 });
 
 test('testing walkthrough supports keyboard steps, accurate commands and native FAQ disclosures',async()=>{
@@ -130,8 +166,8 @@ test('testing walkthrough supports keyboard steps, accurate commands and native 
  verify.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowDown',cancelable:true}));
  assert.equal(d.activeElement.dataset.guideStep,'queue');assert.equal(d.querySelector('#guide-detail').getAttribute('aria-labelledby'),'guide-tab-queue');
  assert.equal(d.querySelector('#guide-detail code').textContent,'/queue status');
- assert.equal(d.querySelectorAll('.walkthrough-steps [aria-selected="true"]').length,1);
- assert.equal(d.querySelectorAll('.eclipse-faq details>summary').length,6);assert.match(d.querySelector('#home-faq').textContent,/assigned tester/);
+ assert.equal(d.querySelectorAll('.cr-guide-steps [aria-selected="true"]').length,1);
+ assert.equal(d.querySelectorAll('.cr-faq details>summary').length,6);assert.match(d.querySelector('#home-faq').textContent,/assigned tester/);
  d.querySelector('#tag-preview-cycle').click();assert.doesNotMatch(d.querySelector('#home-tag-preview').textContent,/HT3/);
  dom.window.close();
 });
@@ -139,7 +175,7 @@ test('testing walkthrough supports keyboard steps, accurate commands and native 
 test('GitHub Pages uses project-relative assets, the correct canonical URL and live public data',async()=>{
  const dom=await website([player],[],'home',[],'drax12341.github.io'),w=dom.window,d=w.document;
  assert.equal(d.querySelector('link[rel="canonical"]').href,'https://drax12341.github.io/minecraft-pvp-community/');
- const css=[...d.querySelectorAll('link[rel="stylesheet"]')].filter(a=>!a.href.includes('googleapis'));assert.equal(css.length,1);assert.match(css[0].getAttribute('href'),/^\.\/site.css/);
+ const css=[...d.querySelectorAll('link[rel="stylesheet"]')].filter(a=>!a.href.includes('googleapis'));assert.equal(css.length,2);assert.match(css[0].getAttribute('href'),/^\.\/site.css/);assert.match(css[1].getAttribute('href'),/^\.\/control-room.css/);
  assert.ok(w.__requests.includes('https://minecraft-pvp-community.draxion0.chatgpt.site/data/results.json'));
  assert.ok(w.__requests.includes('https://minecraft-pvp-community.draxion0.chatgpt.site/data/testing.json'));
  w.location.hash='kits';await new Promise(r=>w.setTimeout(r,10));assert.equal(d.querySelector('a[href="./standards.html"]').href,'https://drax12341.github.io/minecraft-pvp-community/standards.html');assert.doesNotMatch(d.querySelector('main').textContent,/Sword|Axe|Bow/);
@@ -205,9 +241,9 @@ test("league homepage uses real counts, a compact navigation shell and direct ga
     w = dom.window,
     d = w.document;
   assert.equal(d.body.dataset.page, "home");
-  assert.match(d.querySelector('#hero-title').textContent,/MACETIERLIST/);
+  assert.match(d.querySelector('#hero-title').textContent,/MaceTierlist/);
   assert.equal(d.querySelectorAll('[data-league-mode]').length,7);
-  assert.equal(d.querySelector('.eclipse-hero').dataset.scene,'night');
+  assert.equal(d.querySelector('.control-hero').dataset.scene,'arena');
   assert.match(d.querySelector('.league-empty').textContent,/first results/);
   assert.equal(d.querySelector('.community-stats strong').textContent,'0');
   d.querySelector('#mobile-navigation').click();assert.equal(d.querySelector('#mobile-navigation').getAttribute('aria-expanded'),'true');
