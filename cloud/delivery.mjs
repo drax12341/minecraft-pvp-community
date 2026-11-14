@@ -76,7 +76,7 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
     try {
       if(job.kind==='tester-roles'){await synchronizeTesterRoles(job,store,env,api);}
       else if(platformNotificationKinds.has(job.kind)){await deliverPlatformNotification(job,store,api);}
-      else if (job.kind === "result" || job.kind === "result-high") {
+      else if (job.kind === "result" || job.kind === "result-high" || job.kind==='staff-result') {
         const r = await store.one(
           "SELECT * FROM results WHERE id=?",
           job.subject,
@@ -114,14 +114,14 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
           continue;
         }
         const previous = await store.one(
-          "SELECT tier,pos FROM results WHERE uuid=? AND mode=? AND sequence<? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=results.id) ORDER BY sequence DESC LIMIT 1",
+          "SELECT tier,pos,record_type FROM results WHERE uuid=? AND mode=? AND sequence<? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=results.id) ORDER BY sequence DESC LIMIT 1",
           r.uuid,
           r.mode,
           r.sequence,
         );
         const rank = (x) => `${x.pos === 0 ? "HT" : "LT"}${x.tier}`,
-          tier = rank(r),
-          old = previous ? rank(previous) : null;
+          tier = r.record_type==='reset'?'Unranked':rank(r),
+          old = previous && previous.record_type!=='reset' ? rank(previous) : null;
         const change = !old
           ? "FIRST PLACEMENT"
           : old === tier
@@ -131,7 +131,7 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
               : "DEMOTED";
         const finalScore=await store.one('SELECT score FROM test_lifecycle WHERE test_id=?',r.id);
         const peak = await store.one(
-          "SELECT tier,pos FROM results WHERE uuid=? AND mode=? AND sequence<=? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=results.id) ORDER BY tier,pos LIMIT 1",
+          "SELECT tier,pos FROM results WHERE uuid=? AND mode=? AND sequence<=? AND record_type<>'reset' AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=results.id) ORDER BY tier,pos LIMIT 1",
           r.uuid,
           r.mode,
           r.sequence,
@@ -162,8 +162,8 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
             },
             embeds: [
               {
-                title: "\u{1F3C6} OFFICIAL MACE TEST RESULT",
-                description: `**${r.name}**\n${change}`,
+                title: job.kind==='staff-result'?'\u{1F3C6} STAFF MACE TIER AWARD':"\u{1F3C6} OFFICIAL MACE TEST RESULT",
+                description: `**${r.name}**\n${r.record_type==='reset'?'PLACEMENT RESET':change}${job.kind==='staff-result'?'\nAudited staff placement adjustment.':''}`,
                 color:
                   change === "DEMOTED"
                     ? 0xd84a68
@@ -184,9 +184,9 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
                     inline: true,
                   },
                   { name: "Rank Earned", value: tier, inline: true },
-                  { name: "Peak tier", value: rank(peak), inline: true },
-                  { name: "Tester", value: `<@${r.tester}>`, inline: true },
-                  { name: "Match evidence", value: r.evidence },
+                  { name: "Peak tier", value: peak?rank(peak):'Unranked', inline: true },
+                  { name: job.kind==='staff-result'?'Tester / awarding staff':'Tester', value: `<@${r.tester}>`, inline: true },
+                  ...(job.kind==='staff-result'?[]:[{ name: "Match evidence", value: r.evidence||'No public evidence' }]),
                 ],
                 footer: { text: marker },
                 timestamp: r.created,

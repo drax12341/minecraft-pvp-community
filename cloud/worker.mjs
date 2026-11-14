@@ -11,6 +11,9 @@ import { deskPublic } from './testing-desk.mjs';
 import { refreshCommunityBoards } from './community-desk.mjs';
 import { finishVerification, tokenHash } from './verification.mjs';
 import { drainOutbox } from './delivery.mjs';
+import {websiteApi} from './website-api.mjs';
+import {websiteAuth} from './website-auth.mjs';
+import {websiteShell,websiteDiscovery} from './website-shell.mjs';
 
 async function privateServiceAuth(request, secret) {
   if(typeof secret!=='string'||secret.length<32)return false;
@@ -133,6 +136,12 @@ export default {
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const discovery=websiteDiscovery(url);if(discovery)return discovery;
+    if(url.pathname.startsWith('/api/v1/')||url.pathname.startsWith('/auth/discord/')){
+      if(!env.DB)return json({error:'Storage unavailable'},503);
+      const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);
+      try{return url.pathname.startsWith('/auth/')?await websiteAuth(request,env,store):await websiteApi(request,env,store);}catch{return json({error:'Service temporarily unavailable. Please retry.'},503);}
+    }
     if(url.pathname==='/api/internal/queue-panels'){
       if(request.method!=='POST')return json({error:'Method not allowed'},405);
       if(!await privateServiceAuth(request,env.DISCORD_TOKEN))return json({error:'Unauthorized'},401);
@@ -251,7 +260,7 @@ export default {
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "mace-network-v11",
+            release: "mace-network-v12",
             queueCapacity: 20,
           });
         }
@@ -272,11 +281,13 @@ export default {
       return json({ error: "Not found" }, 404);
     // Preserve the existing site and assets, served from its public Pages build.
     // Neither visitor cookies nor Discord/hosting secrets are forwarded.
-    const path = url.pathname === "/" ? "/index.html" : url.pathname;
+    const isPage=/^\/(?:$|rankings(?:\/[^/]+)?|players(?:\/[^/]+)?|tests(?:\/[^/]+)?|testers(?:\/[^/]+)?|modes(?:\/[^/]+)?|account(?:\/(?:settings|testing|history))?|staff(?:\/(?:queues|tests|players|testers|appeals|audit))?|admin(?:\/(?:modes|roles|results|settings|analytics|system))?|high-tiers|queues|leaderboards|hall-of-fame|how-to-test|rules|points|faq|changelog|mod|discord|support|login|privacy|terms|api-docs)\/?$/.test(url.pathname);
+    const path = isPage ? "/index.html" : url.pathname;
     if (path.includes("..") || path.includes("\\"))
       return json({ error: "Not found" }, 404);
     if(typeof siteAssets!=="undefined" && Object.hasOwn(siteAssets,path)){
       const asset=siteAssets[path];
+      if(isPage)return websiteShell(asset,url,env.DB?new CloudStore(env.DB.withSession?.('first-primary')||env.DB):null,request.method==='HEAD');
       return new Response(request.method==="HEAD"?null:asset.binary?Uint8Array.from(atob(asset.body),c=>c.charCodeAt(0)):asset.body,{headers:{"Content-Type":asset.type,"X-Content-Type-Options":"nosniff","Cache-Control":"public, max-age=60","Referrer-Policy":"strict-origin-when-cross-origin"}});
     }
     const upstream = await fetch(website + path, {

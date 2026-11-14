@@ -1,3 +1,4 @@
+import config from '../config/community.json' with {type:'json'};
 export class CloudStore {
   constructor(db) {
     this.db = db;
@@ -461,7 +462,7 @@ export class CloudStore {
       ),
     };
   }
-  async rankings(points) {
+  async rankings(points, scoring = config.scoring || {basis:'peak',includeRetired:true}) {
     const rows = await this.all(
       "SELECT * FROM results r WHERE NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence",
     );
@@ -511,7 +512,8 @@ export class CloudStore {
         (sum, r) => sum + (r.retired ? 0 : points[`${r.pos === 0 ? "HT" : "LT"}${r.tier}`]),
         0,
       );
-      p.points = Object.values(p.rankings).reduce((sum,r)=>sum+points[`${r.pos===0?'HT':'LT'}${r.tier}`],0);
+      p.currentPoints = Object.values(p.rankings).reduce((sum,r)=>sum+points[`${r.pos===0?'HT':'LT'}${r.tier}`],0);
+      p.points = Object.values(p.rankings).reduce((sum,r)=>sum+(r.retired&&scoring.includeRetired===false?0:points[scoring.basis==='current'?`${r.pos===0?'HT':'LT'}${r.tier}`:`${r.peak_pos===0?'HT':'LT'}${r.peak_tier}`]),0);
     }
     return {
       updatedAt: new Date().toISOString(),

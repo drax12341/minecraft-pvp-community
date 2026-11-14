@@ -22,7 +22,7 @@ async function website(
   host = 'example.com',
   testerActivity = [],
 ) {
-  const dom = new JSDOM(await readFile("web/index.html", "utf8"), {
+  const dom = new JSDOM(await readFile("web/legacy.html", "utf8"), {
       url: `https://${host}/${host==='drax12341.github.io'?'minecraft-pvp-community/':''}` + (route ? "#" + route : ""),
       runScripts: "outside-only",
     }),

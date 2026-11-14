@@ -195,5 +195,9 @@
       "channel": "1569411413414248481",
       "message": "1570875746501787839"
     }
-  ]
+  ],
+  "scoring": {
+    "basis": "peak",
+    "includeRetired": true
+  }
 }

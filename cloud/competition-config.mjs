@@ -3,6 +3,8 @@ import { deskRegions } from "../config/testing-desk.mjs";
 const builtInMaceModes = config.modes.map((m) => ({ ...m }));
 const builtInRegions = [...deskRegions];
 export async function loadCompetitionConfig(store) {
+  const policies=await store.all("SELECT key,value FROM platform_settings WHERE key IN ('points','scoring')");
+  for(const policy of policies){const value=JSON.parse(policy.value);if(policy.key==='scoring'&&['peak','current'].includes(value.basis)&&typeof value.includeRetired==='boolean')config.scoring=value;if(policy.key==='points'&&Object.keys(config.points).every(t=>Number.isInteger(value[t])&&value[t]>=0&&value[t]<=10000))config.points=value;}
   const rows = await store.all("SELECT * FROM mode_settings");
   const overrides = new Map(rows.map((m) => [m.id, m]));
   config.modes = [

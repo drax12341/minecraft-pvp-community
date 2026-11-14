@@ -1,11 +1,13 @@
 import config from "../config/community.json" with { type: "json" };
 import { staffAccess } from "../config/community-roles.mjs";
+import {rememberStaffIdentity} from './public-identity.mjs';
 export async function managePlacement(i, env, store) {
   const { actor, mod } = staffAccess(i, env);
   if (!mod)
     throw Error(
       "Only testing managers and administrators may adjust a placement.",
     );
+  await rememberStaffIdentity(store,actor,{...i.member.user,nick:i.member.nick});
   const sub = i.data.options?.find((o) => o.type === 1),
     opts = sub?.options || i.data.options || [],
     get = (n) => opts.find((o) => o.name === n)?.value,
@@ -84,6 +86,7 @@ export async function managePlacement(i, env, store) {
         tier: tier || null,
         reason: get("reason"),
         expected: current?.id || null,
+        region: get('region') || current?.region,
       };
     await store
       .statement(
@@ -159,6 +162,7 @@ export async function managePlacement(i, env, store) {
       "INSERT OR IGNORE INTO outbox_events(kind,subject,available_at,created) SELECT 'roles',id,created,created FROM results WHERE id=?",
       id,
     ),
+    store.statement("INSERT OR IGNORE INTO outbox_events(kind,subject,available_at,created) SELECT 'staff-result',id,created,created FROM results WHERE id=?",id),
     store.audit(actor, "staff-placement-" + action, id + ": " + get("reason")),
   ]);
   if (!outcomes[0].meta.changes)

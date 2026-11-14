@@ -2,6 +2,7 @@ import {manageTesters} from './tester-management.mjs';
 import {seasonalAnalytics} from './analytics.mjs';
 import {supportExtensionActions,supportExtension} from './support-extensions.mjs';
 import {managePlacement} from './placements.mjs';
+import {rememberStaffIdentity} from './public-identity.mjs';
 import {deskRegions} from '../config/testing-desk.mjs';
 import {setupWizard} from './setup-wizard.mjs';
 import {competitorProfile} from './profiles.mjs';
@@ -38,6 +39,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
   const get = (name) => options.find((o) => o.name === name)?.value;
   const roles = interaction.member.roles || [];
   const {mod,tester} = staffAccess(interaction,env);
+  if(tester)await rememberStaffIdentity(store,actor,{...interaction.member.user,nick:interaction.member.nick});
   if(data.name==='analytics')return seasonalAnalytics(interaction,env,store);
   if(data.name==='tester'&&['add','remove','permissions'].includes(sub?.name))return manageTesters(interaction,env,store);
   if(data.name==='ticket'&&supportExtensionActions.has(sub?.name))return supportExtension(interaction,env,store,request);
