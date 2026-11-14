@@ -1436,9 +1436,10 @@ test('confirmed cooldown reset overrides the old session calculation and restric
 
 test('guided setup installs least-privilege server resources, functioning panels and stable resource IDs without duplicates',async()=>{
  const {sql,store}=await database();try{
-  const roles=[{id:'20000',name:'@everyone',permissions:'0'},{id:'51000',name:'Bot',permissions:'268435472'}],channels=[],messages=new Map();let next=90000;
+  const roles=[{id:'20000',name:'@everyone',permissions:'0'},{id:'51000',name:'Bot',permissions:'268435472'}],channels=[{id:'89000',name:'test-queue',type:0,guild_id:'20000'}],messages=new Map();let next=90000;
   const request=async(url,o={})=>{
    const path=url.replace('https://discord.com/api/v10',''),body=o.body?JSON.parse(o.body):{};
+   if(path==='/channels/89000'&&o.method==='PATCH')return Response.json({message:'Missing Permissions'},{status:403});
    if(path==='/guilds/20000/members/10000')return Response.json({roles:['51000']});
    if(path==='/guilds/20000/roles'){if(o.method==='POST'){const role={...body,id:String(next++)};roles.push(role);return Response.json(role);}return Response.json(roles);}
    if(path==='/guilds/20000/channels'){if(o.method==='POST'){const c={...body,id:String(next++),guild_id:'20000'};channels.push(c);return Response.json(c);}return Response.json(channels);}

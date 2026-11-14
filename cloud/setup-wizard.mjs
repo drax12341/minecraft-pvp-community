@@ -236,6 +236,7 @@ export async function setupWizard(i, env, store, request = fetch) {
     ) => {
       let c =
         channels.find((c) => c.id === saved.get(key)) ||
+        channels.find((c) => c.type === type && c.name === name) ||
         channels.find(
           (c) => c.type === type && [name, ...aliases].includes(c.name),
         );
@@ -251,10 +252,20 @@ export async function setupWizard(i, env, store, request = fetch) {
           permission_overwrites: overwrites,
         });
         channels.push(c);
-      } else
-        await api("/channels/" + c.id, "PATCH", {
-          permission_overwrites: overwrites,
-        });
+      } else {
+        try {
+          await api("/channels/" + c.id, "PATCH", {
+            permission_overwrites: overwrites,
+          });
+        } catch (error) {
+          if (!/403|Missing Permissions/.test(error.message)) throw error;
+          await store.audit(actor,'setup-existing-channel-uneditable',c.id).run();
+          c=await api('/guilds/'+env.DISCORD_GUILD_ID+'/channels','POST',{
+            name,type,...(parent?{parent_id:parent}:{}),permission_overwrites:overwrites,
+          });
+          channels.push(c);
+        }
+      }
       await remember(key, c.id, "channel");
       return c.id;
     };

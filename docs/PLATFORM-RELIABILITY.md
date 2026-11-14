@@ -1,3 +1,5 @@
+This earlier delivery is superseded by [the live v10 release](MACE-NETWORK-V10.md).
+
 # Mace platform reliability upgrade
 
 This delivery extends the existing cloud Discord application and its shared
