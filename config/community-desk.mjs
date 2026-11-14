@@ -1,4 +1,4 @@
-import {competitivePlayerOptions} from './competitive-commands.mjs';
+import {competitivePlayerOptions,competitiveTesterOptions} from './competitive-commands.mjs';
 import config from './community.json' with { type: 'json' };
 
 const cdString = (name, description, required = false, choices) => ({
@@ -28,6 +28,7 @@ export const communityDeskCommands = [
   ] },
   { name: 'leaderboard', description: 'Real active placements for a community testing mode', options: [cdMode()] },
   { name: 'tester', description: 'Tester activity and your staff workspace', options: [
+    ...competitiveTesterOptions,
     cdSub('desk', 'Your assigned test, waiting demand and staff actions'),
     cdSub('stats', 'Documented tester results and current assignments', [cdUser()]),
     cdSub('leaderboard', 'Completed tests this UTC month or overall', [cdString('period', 'Counting period', false, ['month','overall']), cdMode(false)]),

@@ -31,14 +31,14 @@ test('community desk and queue board show real tester/player activity and enforc
   const entry=await store.join('60000','mace','EU');await store.claim(entry,'50001');
   await store.join('60001','mace','EU');
   const board=await communityQueueBoard(store,'mace','EU');
-  assert.match(board.embeds[0].description,/2\/20/);assert.match(board.embeds[0].description,/1 waiting/);
+  assert.match(JSON.stringify(board),/2\/20/);assert.match(JSON.stringify(board),/1 waiting/);
   assert.match(JSON.stringify(board),/50001/);assert.match(JSON.stringify(board),/PlayerOne/);
   assert.match(JSON.stringify(board),/WaitingPlayer/);assert.doesNotMatch(JSON.stringify(board),/60001/);
-  assert.equal(board.components[0].components.length,5);
+  assert.equal(board.components[1].components.length,5);
   assert.deepEqual(board.allowed_mentions,{parse:[]});
   assert.equal((await store.one('SELECT capacity FROM sessions')).capacity,20);
   await assert.rejects(store.session('mace','EU','open','50001',21),/20/);
-  const other=await communityQueueBoard(store,'mace','NA');assert.match(JSON.stringify(other),/NOT SCHEDULED/);
+  const other=await communityQueueBoard(store,'mace','NA');assert.match(JSON.stringify(other),/not opened|not.*scheduled/i);
   await assert.rejects(communityQueueBoard(store,'sword','EU'),/valid/);
  }finally{sql.close();}
 });
@@ -190,7 +190,7 @@ test('a real deferred queue interaction refreshes its public board once and room
   const join=interaction('60000','queue','join',{mode:'mace',region:'EU'});
   await completeInteraction(join,env,store,request);await completeInteraction(join,env,store,request);
   const updates=calls.filter(c=>c.url.endsWith('/channels/81000/messages/82000'));
-  assert.equal(updates.length,1);assert.match(updates[0].body.embeds[0].description,/1\/20/);
+  assert.equal(updates.length,1);assert.match(JSON.stringify(updates[0].body),/1\/20/);
   assert.equal((await store.one('SELECT count(*) n FROM queue')).n,1);
   const id=(await store.one('SELECT id FROM queue')).id;
   const form=componentRoute({...interaction('60000','unused'),type:5,data:{custom_id:'room:submit:result:'+id,components:[{components:[{custom_id:'tier',value:'HT1'},{custom_id:'evidence',value:'https://example.com/match'}]}]}}).command;
@@ -562,6 +562,11 @@ async function database() {
   sql.exec(await readFile(new URL('../drizzle/0008_staff_loadouts.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0009_platform_reliability.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0010_competitive_platform.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0011_closed_queue_panels.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0012_staff_placements.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0013_support_extensions.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0014_notification_maintenance.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0015_tester_active_time.sql',import.meta.url),'utf8'));
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({
@@ -1454,5 +1459,118 @@ test('guided setup installs least-privilege server resources, functioning panels
   await call('panels');const count=messages.size;await call('panels');assert.equal(messages.size,count);
   const valid=await call('validate');assert.match(valid,/Missing channels \/ roles: 0/);
   const welcome=[...messages.values()].find(m=>m.embeds[0].title.includes('WELCOME'));assert.ok(welcome.components[0].components.some(b=>b.custom_id==='community:desk'));
+ }finally{sql.close();}
+});
+
+test('closed queue panels match the native red container reference and retain the real closure timestamp',async()=>{
+ const {sql,store}=await database();try{
+  const before=await communityQueueBoard(store,'mace','EU');assert.equal(before.flags,32768);assert.equal(before.components[0].type,17);assert.equal(before.components[0].accent_color,0xed1029);
+  assert.match(JSON.stringify(before),/Mace Queue Closed/);assert.match(JSON.stringify(before),/Not started/);assert.doesNotMatch(JSON.stringify(before),/<t:/);
+  await store.session('mace','EU','open','50001');await store.session('mace','EU','closed','50001');
+  const closure=await store.one('SELECT * FROM queue_closures');const closed=await communityQueueBoard(store,'mace','EU');
+  assert.match(JSON.stringify(closed),/Queue manually ended by command/);assert.match(JSON.stringify(closed),new RegExp(String(Math.floor(Date.parse(closure.ended_at)/1000))));
+  assert.ok(closed.components[0].components.some(c=>c.type===14&&c.divider));assert.match(JSON.stringify(closed),/Thank you for testing/);
+  assert.equal(closed.embeds,undefined);assert.equal(closed.content,undefined);assert.equal(closed.components.length,1);
+  await store.session('mace','EU','open','50001');const reopened=await communityQueueBoard(store,'mace','EU');assert.equal(reopened.flags,32768);assert.match(JSON.stringify(reopened),/TESTING OPEN/);
+ }finally{sql.close();}
+});
+
+test('staff placement corrections are confirmed, audited and scoped without fake test/quota credit or cooldown changes',async()=>{
+ const {sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');await store.session('mace','EU','open','50001');
+  const id=await store.join('60000','mace','EU');await store.claim(id,'50001');await store.result(id,3,0,'https://example.com/test','50001');
+  const cooldown=(await store.one('SELECT until_at FROM cooldowns')).until_at;
+  const propose=values=>runCommand(interaction('30000','tier',values.action,{user:'60000',mode:'mace',...values}),env,store);
+  await assert.rejects(runCommand(interaction('60000','tier','set',{user:'60000',mode:'mace',tier:'HT1',reason:'Trying to change my own placement'}),env,store),/managers/);
+  const draft=await propose({action:'set',tier:'LT2',reason:'Independent evidence review corrected the placement'});
+  assert.equal((await store.rankings(config.points)).players[0].points,10);
+  const confirmation=()=>runCommand(interaction('30000','tier-confirm',null,{id:draft.components[0].components[0].custom_id.slice(13)}),env,store);
+  await confirmation();await confirmation();
+  let data=await store.rankings(config.points);assert.equal(data.players[0].points,20);assert.equal(data.recent.length,1);
+  assert.equal((await store.one('SELECT count(*) n FROM results')).n,2);assert.equal((await store.one('SELECT count(*) n FROM results WHERE record_type=\'test\'')).n,1);
+  assert.equal((await store.one('SELECT until_at FROM cooldowns')).until_at,cooldown);
+  assert.equal((await store.one('SELECT tier FROM effective_placements')).tier,2);
+  const reset=await propose({action:'reset',reason:'Reset the current placement after an audited review'});
+  await runCommand(interaction('30000','tier-confirm',null,{id:reset.components[0].components[0].custom_id.slice(13)}),env,store);
+  data=await store.rankings(config.points);assert.equal(data.players.length,0);assert.equal(data.unrankedPlayers[0].peaks.mace.peak_tier,2);
+  assert.equal(await store.one('SELECT tier FROM effective_placements'),null);
+  const profile=await runCommand(interaction('60000','profile'),env,store);assert.match(JSON.stringify(profile),/Historical peak/);assert.match(JSON.stringify(profile),/Unranked/);
+  const health=await runCommand(interaction('30000','system'),env,store);assert.match(health,/Completed official tests: 1/);
+ }finally{sql.close();}
+});
+
+test('support evidence, test links, reopening and transcript export remain private and retain previous records',async()=>{
+ const {sql,store}=await database();try{
+  const op=new OperationsStore(store);const id=await op.reserveTicket('60000','account','Recover my account','Please review my existing account proof.');await op.ticketOpened(id,'81000');
+  await store.statement("UPDATE support_tickets SET status='closed',close_reason='Original resolution retained' WHERE id=?",id).run();
+  await store.statement('INSERT INTO ticket_notes VALUES(?,?,?,?,?)',crypto.randomUUID(),id,'30000','Confidential investigation note',new Date().toISOString()).run();
+  const configured={...env,DISCORD_TICKET_CATEGORY_ID:'80000'};let patched;
+  const request=async(url,o={})=>{
+   if(url.includes('/messages'))return Response.json([{id:'82000',timestamp:new Date().toISOString(),author:{id:'60000'},content:'Player support message',attachments:[]}]);
+   if(o.method==='PATCH'){patched=JSON.parse(o.body);return Response.json({id:'81000',guild_id:'20000',type:0,...patched});}
+   return Response.json({id:'81000',guild_id:'20000',type:0,parent_id:'80000',permission_overwrites:ticketOverwrites(configured,'60000','account',true)});
+  };
+  const call=(actor,sub,values={})=>runCommand(interaction(actor,'ticket',sub,{id,...values}),configured,store,request);
+  await assert.rejects(call('60001','evidence',{reference:'https://example.com/a',reason:'This evidence belongs to another case'}),/access/);
+  await call('60000','evidence',{reference:'https://example.com/account-proof',reason:'Consented evidence for this recovery request'});
+  await assert.rejects(call('60000','reopen',{reason:'I would like to reopen this case'}),/independent/);
+  await call('30000','reopen',{reason:'New evidence warrants reopening the investigation'});
+  assert.equal((await op.ticket(id)).status,'open');assert.equal((await op.ticket(id)).close_reason,'Original resolution retained');
+  const member=patched.permission_overwrites.find(p=>p.id==='60000');assert.ok(BigInt(member.allow)&2048n);assert.equal(BigInt(member.deny)&2048n,0n);
+  await assert.rejects(call('60000','transcript'),/independent/);
+  const file=await call('30000','transcript');assert.match(file.artifact.text,/Confidential investigation note/);assert.match(file.artifact.text,/account-proof/);
+  assert.equal((await store.one('SELECT count(*) n FROM support_evidence')).n,1);
+ }finally{sql.close();}
+});
+
+test('notification maintenance deduplicates due cooldowns, results and human absence review without applying penalties',async()=>{
+ const {sql,store}=await database();try{
+  const {enqueuePlatformNotifications}=await import('../cloud/notification-maintenance.mjs');
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');await store.session('mace','EU','open','50001',20,0);
+  await store.statement('INSERT INTO notification_preferences VALUES(?,?)','60000','dm').run();
+  const id=await store.join('60000','mace','EU');await store.claim(id,'50001');await store.result(id,3,1,'https://example.com/match','50001');
+  const before=Date.now();await enqueuePlatformNotifications(store,before);await enqueuePlatformNotifications(store,before+1000);
+  assert.equal((await store.one("SELECT count(*) n FROM outbox_events WHERE kind='result-notification'")).n,1);
+  assert.equal((await store.one("SELECT count(*) n FROM outbox_events WHERE kind='cooldown-expired'")).n,1);
+  const sent=[];await drainOutbox(store,env,async(url,o)=>{const b=o.body?JSON.parse(o.body):{};if(url.endsWith('/users/@me/channels'))return Response.json({id:'88000'});if(url.includes('/88000/'))sent.push(b.content);return Response.json({id:'82000'});},20);
+  assert.ok(sent.some(s=>s.includes('cooldown has expired')));assert.ok(sent.some(s=>s.includes('official Mace evaluation')));
+  assert.equal((await store.one('SELECT count(*) n FROM test_restrictions')).n,0);
+  await enqueuePlatformNotifications(store,before+61000);assert.equal((await store.one("SELECT count(*) n FROM outbox_events WHERE kind='result-notification'")).n,1);
+ }finally{sql.close();}
+});
+
+test('tester approval queues safe scoped role synchronization and refuses self-qualification',async()=>{
+ const {sql,store}=await database();try{
+  const add=values=>runCommand(interaction('30000','tester','add',{user:'50001',mode:'mace',reason:'Reviewed supervised calibration and tester training',...values}),env,store);
+  await assert.rejects(add({user:'30000'}),/different testing manager/);
+  await add({senior:true});assert.equal((await store.one('SELECT senior FROM tester_qualifications')).senior,1);
+  for(const [key,id]of [['role:tester:mace','71000'],['role:tester','72000'],['role:high-tester','73000']])await store.statement('INSERT INTO guild_resources VALUES(?,?,?,?)',key,id,'role',new Date().toISOString()).run();
+  const edits=[];await drainOutbox(store,env,async(url,o)=>{
+   if(url.endsWith('/roles'))return Response.json(['71000','72000','73000'].map(id=>({id,permissions:'0',managed:false})));
+   if(url.endsWith('/members/50001'))return Response.json({roles:[]});
+   edits.push([o.method,url.split('/').at(-1)]);return new Response(null,{status:204});
+  });
+  assert.deepEqual(edits,[['PUT','71000'],['PUT','72000'],['PUT','73000']]);
+  const views=await runCommand(interaction('30000','tester','permissions',{user:'50001'}),env,store);assert.match(views,/independent high-tier review/);
+ }finally{sql.close();}
+});
+
+test('seasonal participation counts actual tests and rank outcomes without counting staff corrections or resetting tiers',async()=>{
+ const {sql,store}=await database();try{
+  const month=new Date().toISOString().slice(0,7);
+  for(const [id,tier,pos,type]of [['one',3,0,'test'],['two',2,0,'test'],['correction',2,1,'adjustment'],['three',3,1,'test']])await store.statement('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created,record_type) VALUES(?,?,?,?,?,?,?,?,?,?,?)',id,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','EU','mace',tier,pos,'50001','https://example.com/'+id,month+'-01T12:00:00.000Z',type).run();
+  const panel=await runCommand(interaction('60000','analytics',null,{month}),env,store);const fields=panel.embeds[0].fields;
+  assert.equal(fields.find(f=>f.name==='Official evaluations').value,'3');assert.match(fields.find(f=>f.name==='Rank outcomes').value,/Promotions: 1/);assert.match(fields.find(f=>f.name==='Rank outcomes').value,/Demotions: 1/);
+  assert.equal((await store.rankings(config.points)).players[0].rankings.mace.tier,3);assert.equal((await store.one('SELECT count(*) n FROM results')).n,4);
+ }finally{sql.close();}
+});
+
+test('closed queue interactions deliver Components V2 privately without leaking undefined content or legacy embeds',async()=>{
+ const {sql,store}=await database();try{
+  const calls=[];await completeInteraction(interaction('60000','queue-board',null,{mode:'mace',region:'EU'}),env,store,async(url,o)=>{calls.push({url,body:JSON.parse(o.body)});return Response.json({id:'82000'});});
+  const reply=calls.find(c=>c.url.includes('/webhooks/'));assert.equal(reply.body.flags,32768|64);assert.equal(reply.body.content,null);assert.deepEqual(reply.body.embeds,[]);assert.equal(reply.body.components[0].type,17);
+  assert.doesNotMatch(JSON.stringify(reply.body),/undefined/);
+  const menu=componentRoute({...interaction('60000','unused'),type:3,data:{custom_id:'hub:ticket'}}).response.data.components[0].components[0];
+  assert.ok(menu.options.every(o=>typeof o.label==='string'&&o.label.length>0));assert.ok(menu.options.some(o=>o.value==='tester-report'));
  }finally{sql.close();}
 });

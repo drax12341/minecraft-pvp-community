@@ -8,7 +8,7 @@ export async function platformStatistics(store) {
  (SELECT count(*) FROM queue WHERE status='waiting') waiting,
  (SELECT count(*) FROM queue WHERE status='claimed') activeTests,
  (SELECT count(DISTINCT tester) FROM queue WHERE status='claimed') busyTesters,
- (SELECT count(*) FROM results r WHERE NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id)) completedTests`);
+ (SELECT count(*) FROM results r WHERE r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id)) completedTests`);
 }
 export async function testingHubPanel(store) {
   const s = await platformStatistics(store);

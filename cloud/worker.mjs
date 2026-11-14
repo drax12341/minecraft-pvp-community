@@ -1,3 +1,4 @@
+import {enqueuePlatformNotifications} from './notification-maintenance.mjs';
 import {installationBridge} from './installation.mjs';
 import {loadCompetitionConfig} from './competition-config.mjs';
 import { refreshTestingHubs, platformStatistics } from './platform-panels.mjs';
@@ -86,12 +87,12 @@ export async function completeInteraction(
       ? "The request could not be saved. Check for an existing entry or account, then try again or contact staff."
       : error.message;
   }
-  const message = typeof content==='object' && content ? {...content,content:String(content.content).slice(0,1900)} : {content:String(content).slice(0,1900),components:[]};
+  const message = typeof content==='object' && content ? (content.flags&32768?{...content}:{...content,content:String(content.content||'').slice(0,1900)}) : {content:String(content).slice(0,1900),components:[]};
   await store.finishInteraction(interaction.id, JSON.stringify(message));
   await deliverInteraction(interaction,env,store,request,message);
-  try { await drainOutbox(store,env,request,3); } catch { console.error('Outbox unavailable; inspect /delivery status.'); }
+  try { await enqueuePlatformNotifications(store); await drainOutbox(store,env,request,3); } catch { console.error('Outbox unavailable; inspect /delivery status.'); }
   try { await refreshTestingHubs(store,env,request); } catch { console.error('Testing hub refresh unavailable.'); }
-  if(['queue','queue-board','session','claim','result','pull','high-test','loadout','start','pause','resume','end','match','result-confirm','confirm-action'].includes(interaction.data.name)){
+  if(['queue','queue-board','session','claim','result','pull','high-test','loadout','start','pause','resume','end','match','result-confirm','confirm-action','mode','region'].includes(interaction.data.name)){
     try{
       const sub=interaction.data.options?.find(o=>o.type===1),opts=sub?.options||interaction.data.options||[];
       const get=name=>opts.find(o=>o.name===name)?.value;
@@ -103,12 +104,13 @@ export async function completeInteraction(
           : mode ? await store.one('SELECT mode,region FROM queue WHERE user=? AND mode=? ORDER BY created DESC,id DESC LIMIT 1',interaction.member.user.id,mode) : null;
         mode=scope?.mode||mode;region=scope?.region||region;
       }
-      if(mode&&(region||interaction.data.name==='loadout')){const result=await refreshCommunityBoards(store,env,request,mode,region||'');if(result.failed)console.error('Waitlist board refresh failed; members can use Refresh.');}
+      if(['mode','region'].includes(interaction.data.name)){const result=await refreshCommunityBoards(store,env,request,mode||'',region||'');if(result.failed)console.error('Configuration changed; some queue panels need recovery.');}
+      else if(mode&&(region||interaction.data.name==='loadout')){const result=await refreshCommunityBoards(store,env,request,mode,region||'');if(result.failed)console.error('Waitlist board refresh failed; members can use Refresh.');}
     }catch{console.error('Waitlist board refresh failed; the command response was delivered.');}
   }
 }
 async function deliverInteraction(interaction,env,store,request,message){
-  const payload={...message,allowed_mentions:{parse:[]}};delete payload.artifact;
+  const payload={...message,allowed_mentions:{parse:[]}};delete payload.artifact;if(payload.flags&32768){payload.flags|=64;payload.content=null;payload.embeds=[];}
   let body=JSON.stringify(payload),headers={'Content-Type':'application/json'};
   if(message.artifact){const form=new FormData();payload.attachments=[{id:0,filename:message.artifact.name}];form.set('payload_json',JSON.stringify(payload));form.set('files[0]',new Blob([message.artifact.text],{type:'text/plain;charset=utf-8'}),message.artifact.name);body=form;headers={};}
   const response = await request(
@@ -127,10 +129,16 @@ async function deliverInteraction(interaction,env,store,request,message){
 
 export default {
   async scheduled(_event,env,ctx) {
-    if(env.DB){const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);ctx.waitUntil((async()=>{await drainOutbox(store,env);await refreshTestingHubs(store,env);await refreshCommunityBoards(store,env);})());}
+    if(env.DB){const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);ctx.waitUntil((async()=>{await enqueuePlatformNotifications(store);await drainOutbox(store,env);await refreshTestingHubs(store,env);await refreshCommunityBoards(store,env);})());}
   },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if(url.pathname==='/api/internal/queue-panels'){
+      if(request.method!=='POST')return json({error:'Method not allowed'},405);
+      if(!await privateServiceAuth(request,env.DISCORD_TOKEN))return json({error:'Unauthorized'},401);
+      if(!env.DB)return json({error:'Storage unavailable'},503);
+      try{const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);await loadCompetitionConfig(store);return json(await refreshCommunityBoards(store,env));}catch{return json({error:'Queue panel update failed'},503);}
+    }
     if(url.pathname==='/api/internal/installation'){
       if(!await privateServiceAuth(request,env.DISCORD_TOKEN))return json({error:'Unauthorized'},401);
       if(!env.DB)return json({error:'Storage unavailable'},503);
@@ -143,7 +151,7 @@ export default {
       if(!await privateServiceAuth(request,proof?env.MINECRAFT_PROOF_SECRET:env.MAINTENANCE_SECRET))return json({error:'Unauthorized'},401);
       if(!env.DB)return json({error:'Storage unavailable'},503);
       const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);
-      if(!proof){try{const result=await drainOutbox(store,env);await refreshTestingHubs(store,env);return json(result);}catch{return json({error:'Reconciliation unavailable'},503);}}
+      if(!proof){try{await enqueuePlatformNotifications(store);const result=await drainOutbox(store,env);await refreshTestingHubs(store,env);return json(result);}catch{return json({error:'Reconciliation unavailable'},503);}}
       if(Number(request.headers.get('Content-Length')||0)>4096)return json({error:'Request too large'},413);
       const raw=await request.text();if(new TextEncoder().encode(raw).length>4096)return json({error:'Request too large'},413);
       let body;try{body=JSON.parse(raw);}catch{return json({error:'Invalid JSON'},400);}
@@ -196,7 +204,7 @@ export default {
     }
     if (!["GET", "HEAD"].includes(request.method))
       return json({ error: "Method not allowed" }, 405);
-    if(url.pathname==='/data/community.json')return json(config);
+    if(['/data/community.json','/api/modes'].includes(url.pathname)){if(env.DB){try{await loadCompetitionConfig(new CloudStore(env.DB.withSession?.('first-primary')||env.DB));}catch{return json({error:'Mode configuration unavailable'},503);}}return json(url.pathname==='/api/modes'?{modes:config.modes}:config);}
     if(url.pathname==='/api/kits')return json(kitManifests);
     if(url.pathname==='/api/loadouts'){
       if(!env.DB)return json({error:'Cloud storage unavailable'},503);
@@ -235,11 +243,15 @@ export default {
           await store.one('SELECT 1 FROM retirements LIMIT 1');
           await store.one('SELECT 1 FROM queue_boards LIMIT 1');
           await store.one('SELECT 1 FROM mode_loadouts LIMIT 1');
+          await store.one('SELECT 1 FROM queue_closures LIMIT 1');
+          await store.one('SELECT 1 FROM effective_placements LIMIT 1');
+          await store.one('SELECT 1 FROM support_evidence LIMIT 1');
+          await store.one('SELECT 1 FROM maintenance_locks LIMIT 1');
           return json({
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "mace-network-v10",
+            release: "mace-network-v11",
             queueCapacity: 20,
           });
         }

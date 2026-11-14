@@ -224,7 +224,7 @@ export class CloudStore {
       AND (SELECT count(*) FROM queue WHERE mode=s.mode AND region=s.region AND status IN ('waiting','claimed')) < min(s.capacity,20)
       AND NOT EXISTS(SELECT 1 FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE a.discord=? AND r.mode=s.mode
         AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id)
-        AND julianday(?) - julianday(r.created) < s.cooldown / 24.0 AND NOT EXISTS(SELECT 1 FROM platform_settings ov WHERE ov.key='cooldown-override:'||a.discord||':'||s.mode))`,
+        AND r.record_type='test' AND julianday(?) - julianday(r.created) < s.cooldown / 24.0 AND NOT EXISTS(SELECT 1 FROM platform_settings ov WHERE ov.key='cooldown-override:'||a.discord||':'||s.mode))`,
       id,
       user,
       mode,
@@ -280,7 +280,7 @@ export class CloudStore {
       mode,
     );
     const latest = await this.one(
-      `SELECT r.id,r.created,r.tier,r.pos,r.evidence FROM results r JOIN accounts a ON a.uuid=r.uuid
+      `SELECT r.id,r.created,r.tier,r.pos,r.evidence FROM effective_placements r JOIN accounts a ON a.uuid=r.uuid
       WHERE a.discord=? AND r.mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY r.sequence DESC LIMIT 1`,
       user,
       mode,
@@ -302,10 +302,11 @@ export class CloudStore {
           entry.id,
         )
       ).position;
+    const lastTest=await this.one("SELECT r.created FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE a.discord=? AND r.mode=? AND r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id) ORDER BY sequence DESC LIMIT 1",user,mode);
     let eligibleAt =
-      latest && session
+      lastTest && session
         ? new Date(
-            Date.parse(latest.created) + session.cooldown * 3600000,
+            Date.parse(lastTest.created) + session.cooldown * 3600000,
           ).toISOString()
         : null;
     const savedCooldown=await this.one('SELECT until_at FROM cooldowns c WHERE user=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=c.result_id)',user,mode);
@@ -466,8 +467,10 @@ export class CloudStore {
     );
     const players = new Map();
     const latestPlacementIds = new Map();
+    const peakPlacements=new Map();
     for (const r of rows) {
       latestPlacementIds.set(r.uuid + '/' + r.mode, r.id);
+      if(r.record_type==='reset'){const existing=players.get(r.uuid);if(existing)delete existing.rankings[r.mode];continue;}
       const p = players.get(r.uuid) || {
         uuid: r.uuid,
         name: r.name,
@@ -478,7 +481,7 @@ export class CloudStore {
       players.set(r.uuid, p);
       p.name = r.name;
       p.region = r.region;
-      const old = p.rankings[r.mode],
+      const old = p.rankings[r.mode]||peakPlacements.get(r.uuid+'/'+r.mode),
         value = points[`${r.pos === 0 ? "HT" : "LT"}${r.tier}`];
       const peak =
         old &&
@@ -495,6 +498,7 @@ export class CloudStore {
         region: r.region,
         evidence: r.evidence,
       };
+      peakPlacements.set(r.uuid+'/'+r.mode,{peak_tier:peak.tier,peak_pos:peak.pos});
     }
     const retirements = await this.all("SELECT uuid,mode,result_id FROM retirements WHERE status='approved'");
     for (const retired of retirements) {
@@ -502,6 +506,7 @@ export class CloudStore {
       if(p?.rankings[retired.mode] && latestPlacementIds.get(retired.uuid+'/'+retired.mode)===retired.result_id) p.rankings[retired.mode].retired=true;
     }
     for (const p of players.values()) {
+      p.peaks=Object.fromEntries([...peakPlacements].filter(([key])=>key.startsWith(p.uuid+'/')).map(([key,value])=>[key.slice(p.uuid.length+1),value]));
       p.activePoints = Object.values(p.rankings).reduce(
         (sum, r) => sum + (r.retired ? 0 : points[`${r.pos === 0 ? "HT" : "LT"}${r.tier}`]),
         0,
@@ -510,10 +515,11 @@ export class CloudStore {
     }
     return {
       updatedAt: new Date().toISOString(),
-      players: [...players.values()].sort(
+      unrankedPlayers:[...players.values()].filter(p=>!Object.keys(p.rankings).length),
+      players: [...players.values()].filter(p=>Object.keys(p.rankings).length).sort(
         (a, b) => b.points - a.points || a.uuid.localeCompare(b.uuid),
       ),
-      recent: rows
+      recent: rows.filter(r=>r.record_type==='test')
         .slice(-100)
         .reverse()
         .map(

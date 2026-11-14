@@ -35,15 +35,15 @@ export async function competitorProfile(i, env, store, progress = false) {
     );
   const data = await store.rankings(config.points),
     position = data.players.findIndex((p) => p.uuid === account.uuid),
-    player = data.players[position];
+    player = data.players[position]||data.unrankedPlayers?.find(p=>p.uuid===account.uuid);
   const rows = await store.all(
-    "SELECT r.id,r.mode,r.tier,r.pos,r.created,l.score FROM results r LEFT JOIN test_lifecycle l ON l.test_id=r.id WHERE r.uuid=? AND (?='' OR r.mode=?) AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id) ORDER BY sequence DESC LIMIT 10",
+    "SELECT r.id,r.mode,r.tier,r.pos,r.created,r.record_type,l.score FROM results r LEFT JOIN test_lifecycle l ON l.test_id=r.id WHERE r.uuid=? AND (?='' OR r.mode=?) AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id) ORDER BY sequence DESC LIMIT 10",
     account.uuid,
     mode,
     mode,
   );
   const total = await store.one(
-    "SELECT count(*) n,min(created) first,max(created) last,count(DISTINCT mode) modes FROM results r WHERE uuid=? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id)",
+    "SELECT count(*) n,min(created) first,max(created) last,count(DISTINCT mode) modes FROM results r WHERE uuid=? AND r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id)",
     account.uuid,
   );
   const rank = (r) => `${r.pos === 0 ? "HT" : "LT"}${r.tier}`;
@@ -55,6 +55,7 @@ export async function competitorProfile(i, env, store, progress = false) {
       value: `Current **${rank(r)}** · Peak **${r.peak_pos === 0 ? "HT" : "LT"}${r.peak_tier}**${r.retired ? " · Retired" : ""}`,
       inline: true,
     }));
+  for(const [id,peak] of Object.entries(player?.peaks||{})){if(fields.length<18&&!player.rankings[id]&&(!mode||mode===id))fields.push({name:(config.modes.find(m=>m.id===id)?.name||id)+' ? Historical peak',value:'Unranked ? Peak **'+(peak.peak_pos===0?'HT':'LT')+peak.peak_tier+'**',inline:true});}
   fields.push(
     { name: "Official evaluations", value: String(total.n), inline: true },
     {
@@ -130,7 +131,7 @@ export async function competitorProfile(i, env, store, progress = false) {
           ? rows
               .map(
                 (r) =>
-                  `<t:${Math.floor(Date.parse(r.created) / 1000)}:d> · ${r.mode} · **${rank(r)}**${r.score ? " · " + r.score : ""}`,
+                  `<t:${Math.floor(Date.parse(r.created) / 1000)}:d> · ${r.mode} · **${r.record_type==='reset'?'Unranked':rank(r)}**${r.record_type!=='test'?' ? Staff adjustment':''}${r.score ? " · " + r.score : ""}`,
               )
               .join("\n")
           : "No official evaluations yet.",

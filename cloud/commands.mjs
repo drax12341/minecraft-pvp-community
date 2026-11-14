@@ -1,3 +1,7 @@
+import {manageTesters} from './tester-management.mjs';
+import {seasonalAnalytics} from './analytics.mjs';
+import {supportExtensionActions,supportExtension} from './support-extensions.mjs';
+import {managePlacement} from './placements.mjs';
 import {deskRegions} from '../config/testing-desk.mjs';
 import {setupWizard} from './setup-wizard.mjs';
 import {competitorProfile} from './profiles.mjs';
@@ -34,6 +38,11 @@ export async function runCommand(interaction, env, store, request = fetch) {
   const get = (name) => options.find((o) => o.name === name)?.value;
   const roles = interaction.member.roles || [];
   const {mod,tester} = staffAccess(interaction,env);
+  if(data.name==='analytics')return seasonalAnalytics(interaction,env,store);
+  if(data.name==='tester'&&['add','remove','permissions'].includes(sub?.name))return manageTesters(interaction,env,store);
+  if(data.name==='ticket'&&supportExtensionActions.has(sub?.name))return supportExtension(interaction,env,store,request);
+  if(data.name==='tier')return managePlacement(interaction,env,store);
+  if(data.name==='tier-confirm'){const draft=await store.one("SELECT * FROM staff_action_drafts WHERE id=? AND actor=? AND action='tier' AND expires>?",get('id'),actor,new Date().toISOString());if(!draft)throw Error('Placement confirmation expired or belongs to another manager.');if(draft.completed)return 'This placement adjustment is already saved.';const p=JSON.parse(draft.payload);const result=await runCommand({...interaction,confirmedPlacement:true,placementConfirmationId:draft.id,data:{name:'tier',options:Object.entries(p).map(([name,value])=>({name,value}))}},env,store,request);await store.statement('UPDATE staff_action_drafts SET completed=? WHERE id=?',new Date().toISOString(),draft.id).run();return result;}
   if(['setup','autosetup'].includes(data.name))return setupWizard(interaction,env,store,request);
   if(data.name==='progress'||data.name==='profile'||(data.name==='player'&&['self','view'].includes(sub?.name)))return competitorProfile(interaction,env,store,data.name==='progress');
   const competitionAlias=data.name==='cooldown'&&sub&&sub.name!=='status'?'cooldown-admin':data.name==='player'&&['restrict','unrestrict'].includes(sub?.name)?'player-admin':data.name==='queue'&&['forceclose','clear'].includes(sub?.name)?'queue-admin':null;
@@ -92,9 +101,23 @@ export async function runCommand(interaction, env, store, request = fetch) {
       if(saved?.role!==role)throw Error('Mapping changed concurrently; inspect configuration.');
       return 'Tier role mapped for '+m+' / '+tier+'. Other Mace mode roles are preserved.';
     }
+    case 'resync': return runCommand({...interaction,data:{name:'system',options:[{type:1,name:'resync'}]}},env,store,request);
+    case 'logs': {
+      requireMod();const rows=await store.all('SELECT id,actor,action,subject,created FROM audit WHERE (? IS NULL OR actor=?) ORDER BY id DESC LIMIT 20',get('user')||null,get('user')||null);
+      return {content:'Private audit log export: latest '+rows.length+' matching events.',artifact:{name:'mace-audit.txt',text:rows.map(r=>r.created+' #'+r.id+' '+r.actor+' '+r.action+' '+r.subject).join('\n')},components:[]};
+    }
     case 'system': {
       requireMod();
-      const counts=await store.one("SELECT (SELECT count(*) FROM accounts) verified,(SELECT count(*) FROM sessions WHERE status='open') queues,(SELECT count(*) FROM queue WHERE status='waiting') waiting,(SELECT count(*) FROM queue WHERE status='claimed') active,(SELECT count(*) FROM results r WHERE NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id)) completed,(SELECT count(*) FROM outbox_events WHERE status<>'done') pending");
+      if(sub?.name==='resync'){
+        const now=new Date().toISOString();
+        await store.db.batch([
+          store.statement("INSERT OR IGNORE INTO outbox_events(kind,subject,available_at,created) SELECT 'roles',r.id,?,? FROM results r WHERE NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id) AND NOT EXISTS(SELECT 1 FROM results newer WHERE newer.uuid=r.uuid AND newer.mode=r.mode AND newer.sequence>r.sequence AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=newer.id))",now,now),
+          store.statement("INSERT OR IGNORE INTO outbox_events(kind,subject,available_at,created) SELECT 'verified-role',discord,?,? FROM accounts",now,now),
+          store.statement("UPDATE outbox_events SET status='pending',available_at=?,lease=NULL,lease_until=NULL WHERE kind='verified-role' OR (kind='roles' AND subject IN (SELECT id FROM results r WHERE NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id) AND NOT EXISTS(SELECT 1 FROM results newer WHERE newer.uuid=r.uuid AND newer.mode=r.mode AND newer.sequence>r.sequence AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=newer.id))))",now),
+          store.audit(actor,'platform-resync','Current placement and verification roles'),
+        ]);return 'Current placement and verified-account role reconciliation is queued. No official result or announcement was duplicated. Inspect /delivery status for failures.';
+      }
+      const counts=await store.one("SELECT (SELECT count(*) FROM accounts) verified,(SELECT count(*) FROM sessions WHERE status='open') queues,(SELECT count(*) FROM queue WHERE status='waiting') waiting,(SELECT count(*) FROM queue WHERE status='claimed') active,(SELECT count(*) FROM results r WHERE r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id)) completed,(SELECT count(*) FROM outbox_events WHERE status<>'done') pending");
       return '**PLATFORM HEALTH**\nVerified competitors: '+counts.verified+'\nOpen queues: '+counts.queues+'\nPlayers waiting: '+counts.waiting+'\nActive tests: '+counts.active+'\nCompleted official tests: '+counts.completed+'\nPending deliveries: '+counts.pending+'\nUse /delivery status for actionable failures.';
     }
     case 'result-confirm': {
@@ -454,7 +477,7 @@ export async function runCommand(interaction, env, store, request = fetch) {
       const assessment=await store.one('SELECT kit_version FROM assessments WHERE id=?',get('id'));
       if(assessment?.kit_version!==room.kit_version)throw Error('Record a new assessment against the current private-room kit version before publishing.');
       const account=await store.one('SELECT * FROM accounts WHERE discord=?',entry.user);
-      const previous=account?await store.one('SELECT tier,pos FROM results WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=results.id) ORDER BY sequence DESC LIMIT 1',account.uuid,entry.mode):null;
+      const previous=account?await store.one('SELECT tier,pos FROM effective_placements WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=effective_placements.id) ORDER BY sequence DESC LIMIT 1',account.uuid,entry.mode):null;
       const lifecycle=await store.one('SELECT * FROM test_lifecycle WHERE test_id=?',get('id'));
       if(lifecycle&&!['AWAITING_RESULT','RESULT_PENDING_CONFIRMATION'].includes(lifecycle.state))throw Error('Finish the managed test with /match finish before submitting its official result.');
       if(!interaction.resultConfirmed&&!interaction.testingDeskPublish){

@@ -504,7 +504,7 @@ export async function runCompetition(i, env, store, request = fetch, dispatch) {
         action + " Mace mode",
       );
     const name = get("name") || existing?.name || builtin?.name;
-    if (!name || name.length > 70)
+    if (!name || name.length > 70 || /[<>"&]/.test(name))
       throw Error("Use a mode name of 1–70 characters.");
     const rules = get("rules")
       ? get("rules").split("\n").filter(Boolean)
@@ -817,7 +817,7 @@ export async function runCompetition(i, env, store, request = fetch, dispatch) {
         Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1),
       ).toISOString();
     const quotas = await store.all(
-      "SELECT q.mode,q.target,(SELECT count(*) FROM results r WHERE r.tester=q.user AND r.mode=q.mode AND r.created>=? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id)) completed FROM tester_quotas q WHERE user=? AND (?='' OR mode=?)",
+      "SELECT q.mode,q.target,(SELECT count(*) FROM results r WHERE r.record_type='test' AND r.tester=q.user AND r.mode=q.mode AND r.created>=? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id)) completed FROM tester_quotas q WHERE user=? AND (?='' OR mode=?)",
       month,
       user,
       m,

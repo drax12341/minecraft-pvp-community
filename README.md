@@ -1,5 +1,7 @@
 # Minecraft PvP Tierlist · v0.2
 
+[Mace Network v11](docs/MACE-NETWORK-V11.md): native closed-queue panels, audited staff tier corrections, support reopening/transcripts, tester approvals, seasonal analytics and durable notification maintenance.
+
 [Live Mace Network v10 delivery](docs/MACE-NETWORK-V10.md): 63 registered commands, 20 installed Discord dashboards, multi-tester sessions, managed test tickets, configuration, staff controls and verified private sections.
 
 [Platform reliability upgrade](docs/PLATFORM-RELIABILITY.md): server-backed ownership challenges, confirmed results, durable announcements and roles, persistent cooldowns, live dashboards, installation steps and remaining master-spec work.

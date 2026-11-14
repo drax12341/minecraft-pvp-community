@@ -1,3 +1,4 @@
+import {supportKindLabels} from '../config/community-roles.mjs';
 import config from "../config/community.json" with { type: "json" };
 import { rubricText } from "../config/rubrics.mjs";
 import { extraInterests, ticketKinds, staffTracks } from "../config/community-roles.mjs";
@@ -9,6 +10,7 @@ function command(i,name,sub,values={}) { const opts=Object.entries(values).map((
 export function componentRoute(i) {
   const id=i.data.custom_id,value=i.data.values?.[0];
   const modes=config.modes.map(m=>({label:m.name,value:m.id,description:m.group,...(m.emoji?{emoji:{id:m.emoji}}:{})}));
+  if(id.startsWith('tier:confirm:'))return{command:command(i,'tier-confirm',null,{id:id.slice(13)})};
   if(id.startsWith('queuepage:')){const [,mode,region,page]=id.split(':');return{command:command(i,'queue-board',null,{mode,region,page:Number(page)})};}
   if(id.startsWith('setup:')){
     const action=id.slice(6);
@@ -122,7 +124,7 @@ export function componentRoute(i) {
   if(id==="roles:mode")return{command:command(i,"preferences",null,{mode:value})};
   if(id==="hub:interests")return{response:message("Choose an optional alert or name color. Selecting a new color replaces your previous color.",menu("roles:interest","Choose an alert or color",Object.entries(extraInterests).map(([value,label])=>({label,value}))))};
   if(id==="roles:interest")return{command:command(i,"interests",null,{role:value})};
-  if(id==="hub:ticket")return{response:message("Choose a category. Two active cases per member, one per category. Use /appeal submit for disputed placements. Staff reports go only to moderators; administrators can access private channels.",menu("ticket:kind","What do you need help with?",ticketKinds.map(value=>({label:{support:"General support",account:"Account verification or recovery",report:"Player report","staff-report":"Confidential staff report",technical:"Website or bot problem"}[value],value}))))};
+  if(id==="hub:ticket")return{response:message("Choose a category. Two active cases per member, one per category. Use /appeal submit for disputed placements. Staff and tester reports go only to designated reviewers; administrators can access private channels.",menu("ticket:kind","What do you need help with?",ticketKinds.map(value=>({label:supportKindLabels[value]||value,value}))))};
   if(id==="ticket:kind"){if(!ticketKinds.includes(value))throw Error("Invalid ticket category.");const prompts={support:"What happened? What help do you need?",account:"IGN, verification or recovery? Never secrets",report:"Who, when (UTC), what happened, evidence?","staff-report":"Staff involved, UTC date, facts and evidence?",technical:"Page/command, UTC time, steps, expected result?"};return{response:modal("ticket:open:"+value,"Contact the team",[["subject","Subject — no passwords or tokens",1,5,100],["detail",prompts[value],2,10,1500]])};}
   if(id.startsWith("ticket:submit:"))return{command:command(i,"ticket","submit",{id:id.slice(14)})};
   if(id.startsWith("ticket:close:"))return{response:modal('ticket:resolution:'+id.slice(13),'Close this private case',[['reason','Resolution summary or reason for closure',2,10,1000]])};

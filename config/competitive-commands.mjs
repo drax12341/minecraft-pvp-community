@@ -47,6 +47,8 @@ const pcInt = (name, description, min_value, max_value, required = false) => ({
 const pcId = () =>
   pcString("id", "Official test ID; omit to use your active assignment");
 export const competitiveCommands = [
+ {name:'analytics',description:'Real seasonal Mace participation and rank outcomes',options:[pcString('month','UTC month as YYYY-MM'),pcMode(false),pcString('region','Testing region',false,['EU','NA','AS','SA','AU','AF','ME','OC'])]},
+ {name:'tier',description:'Manager: audited placement adjustments and history',options:[pcSub('set','Set a reviewed placement without recording a fake test',[pcUser(),pcMode(),pcString('tier','New placement',true,['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5']),pcReason(),pcString('region','Region when setting an initial placement',false,['EU','NA','AS','SA','AU','AF','ME','OC'])]),pcSub('reset','Reset a current placement while preserving history',[pcUser(),pcMode(),pcReason()]),pcSub('history','View official evaluations and staff changes',[pcUser(),pcMode()])]},
   {
     name: "account",
     description: "Your verified identity, region and profile visibility",
@@ -227,3 +229,5 @@ export const competitiveQueueOptions = ["forceclose", "clear"].map((name) =>
     pcReason(),
   ]),
 );
+
+export const competitiveTesterOptions=[pcSub('add','Manager: approve a supervised tester',[pcUser(),pcMode(),pcReason(),{type:5,name:'senior',description:'Approved for independent high-tier review'}]),pcSub('remove','Manager: revoke one Mace qualification',[pcUser(),pcMode(),pcReason()]),pcSub('permissions','Manager: inspect approved mode scopes',[{type:6,name:'user',description:'Filter by Discord member'}])];

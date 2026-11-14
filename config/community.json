@@ -130,7 +130,7 @@
   },
   "version": 3,
   "testing": {
-    "cooldownHours": 72,
+    "cooldownHours": 720,
     "capacity": 20
   },
   "testingDeskChannels": {

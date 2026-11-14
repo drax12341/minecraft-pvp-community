@@ -1,3 +1,5 @@
+import {synchronizeTesterRoles} from './tester-management.mjs';
+import {platformNotificationKinds,deliverPlatformNotification} from './notification-maintenance.mjs';
 import { roomOverwrites } from "./journeys.mjs";
 import config from "../config/community.json" with { type: "json" };
 
@@ -72,7 +74,9 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
       .first();
     if (!job) break;
     try {
-      if (job.kind === "result" || job.kind === "result-high") {
+      if(job.kind==='tester-roles'){await synchronizeTesterRoles(job,store,env,api);}
+      else if(platformNotificationKinds.has(job.kind)){await deliverPlatformNotification(job,store,api);}
+      else if (job.kind === "result" || job.kind === "result-high") {
         const r = await store.one(
           "SELECT * FROM results WHERE id=?",
           job.subject,
@@ -237,7 +241,7 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
         }
       } else if (job.kind === "roles") {
         const r = await store.one(
-          "SELECT q.user,r.mode FROM results r JOIN queue q ON q.id=r.id WHERE r.id=?",
+          "SELECT a.discord AS user,r.mode FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE r.id=?",
           job.subject,
         );
         const mappings = await store.all(
@@ -246,7 +250,7 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
         );
         if (mappings.length) {
           const latest = await store.one(
-            "SELECT tier,pos FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE a.discord=? AND r.mode=? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id) ORDER BY sequence DESC LIMIT 1",
+            "SELECT tier,pos FROM effective_placements r JOIN accounts a ON a.uuid=r.uuid WHERE a.discord=? AND r.mode=? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id) ORDER BY sequence DESC LIMIT 1",
             r.user,
             r.mode,
           );

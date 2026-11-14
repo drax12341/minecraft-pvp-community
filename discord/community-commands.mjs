@@ -1,3 +1,4 @@
+import {supportKindLabels} from '../config/community-roles.mjs';
 import {competitiveCommands,competitivePlayerOptions} from '../config/competitive-commands.mjs';
 import config from "../config/community.json" with { type: "json" };
 import { testingDeskCommands } from '../config/testing-desk.mjs';
@@ -13,7 +14,9 @@ export const communityCommands=[
   ...competitiveCommands,
   {name:'testing-hub',description:'Live Mace platform dashboard',options:[{type:5,name:'publish',description:'Moderator: install in the current text channel'}]},
   {name:'tier-role',description:'Moderator: map an independent Mace tier role',options:[mode(),string('tier','Official tier',true,['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5']),{type:8,name:'role',description:'Unmanaged role without permissions',required:true},reason()]},
-  {name:'system',description:'Staff: real platform health and delivery backlog'},
+  {name:'system',description:'Staff: platform health and reconciliation',options:[sub('status','Inspect actual platform health'),sub('resync','Requeue current placement and verification roles safely')]},
+  {name:'resync',description:'Staff: reconcile current placement and verification roles'},
+  {name:'logs',description:'Staff: private audit log history',options:[user(false)]},
   {name:'verify',description:'Prove premium Java ownership on our trusted server',options:[sub('start','Create a ten-minute ownership challenge',[string('name','Minecraft Java username',true)]),sub('status','Check your verification')]},
   {name:'notifications',description:'Control optional waitlist session alerts',options:[string('delivery','Optional notification preference',false,['dm','none'])]},
   {name:'delivery',description:'Moderator: inspect durable delivery failures',options:[sub('status','Inspect pending delivery'),sub('retry','Retry due delivery events')]},
@@ -26,7 +29,11 @@ export const communityCommands=[
   {name:"rubric",description:"Read a mode's assessment criteria and test protocol",options:[mode()]},
   {name:"interests",description:"Choose casual Minecraft interests and opt-in alerts",options:[string("role","Interest or alert to toggle",true,Object.entries(extraInterests).map(([value,name])=>({name,value})))]},
   {name:"ticket",description:"Private support, account and reporting tickets",options:[
-    sub("open","Open a private ticket",[string("kind","Ticket category",true,ticketKinds),string("subject","Short subject, 5–100 characters",true),string("detail","Details, 10–1500 characters; never credentials",true)]),
+    sub('reopen','Support: reopen an archived case',[id(),reason()]),
+    sub('transcript','Support: export a private case transcript',[id()]),
+    sub('evidence','Add a private evidence or attachment reference',[id(),string('reference','Shareable HTTPS evidence reference',true),reason()]),
+    sub('link-test','Reference an official test in this case',[id(),string('result','Official result ID',true),reason()]),
+    sub("open","Open a private ticket",[string("kind","Ticket category",true,ticketKinds.map(value=>({name:supportKindLabels[value],value}))),string("subject","Short subject, 5–100 characters",true),string("detail","Details, 10–1500 characters; never credentials",true)]),
     sub("status","Your tickets, or a case you may access",[id(false)]),
     sub("claim","Support staff: claim a ticket",[id()]),
     sub('recover','Support: reconcile a partially created private channel',[id()]),

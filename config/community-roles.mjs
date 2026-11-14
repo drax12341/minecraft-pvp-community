@@ -3,7 +3,9 @@ export const extraInterests = {
   violet: "Color · Violet", blue: "Color · Blue", cyan: "Color · Cyan", green: "Color · Green", gold: "Color · Gold", pink: "Color · Pink", red: "Color · Red",
 };
 export const staffTracks = ["helper", "moderator", "coach", "event-host"];
-export const ticketKinds = ["support", "account", "report", "staff-report", "technical"];
+export const ticketKinds = ['support','account','tier-appeal','tester-report','testing-dispute','bug-report','report','staff-report','technical'];
+export const sensitiveSupportKinds=new Set(['staff-report','tester-report']);
+export const supportKindLabels={'support':'General Support','account':'Account Support','tier-appeal':'Tier Appeal','tester-report':'Tester Report','testing-dispute':'Testing Dispute','bug-report':'Bug Report','report':'Player Report','staff-report':'Confidential Staff Report','technical':'Technical Support'};
 export function staffAccess(interaction, env) {
   const actor = interaction.member?.user?.id;
   const roles = interaction.member?.roles || [];

@@ -1,3 +1,4 @@
+import {nativeQueuePanel,queuePanelEdit,queueContainerId} from './queue-panels.mjs';
 import {deskRegions} from '../config/testing-desk.mjs';
 import {tokenHash} from './verification.mjs';
 import config from '../config/community.json' with { type: 'json' };
@@ -19,11 +20,12 @@ const communityMessage = (content, components = []) => ({ content, components, a
 const communityURL = 'https://minecraft-pvp-community.draxion0.chatgpt.site';
 
 export async function communityQueueBoard(store, mode, region, page=1) {
-  const kit = communityMode(mode);
-  if (!communityRegions.includes(region)) throw Error('Choose a valid region.');
+  let kit=config.modes.find(m=>m.id===mode);
+  if(!kit){const saved=await store.one('SELECT id,name FROM mode_settings WHERE id=?',mode);if(saved)kit=saved;else throw Error('Choose a valid community testing mode.');}
+  if(!communityRegions.includes(region)&&!await store.one('SELECT 1 FROM region_settings WHERE id=?',region))throw Error('Choose a valid region.');
   const session = await store.one('SELECT * FROM sessions WHERE mode=? AND region=?', mode, region);
   const counts = await store.one("SELECT count(*) AS occupied,sum(status='waiting') AS waiting,sum(status='claimed') AS claimed FROM queue WHERE mode=? AND region=? AND status IN ('waiting','claimed')", mode, region);
-  const active = await store.all("SELECT q.tester,a.name FROM queue q JOIN accounts a ON a.discord=q.user WHERE q.mode=? AND q.region=? AND q.status='claimed' ORDER BY q.created,q.id LIMIT 20", mode, region);
+  const active = await store.all("SELECT q.tester,CASE WHEN p.public_profile=0 THEN 'Private competitor' ELSE a.name END name FROM queue q JOIN accounts a ON a.discord=q.user LEFT JOIN player_settings p ON p.user=q.user WHERE q.mode=? AND q.region=? AND q.status='claimed' ORDER BY q.created,q.id LIMIT 20", mode, region);
   const waiting=await store.all("SELECT CASE WHEN p.public_profile=0 THEN 'Private competitor' ELSE a.name END name FROM queue q JOIN accounts a ON a.discord=q.user LEFT JOIN player_settings p ON p.user=q.user WHERE q.mode=? AND q.region=? AND q.status='waiting' ORDER BY q.created,q.id LIMIT 20",mode,region);
   const available=await store.all("SELECT t.user,t.status,EXISTS(SELECT 1 FROM queue q WHERE q.tester=t.user AND q.status='claimed') busy FROM tester_sessions t WHERE t.mode=? AND t.region=? AND t.ended IS NULL ORDER BY t.started,t.id",mode,region);
   const currentPage=Math.max(1,Math.min(Math.ceil(waiting.length/10)||1,Number(page)||1));
@@ -32,30 +34,14 @@ export async function communityQueueBoard(store, mode, region, page=1) {
   const full = counts.occupied >= capacity;
   const badge = state === 'open' ? (full ? 'FULL' : 'OPEN') : state.toUpperCase();
   const testers = active.length ? active.map(q => `<@${q.tester}> → **${q.name}**`).join('\n') : 'No player is being tested right now.';
-  return {
-    ...communityMessage(''),
-    embeds: [{
-      title: `${kit.name} · ${region} · Live Testing Queue`,
-      color: state === 'open' && !full ? 0x58c89b : state === 'paused' ? 0xe9bb62 : 0x8994a8,
-      description: `**${badge} · ${counts.occupied}/${capacity} slots**\n${counts.waiting || 0} waiting · ${counts.claimed || 0} being tested\n\n**Tester → currently testing**\n${testers}`,
-      fields: [
-        {name:'Live FIFO queue · page '+currentPage,value:waiting.slice((currentPage-1)*10,currentPage*10).map((p,n)=>String((currentPage-1)*10+n+1).padStart(2,'0')+' · '+p.name).join('\n')||'No players are waiting.'},
-        {name:'Tester availability',value:available.length?available.map(t=>'<@'+t.user+'> · '+(t.busy?'Testing':t.status==='available'?'Available':'Paused')).join('\n'):'No tester availability sessions are recorded. Use /start to open one.'},
-        { name: 'Session host', value: session?.actor ? `<@${session.actor}>` : session ? 'Use Refresh for tester details.' : 'No tester has opened this session.', inline: true },
-        { name: 'Retest cooldown', value: session ? `${session.cooldown} hours` : 'Set when staff open a session.', inline: true },
-        { name: 'How it works', value: 'Verify Minecraft ownership first. Join an open session; a qualified tester calls you into a private room. Both confirm readiness before playing. Waiting and active tests share the 20 slots. No guaranteed waiting time.' },
-      ],
-      footer: { text: `${config.name} · Waitlist ${mode}/${region} · Refresh for latest state` },
-      timestamp: new Date().toISOString(),
-    }],
-    components: [communityRow(
+  const closure=await store.one('SELECT * FROM queue_closures WHERE mode=? AND region=?',mode,region);
+  return nativeQueuePanel({kit,region,session,closure,counts,active,waiting,available,capacity,page:currentPage,controls:[communityRow(
       communityButton('Join live queue', `board:join:${mode}:${region}`, 3, state !== 'open' || full),
       communityButton('Leave live queue', `board:leave:${mode}:${region}`),
       communityButton('My status', `board:status:${mode}:${region}`, 1),
       communityButton('Refresh', `board:refresh:${mode}:${region}`),
       communityButton('Testing guide', 'hub:guide'),
-    ),communityRow(communityButton('Save waitlist interest',`waitlist:join:${mode}:${region}`),communityButton('Enable DM alerts','notify:dm'),communityButton('Disable DM alerts','notify:none'),communityButton('Queue page '+(currentPage===1?2:1),'queuepage:'+mode+':'+region+':'+(currentPage===1?2:1))), {type:1,components:[{type:3,custom_id:'board:region:'+mode,placeholder:'Choose another region',min_values:1,max_values:1,options:communityRegions.map(value=>({label:value,value,default:value===region}))}]}],
-  };
+    ),communityRow(communityButton('Save waitlist interest',`waitlist:join:${mode}:${region}`),communityButton('Enable DM alerts','notify:dm'),communityButton('Disable DM alerts','notify:none'),communityButton('Queue page '+(currentPage===1?2:1),'queuepage:'+mode+':'+region+':'+(currentPage===1?2:1),2,waiting.length<=10)), {type:1,components:[{type:3,custom_id:'board:region:'+mode,placeholder:'Choose another region',min_values:1,max_values:1,options:communityRegions.map(value=>({label:value,value,default:value===region}))}]}]});
 }
 
 export async function refreshCommunityBoards(store, env, request = fetch, mode = '', region = '') {
@@ -66,7 +52,7 @@ export async function refreshCommunityBoards(store, env, request = fetch, mode =
   for (const board of boards) {
     try {
       const body = await communityQueueBoard(store, board.mode, board.region);
-      delete body.embeds[0].timestamp;
+      if(body.embeds?.[0])delete body.embeds[0].timestamp;
       const key='queue:'+board.channel+':'+board.message,fingerprint=await tokenHash(JSON.stringify(body)),now=new Date().toISOString();
       await store.statement('INSERT OR IGNORE INTO platform_panels(key,channel,message) VALUES(?,?,?)',key,board.channel,board.message).run();
       const previous=await store.one('SELECT fingerprint FROM platform_panels WHERE key=?',key);
@@ -75,7 +61,7 @@ export async function refreshCommunityBoards(store, env, request = fetch, mode =
       if(!lock.meta.changes)continue;
       const response = await request(`https://discord.com/api/v10/channels/${board.channel}/messages/${board.message}`, {
         method: 'PATCH', headers: { Authorization: 'Bot ' + env.DISCORD_TOKEN, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
+        body: JSON.stringify(queuePanelEdit(body)), signal: AbortSignal.timeout(10000),
       });
       if (!response.ok) {failed++;await store.audit('system','queue-board-refresh-failed',board.channel).run();}
       else {updated++;await store.statement('UPDATE platform_panels SET fingerprint=?,last_edit=?,lease_until=NULL WHERE key=?',fingerprint,now,key).run();}
@@ -147,14 +133,14 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
       };
       const channel = await discord('/channels/' + i.channel_id);
       if (channel.guild_id !== env.DISCORD_GUILD_ID || channel.type !== 0) throw Error('Choose a text channel in this community server.');
-      const saved = await store.one('SELECT * FROM queue_boards WHERE mode=? AND region=?', m, region);
+      const saved = await store.one('SELECT * FROM queue_boards WHERE mode=? AND region=?', m, region)||(config.queueBoards||[]).find(b=>b.guild===env.DISCORD_GUILD_ID&&b.mode===m&&b.region===region&&b.channel===i.channel_id);
       if (saved && saved.channel !== i.channel_id) throw Error('This board is already published in <#'+saved.channel+'>. Refresh it there to avoid duplicate public boards.');
       let messageId = saved?.message;
       if (!messageId) {
         const recent = await discord(`/channels/${i.channel_id}/messages?limit=100`);
-        messageId = recent.find(message => message.author?.id === env.DISCORD_CLIENT_ID && message.embeds?.some(e => e.footer?.text === board.embeds[0].footer.text))?.id;
+        messageId = recent.find(message => message.author?.id === env.DISCORD_CLIENT_ID && (message.embeds?.some(e => e.footer?.text?.includes('Waitlist '+m+'/'+region))||message.components?.some(c=>c.id===queueContainerId(m,region))))?.id;
       }
-      if (messageId) await discord(`/channels/${i.channel_id}/messages/${messageId}`, 'PATCH', board);
+      if (messageId) await discord(`/channels/${i.channel_id}/messages/${messageId}`, 'PATCH', queuePanelEdit(board));
       else {
         const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${env.DISCORD_GUILD_ID}/${m}/${region}`));
         const nonce = Array.from(new Uint8Array(digest)).slice(0,12).map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -192,8 +178,8 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
       if (sub.name === 'history') {
         const uuid = player?.uuid || account?.uuid;
         if (!uuid) return communityMessage('No published history found. Use /desk to get started.');
-        const rows = await store.all("SELECT r.id,r.mode,r.tier,r.pos,r.created,r.evidence FROM results r WHERE uuid=? AND (?='' OR mode=?) AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 10", uuid, get('mode') || '', get('mode') || '');
-        return communityMessage(`**${player?.name || account.name} · Placement history**\n` + (rows.map(r => `**${communityRank(r)} ${communityMode(r.mode).name}** · <t:${Math.floor(Date.parse(r.created)/1000)}:d>\n${r.id} · [Match evidence](${r.evidence})`).join('\n\n') || 'No published results yet.') + '\n\nLast 10 valid results. Revoked placements and private appeal notes are excluded.');
+        const rows = await store.all("SELECT r.id,r.mode,r.tier,r.pos,r.created,r.evidence,r.record_type FROM results r WHERE uuid=? AND (?='' OR mode=?) AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 10", uuid, get('mode') || '', get('mode') || '');
+        return communityMessage(`**${player?.name || account.name} · Placement history**\n` + (rows.map(r => `**${r.record_type==='reset'?'Unranked':communityRank(r)} ${communityMode(r.mode).name}** · <t:${Math.floor(Date.parse(r.created)/1000)}:d>\n${r.id} · [Match evidence](${r.evidence})`).join('\n\n') || 'No published results yet.') + '\n\nLast 10 valid results. Revoked placements and private appeal notes are excluded.');
       }
       if (!player) return communityMessage(account ? `**${account.name}** · Verified, unranked\nRequest your first evaluation from /desk.` : 'No published placement found. Verify ownership through the private support panel in /desk.');
       return communityMessage(`**${player.name} · ${player.region} · ${player.points} earned points**\n` + Object.entries(player.rankings).map(([m,r]) => `${communityMode(m).name}: **${communityRank(r)}${r.retired ? ' · Retired' : ''}** · peak ${communityRank({tier:r.peak_tier,pos:r.peak_pos})}`).join('\n'), [communityRow({ type: 2, style: 5, label: 'Open player profile', url: communityURL + '/#rankings?player=' + encodeURIComponent(player.uuid) })]);
@@ -216,10 +202,18 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
       const end = new Date(Date.UTC(stamp.getUTCFullYear(),stamp.getUTCMonth()+1,1)).toISOString();
       const user = sub.name === 'stats' ? get('user') || actor : '';
       if (user && !/^\d{5,22}$/.test(user)) throw Error('Choose a valid community member.');
-      const filter = "NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND (?='' OR r.mode=?) AND (?='' OR r.tester=?) AND r.created>=? AND r.created<?";
+      const filter = "r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND (?='' OR r.mode=?) AND (?='' OR r.tester=?) AND r.created>=? AND r.created<?";
       const params = [get('mode') || '', get('mode') || '', user, user, start, end];
       const rows = await store.all(`SELECT r.tester,a.name,count(*) n FROM results r LEFT JOIN accounts a ON a.discord=r.tester WHERE ${filter} GROUP BY r.tester ORDER BY n DESC,r.tester LIMIT 10`, ...params);
       const total = await store.one(`SELECT count(*) n FROM results r WHERE ${filter}`, ...params);
+      if(sub.name==='stats'){
+        const current=new Date(),today=new Date(Date.UTC(current.getUTCFullYear(),current.getUTCMonth(),current.getUTCDate())),week=new Date(today);week.setUTCDate(week.getUTCDate()-((week.getUTCDay()+6)%7));
+        const monthStart=new Date(Date.UTC(current.getUTCFullYear(),current.getUTCMonth(),1)).toISOString();
+        const counts=await store.one("SELECT count(*) lifetime,COALESCE(sum(created>=?),0) today,COALESCE(sum(created>=?),0) week,COALESCE(sum(created>=?),0) month FROM results r WHERE tester=? AND record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id)",today.toISOString(),week.toISOString(),monthStart,user);
+        const time=await store.one("SELECT COALESCE(sum(max(0,(julianday(COALESCE(i.ended,?))-julianday(i.started))*24)),0) hours FROM tester_active_intervals i JOIN tester_sessions s ON s.id=i.session_id WHERE s.user=?",current.toISOString(),user);
+        const outcomes=await store.one("SELECT COALESCE(sum(l.state='CANCELLED'),0) cancelled,COALESCE(sum(l.state='ABSENT'),0) absent FROM test_lifecycle l JOIN queue q ON q.id=l.test_id WHERE q.tester=?",user);
+        return {content:'**'+counts.lifetime+' documented tests**',embeds:[{title:'?? TESTER PERFORMANCE',color:0x7861e8,description:'Official evaluations and recorded availability. UTC calendar boundaries apply.',fields:[{name:'Today',value:String(counts.today),inline:true},{name:'This week',value:String(counts.week),inline:true},{name:'This month',value:String(counts.month),inline:true},{name:'Lifetime',value:String(counts.lifetime),inline:true},{name:'Available session hours',value:Number(time.hours).toFixed(2),inline:true},{name:'Reviewed absences',value:String(outcomes.absent),inline:true},{name:'Cancelled tests',value:String(outcomes.cancelled),inline:true}],footer:{text:'Paused and offline intervals do not add availability hours.'}}],components:[communityRow(communityButton('My monthly quota','network:quota'),communityButton('Tester leaderboard','network:tester-leaderboard'))]};
+      }
       return communityMessage(`**${sub.name === 'stats' ? 'Tester activity' : 'Testing leaderboard'} · ${period === 'month' ? stamp.toISOString().slice(0,7) + ' UTC' : 'Overall'}**\n**${total.n} documented test${total.n === 1 ? '' : 's'}**\n${rows.map((r,n) => `${n+1}. ${r.name || '<@'+r.tester+'>'} — **${r.n}**`).join('\n') || 'No completed, valid tests yet.'}\n\nCounts exclude revoked results. Volume is recognition, not an automatic staff promotion.`);
     }
     case 'retire': {
@@ -227,7 +221,7 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
         const m = mode(), reason = explanation();
         const account = await store.one('SELECT * FROM accounts WHERE discord=?', actor);
         if (!account) throw Error('Verify account ownership before requesting retirement.');
-        const placement = await store.one('SELECT * FROM results r WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1', account.uuid, m);
+        const placement = await store.one('SELECT * FROM effective_placements r WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1', account.uuid, m);
         if (!placement || config.points[communityRank(placement)] < config.points.LT2) throw Error('Retirement requires a current LT2-or-higher placement.');
         const lastTest=await store.one('SELECT max(created) stamp FROM results WHERE uuid=?',account.uuid);
         const recentHigh=await store.one("SELECT 1 FROM high_tests WHERE user=? AND status IN ('passed','failed') AND updated>?",actor,new Date(Date.now()-35*86400000).toISOString());
@@ -264,7 +258,7 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
       if (row.user === actor) throw Error('An independent moderator must review your request.');
       const result = await store.db.batch([
         store.statement(`UPDATE retirements SET status=?,reviewer=?,decision=?,updated=? WHERE id=? AND status='pending' AND user<>?
-          AND result_id=(SELECT id FROM results r WHERE r.uuid=retirements.uuid AND r.mode=retirements.mode AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1)
+          AND result_id=(SELECT id FROM effective_placements r WHERE r.uuid=retirements.uuid AND r.mode=retirements.mode AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1)
           AND NOT EXISTS(SELECT 1 FROM queue q WHERE q.user=retirements.user AND q.mode=retirements.mode AND q.status IN ('waiting','claimed'))
           AND NOT EXISTS(SELECT 1 FROM results r WHERE r.uuid=retirements.uuid AND r.created>?)
           AND NOT EXISTS(SELECT 1 FROM high_tests h WHERE h.user=retirements.user AND h.status IN ('passed','failed') AND h.updated>?)`, decision, actor, reason, now(), row.id, actor,new Date(Date.now()-35*86400000).toISOString(),new Date(Date.now()-35*86400000).toISOString()),

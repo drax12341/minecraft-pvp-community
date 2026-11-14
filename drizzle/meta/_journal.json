@@ -78,6 +78,41 @@
       "when": 1794650000000,
       "tag": "0010_competitive_platform",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794658000000,
+      "tag": "0011_closed_queue_panels",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1794659000000,
+      "tag": "0012_staff_placements",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1794660000000,
+      "tag": "0013_support_extensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1794661000000,
+      "tag": "0014_notification_maintenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1794662000000,
+      "tag": "0015_tester_active_time",
+      "breakpoints": true
     }
   ]
 }

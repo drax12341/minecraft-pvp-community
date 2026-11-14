@@ -7,7 +7,7 @@ import {checkTierPhase} from '../config/phase-checks.mjs';
 export const testingDeskNames=new Set(testingDeskCommands.map(c=>c.name));
 const deskRank=r=>`${r.pos===0?'HT':'LT'}${r.tier}`;
 export async function deskPublic(store){
- const leaderboard=await store.all(`SELECT a.name,count(*) AS tests FROM results r JOIN accounts a ON a.discord=r.tester WHERE NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) GROUP BY r.tester ORDER BY tests DESC,a.name LIMIT 10`);
+ const leaderboard=await store.all(`SELECT a.name,count(*) AS tests FROM results r JOIN accounts a ON a.discord=r.tester WHERE r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) GROUP BY r.tester ORDER BY tests DESC,a.name LIMIT 10`);
  const demand=await store.all("SELECT mode,region,target,count(*) AS waiting FROM high_tests WHERE kind='player' AND status IN ('pending','claimed') GROUP BY mode,region,target");
  return {updatedAt:new Date().toISOString(),paths:deskPaths,tiers:deskTiers,demand,leaderboard};
 }
@@ -53,8 +53,8 @@ export async function runTestingDesk(i,env,store,request=fetch,dispatch){
  }
  if(i.data.name==='test-stats'){
   if(get('mode'))checkMode();const m=get('mode')||'';
-  const rows=await store.all(`SELECT r.tester,a.name,count(*) n FROM results r LEFT JOIN accounts a ON a.discord=r.tester WHERE NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND (?='' OR r.mode=?) GROUP BY r.tester ORDER BY n DESC,r.tester LIMIT 10`,m,m);
-  const total=await store.one("SELECT count(*) n FROM results r WHERE NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND (?='' OR r.mode=?)",m,m);
+  const rows=await store.all(`SELECT r.tester,a.name,count(*) n FROM results r LEFT JOIN accounts a ON a.discord=r.tester WHERE r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND (?='' OR r.mode=?) GROUP BY r.tester ORDER BY n DESC,r.tester LIMIT 10`,m,m);
+  const total=await store.one("SELECT count(*) n FROM results r WHERE r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND (?='' OR r.mode=?)",m,m);
   return `**Completed tests: ${total.n}**\n`+(rows.map((r,n)=>`${n+1}. ${r.name||'<@'+r.tester+'>'} — ${r.n}`).join('\n')||'No completed tests yet.');
  }
  if(i.data.name==='cooldown'){
@@ -95,7 +95,7 @@ export async function runTestingDesk(i,env,store,request=fetch,dispatch){
   const account=await store.one('SELECT * FROM accounts WHERE discord=?',actor);if(!account)throw Error('Verify Minecraft account ownership with staff before applying.');
   if(kind==='player'){
    const restriction=await store.one('SELECT until_at FROM test_restrictions WHERE user=? AND mode=? AND until_at>?',actor,m,now());if(restriction)throw Error('Failed-test cooldown ends '+restriction.until_at);
-   const current=await store.one('SELECT tier,pos FROM results r WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1',account.uuid,m);
+   const current=await store.one('SELECT tier,pos FROM effective_placements r WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1',account.uuid,m);
    if(!current)throw Error('Complete an initial evaluation in this gamemode before applying for HT3+. Use /request-test.');
    const order=['LT5','HT5','LT4','HT4','LT3','HT3','LT2','HT2','LT1','HT1'];
    if(order.indexOf(target)!==order.indexOf(deskRank(current))+1)throw Error('Apply for the next tier above your published placement. Current rank: '+deskRank(current));
@@ -199,7 +199,7 @@ export async function runTestingDesk(i,env,store,request=fetch,dispatch){
   if(get('opponent')===r.user||(get('opponent')===actor&&!(r.target==='HT3'&&r.phase===1)))throw Error('Choose an independent opponent.');
   if(get('phase')!==r.phase)throw Error('Assign opponents for the current phase.');
   const opponent=await store.one('SELECT * FROM accounts WHERE discord=?',get('opponent'));if(!opponent)throw Error('The opponent must have verified account ownership.');
-  const placement=await store.one('SELECT tier,pos FROM results r WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1',opponent.uuid,r.mode);if(!placement)throw Error('The opponent needs a published placement in this gamemode.');
+  const placement=await store.one('SELECT tier,pos FROM effective_placements r WHERE uuid=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) ORDER BY sequence DESC LIMIT 1',opponent.uuid,r.mode);if(!placement)throw Error('The opponent needs a published placement in this gamemode.');
   const changed=await store.statement('INSERT OR IGNORE INTO high_test_sets(id,test_id,phase,opponent,opponent_tier,actor,updated) VALUES(?,?,?,?,?,?,?)',crypto.randomUUID(),r.id,r.phase,get('opponent'),deskRank(placement),actor,now()).run();
   if(!changed.meta.changes)throw Error('This opponent is already assigned in this phase.');return `Opponent assigned as ${deskRank(placement)}. Record the set with /high-test score. Staff must check tier and replacement eligibility against the rubric.`;
  }

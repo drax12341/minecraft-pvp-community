@@ -1,3 +1,4 @@
+import {sensitiveSupportKinds} from '../config/community-roles.mjs';
 import { requireQualification, requireReadyRoom } from './journeys.mjs';
 import { OperationsStore } from "./operations-store.mjs";
 import { extraInterests, staffAccess, ticketKinds } from "../config/community-roles.mjs";
@@ -9,11 +10,11 @@ const view = 1024n, send = 2048n, history = 65536n, embed = 16384n, attach = 327
 const ids = (text) => String(text || "").split(",").filter((s) => /^\d{5,22}$/.test(s));
 export function ticketOverwrites(env, owner, kind, closed = false) {
   const moderators=ids(env.DISCORD_MODERATOR_ROLE_IDS || env.MODERATOR_ROLE_ID);
-  const staff=kind === "staff-report" ? ids(env.DISCORD_REPORT_REVIEWER_ROLE_IDS) : [...moderators,...ids(env.DISCORD_SUPPORT_ROLE_IDS)];
+  const staff=sensitiveSupportKinds.has(kind) ? ids(env.DISCORD_REPORT_REVIEWER_ROLE_IDS) : [...moderators,...ids(env.DISCORD_SUPPORT_ROLE_IDS)];
   return [
     {id:env.DISCORD_GUILD_ID,type:0,allow:"0",deny:String(view)},
     ...[...new Set(staff)].map(id=>({id,type:0,allow:String(view|send|history|embed|attach),deny:"0"})),
-    ...(kind==='staff-report'&&env.DISCORD_OWNER_ID&&env.DISCORD_OWNER_ID!==owner?[{id:env.DISCORD_OWNER_ID,type:1,allow:String(view|send|history|embed|attach),deny:'0'}]:[]),
+    ...(sensitiveSupportKinds.has(kind)&&env.DISCORD_OWNER_ID&&env.DISCORD_OWNER_ID!==owner?[{id:env.DISCORD_OWNER_ID,type:1,allow:String(view|send|history|embed|attach),deny:'0'}]:[]),
     {id:env.DISCORD_CLIENT_ID,type:1,allow:String(view|send|history|embed|attach),deny:"0"},
     {id:owner,type:1,allow:String(view|history|embed|attach|(closed?0n:send)),deny:String(closed?send:0n)},
   ];
@@ -118,7 +119,7 @@ export async function runOperation(interaction,env,store,request=fetch) {
         return result;
       }
       if(sub?.name==="open"){
-        if(get('kind')==='staff-report'&&!env.DISCORD_OWNER_ID&&!env.DISCORD_REPORT_REVIEWER_ROLE_IDS)throw Error('Independent report reviewers are not configured. Contact the server owner privately.');
+        if(sensitiveSupportKinds.has(get('kind'))&&!env.DISCORD_OWNER_ID&&!env.DISCORD_REPORT_REVIEWER_ROLE_IDS)throw Error('Independent report reviewers are not configured. Contact the server owner privately.');
         if(!env.DISCORD_TICKET_CATEGORY_ID)throw Error("The private support category is not configured yet.");
         const id=await op.reserveTicket(actor,get("kind"),get("subject"),get("detail"));
         let channel;
@@ -127,12 +128,12 @@ export async function runOperation(interaction,env,store,request=fetch) {
           assertPrivateTicket(channel,env,actor,get("kind"));
           await op.ticketOpened(id,channel.id);
           // Ping only the configured team, once, inside the verified private case.
-          const notifyRoles = [...new Set(ids(get("kind")==="staff-report"
+          const notifyRoles = [...new Set(ids(sensitiveSupportKinds.has(get("kind"))
             ? env.DISCORD_REPORT_REVIEWER_ROLE_IDS
             : (env.DISCORD_SUPPORT_PING_ROLE_ID || env.DISCORD_SUPPORT_ROLE_IDS || env.DISCORD_MODERATOR_ROLE_IDS || env.MODERATOR_ROLE_ID)))];
           await discord(`/channels/${channel.id}/messages`,"POST",{
-            content: notifyRoles.map(role=>`<@&${role}>`).join(" ") + (get('kind')==='staff-report'&&env.DISCORD_OWNER_ID?` <@${env.DISCORD_OWNER_ID}>`:'') + " A new support case needs review.",
-            allowed_mentions:{parse:[],roles:notifyRoles,users:get('kind')==='staff-report'&&env.DISCORD_OWNER_ID?[env.DISCORD_OWNER_ID]:[]},
+            content: notifyRoles.map(role=>`<@&${role}>`).join(" ") + (sensitiveSupportKinds.has(get('kind'))&&env.DISCORD_OWNER_ID?` <@${env.DISCORD_OWNER_ID}>`:'') + " A new support case needs review.",
+            allowed_mentions:{parse:[],roles:notifyRoles,users:sensitiveSupportKinds.has(get('kind'))&&env.DISCORD_OWNER_ID?[env.DISCORD_OWNER_ID]:[]},
           });
           await discord(`/channels/${channel.id}/messages`,"POST",{embeds:[{title:get("subject"),description:get("detail"),color:0xa78bfa,fields:[{name:"Category",value:get("kind"),inline:true},{name:"Case ID",value:id},{name:"Privacy",value:"Visible to you and the authorized support/moderation team. Server administrators can access private channels. Never send passwords, tokens or backup codes."}]}],components:[{type:1,components:[{type:2,style:2,label:"Close ticket",custom_id:"ticket:close:"+id}]}],allowed_mentions:{parse:[]}});
           return `Private ticket opened: <#${channel.id}>\nCase ID: ${id}. Use /ticket status or /ticket close. No waiting time is guaranteed.`;
@@ -145,13 +146,13 @@ export async function runOperation(interaction,env,store,request=fetch) {
       }
       if(sub?.name==="status"){
         if(get("id")){
-          const t=await op.ticket(get("id"));if(!t || (t.user!==actor && (!support || (t.kind==="staff-report"&&!reportReviewer))))throw Error("Ticket not found or you do not have access.");
+          const t=await op.ticket(get("id"));if(!t || (t.user!==actor && (!support || (sensitiveSupportKinds.has(t.kind)&&!reportReviewer))))throw Error("Ticket not found or you do not have access.");
           return `${t.id} · ${t.kind} · ${t.status} · ${t.workflow}\n${t.subject}\n${t.detail}${t.channel?`\n<#${t.channel}>`:"\nChannel creation is pending staff review."}${t.claimed_by?`\nAssigned: <@${t.claimed_by}>`:""}${t.close_reason?`\nResolution: ${t.close_reason}`:''}`;
         }
         const rows=await op.tickets(support?undefined:actor,reportReviewer);return rows.length?rows.map(t=>`${t.id} · ${t.kind} · ${t.status} · ${t.workflow}${t.channel?` · <#${t.channel}>`:""}`).join("\n"):"No active tickets.";
       }
       const t=await op.ticket(get("id"));
-      if(!t || (t.user!==actor && (!support || (t.kind==="staff-report"&&!reportReviewer))))throw Error("Ticket not found or you do not have access.");
+      if(!t || (t.user!==actor && (!support || (sensitiveSupportKinds.has(t.kind)&&!reportReviewer))))throw Error("Ticket not found or you do not have access.");
       if(sub?.name==='recover'){
         if(!support||t.user===actor)throw Error('Only independent authorised support staff can recover setup.');
         if(t.status!=='creating')throw Error('This ticket is not pending channel setup.');
@@ -177,7 +178,7 @@ export async function runOperation(interaction,env,store,request=fetch) {
           const target=get('user');
           const member=await discord(`/guilds/${env.DISCORD_GUILD_ID}/members/${target}`);
           const access=staffAccess({member},env);
-          if(!access.support||(t.kind==='staff-report'&&!access.reportReviewer)||target===t.user)throw Error('Choose an independent staff member authorised for this category.');
+          if(!access.support||(sensitiveSupportKinds.has(t.kind)&&!access.reportReviewer)||target===t.user)throw Error('Choose an independent staff member authorised for this category.');
           await store.db.batch([store.statement('UPDATE support_tickets SET claimed_by=? WHERE id=? AND status=\'open\'',target,t.id),store.audit(actor,'ticket-assign',t.id)]);
           return 'Case assigned. The recipient can view it through /ticket status; no channel access was broadened.';
         }

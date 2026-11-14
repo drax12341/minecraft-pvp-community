@@ -8,14 +8,14 @@ export class OperationsStore {
   async reserveTicket(user,kind,subject,detail) {
     if (!ticketKinds.includes(kind) || typeof subject !== "string" || subject.trim().length < 5 || subject.length > 100 || typeof detail !== "string" || detail.trim().length < 10 || detail.length > 1500) throw Error("Choose a ticket category, a 5–100 character subject and 10–1500 characters of detail. Never include passwords or tokens.");
     const id = crypto.randomUUID();
-    const result = await this.statement("INSERT INTO support_tickets(id,user,kind,subject,detail,status,created) SELECT ?,?,?,?,?,'creating',? WHERE (SELECT count(*) FROM support_tickets WHERE user=? AND status IN ('creating','open','closing'))<2 AND NOT EXISTS(SELECT 1 FROM support_tickets WHERE user=? AND kind=? AND status IN ('creating','open','closing'))",id,user,kind,subject.trim(),detail.trim(),new Date().toISOString(),user,user,kind).run();
+    const result = await this.statement("INSERT INTO support_tickets(id,user,kind,subject,detail,status,created) SELECT ?,?,?,?,?,'creating',? WHERE (SELECT count(*) FROM support_tickets WHERE user=? AND status IN ('creating','open','closing','reopening'))<2 AND NOT EXISTS(SELECT 1 FROM support_tickets WHERE user=? AND kind=? AND status IN ('creating','open','closing','reopening'))",id,user,kind,subject.trim(),detail.trim(),new Date().toISOString(),user,user,kind).run();
     if (!result.meta.changes) throw Error("You already have an active ticket in this category, or two active tickets. Use /ticket status.");
     return id;
   }
   async ticket(id) { return this.one("SELECT * FROM support_tickets WHERE id=?",id); }
   async ticketOpened(id,channel) { await this.statement("UPDATE support_tickets SET status='open',channel=? WHERE id=? AND status='creating'",channel,id).run(); }
   async ticketFailed(id) { await this.statement("UPDATE support_tickets SET status='failed' WHERE id=? AND status='creating'",id).run(); }
-  async tickets(user,mod) { return this.all("SELECT * FROM support_tickets WHERE status IN ('creating','open','closing') AND (? IS NULL OR user=?) AND (?=1 OR kind<>'staff-report' OR user=?) ORDER BY created LIMIT 20",user??null,user??null,mod?1:0,user??null); }
+  async tickets(user,mod) { return this.all("SELECT * FROM support_tickets WHERE status IN ('creating','open','closing','reopening') AND (? IS NULL OR user=?) AND (?=1 OR kind NOT IN ('staff-report','tester-report') OR user=?) ORDER BY created LIMIT 20",user??null,user??null,mod?1:0,user??null); }
   async claimTicket(id,actor) {
     const r = await this.statement("UPDATE support_tickets SET claimed_by=? WHERE id=? AND status='open' AND claimed_by IS NULL AND user<>?",actor,id,actor).run();
     if (!r.meta.changes) throw Error("Ticket is not open, is already claimed, or belongs to you.");
