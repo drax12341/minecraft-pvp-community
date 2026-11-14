@@ -27,6 +27,15 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Route the legacy address to the authoritative competitive website
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const base = 'https://minecraft-pvp-community.draxion0.chatgpt.site';
+          const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mace Network has moved</title><link rel="canonical" href="'+base+'/"><meta http-equiv="refresh" content="3;url='+base+'/"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080a10;color:#f4f6ff;font:16px/1.8 system-ui}main{max-width:460px;padding:32px}h1{font-size:42px;line-height:1.1}a{color:#bba4f5}</style></head><body><main><p>MACE NETWORK</p><h1>Your competitive hub has a new home.</h1><p>Rankings, testing queues and player profiles now share one official website.</p><a href="'+base+'/">Open Mace Network</a></main><script>const base='+JSON.stringify(base)+';const hash=location.hash.slice(1);const allowed=["rankings","tests","queues","testers","modes","points","rules","support","faq"];const section=hash.split(/[/?#]/)[0];const path=allowed.includes(section)?"/"+section:"/";location.replace(base+path);</script></body></html>';
+          fs.writeFileSync('dist/index.html', html);
+          fs.writeFileSync('dist/404.html', html);
+          NODE
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
