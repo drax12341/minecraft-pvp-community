@@ -1,4 +1,4 @@
-import {lookupMinecraftAccount} from './minecraft-lookup.mjs';
+import { lookupMinecraftAccount } from "./minecraft-lookup.mjs";
 const utf8 = new TextEncoder();
 export async function tokenHash(value) {
   return Array.from(
@@ -13,7 +13,7 @@ export async function beginVerification(
   request = fetch,
   method = "online-server",
 ) {
-  name=typeof name==='string'?name.trim():name;
+  name = typeof name === "string" ? name.trim() : name;
   if (!["online-server", "skin"].includes(method))
     throw Error("Invalid verification method.");
   if (!/^\w{3,16}$/.test(name || ""))
@@ -28,8 +28,21 @@ export async function beginVerification(
   );
   if (recent && Date.now() - Date.parse(recent.created) < 60000)
     throw Error("Wait one minute before replacing your challenge.");
-  const lookup=await lookupMinecraftAccount(name,request),profile=lookup.profile;
-  if(!profile){console.warn('Minecraft identity lookup failed',JSON.stringify(lookup.attempts));throw Error(lookup.reason==='not-found'?'No Minecraft Java account was found with the name '+name+'. Enter your in-game Java username.':'Minecraft’s account lookup service is not responding correctly. Your account has not been changed. Try verification again shortly.');}
+  const lookup = await lookupMinecraftAccount(name, request),
+    profile = lookup.profile;
+  if (!profile) {
+    console.warn(
+      "Minecraft identity lookup failed",
+      JSON.stringify(lookup.attempts),
+    );
+    throw Error(
+      lookup.reason === "not-found"
+        ? "No Minecraft Java account was found with the name " +
+            name +
+            ". Enter your in-game Java username."
+        : "Minecraft’s account lookup service is not responding correctly. Your account has not been changed. Try verification again shortly.",
+    );
+  }
   const uuid = profile.id
     .toLowerCase()
     .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5");
@@ -39,7 +52,9 @@ export async function beginVerification(
     );
   const code = crypto.randomUUID().replaceAll("-", ""),
     created = new Date().toISOString(),
-    expires = new Date(Date.now() + 10 * 60000).toISOString();
+    expires = new Date(
+      Date.now() + (method === "skin" ? 45 : 10) * 60000,
+    ).toISOString();
   await store
     .statement(
       "INSERT INTO account_challenges(user,uuid,name,token_hash,created,expires,consumed,method,last_checked) VALUES(?,?,?,?,?,?,NULL,?,NULL) ON CONFLICT(user) DO UPDATE SET uuid=excluded.uuid,name=excluded.name,token_hash=excluded.token_hash,created=excluded.created,expires=excluded.expires,consumed=NULL,method=excluded.method,last_checked=NULL",

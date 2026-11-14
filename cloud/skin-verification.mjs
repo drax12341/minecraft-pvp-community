@@ -1,3 +1,4 @@
+import { minecraftProfileCandidates } from "./minecraft-profile.mjs";
 import { tokenHash, consumeOwnershipChallenge } from "./verification.mjs";
 const verificationSite =
   "https://minecraft-pvp-community.draxion0.chatgpt.site";
@@ -273,6 +274,61 @@ export async function verificationDownload(request, store) {
     },
   );
 }
+async function skinDigest(png) {
+  return Array.from(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", png)),
+    (b) => b.toString(16).padStart(2, "0"),
+  ).join("");
+}
+async function skinCandidateMatches(challenge, candidate, provider) {
+  try {
+    const property = candidate.profile.properties?.find(
+      (p) => p.name === "textures",
+    );
+    if (typeof property?.value !== "string" || property.value.length > 32000)
+      return false;
+    const textures = JSON.parse(atob(property.value));
+    if (
+      textures.profileId?.toLowerCase() !==
+      challenge.uuid.replaceAll("-", "").toLowerCase()
+    )
+      return false;
+    const url = new URL(textures.textures?.SKIN?.url || "");
+    if (
+      !["http:", "https:"].includes(url.protocol) ||
+      url.hostname !== "textures.minecraft.net" ||
+      url.port ||
+      url.username ||
+      url.password ||
+      !/^\/texture\/[a-f0-9]{32,128}$/i.test(url.pathname)
+    )
+      return false;
+    const textureHash = url.pathname.split("/").at(-1).toLowerCase();
+    if (
+      textureHash ===
+      (await skinDigest(await createVerificationSkin(challenge.token_hash)))
+    )
+      return true;
+    url.protocol = "https:";
+    const image = await provider(url.href, {
+      redirect: "error",
+      signal: AbortSignal.timeout(4500),
+    });
+    if (
+      !image.ok ||
+      !image.headers.get("Content-Type")?.startsWith("image/png")
+    ) {
+      await image.body?.cancel();
+      return false;
+    }
+    const png = await skinReadLimited(image.body, 131072);
+    if (candidate.signatureVerified && (await skinDigest(png)) !== textureHash)
+      return false;
+    return await matchesVerificationSkin(png, challenge.token_hash);
+  } catch {
+    return false;
+  }
+}
 export async function checkSkinVerification(store, user, provider = fetch) {
   const linked = await store.one(
     "SELECT name FROM accounts WHERE discord=?",
@@ -314,61 +370,23 @@ export async function checkSkinVerification(store, user, provider = fetch) {
     };
   }
   try {
-    const response = await provider(
-      "https://sessionserver.mojang.com/session/minecraft/profile/" +
-        challenge.uuid.replaceAll("-", ""),
-      {
-        headers: { Accept: "application/json" },
-        redirect: "error",
-        signal: AbortSignal.timeout(8000),
-      },
+    const candidates = await minecraftProfileCandidates(
+      challenge.uuid,
+      provider,
     );
-    if (!response.ok) throw Error("Profile unavailable");
-    const profile = await response.json();
-    if (
-      profile.id?.toLowerCase() !== challenge.uuid.replaceAll("-", "") ||
-      !/^\w{3,16}$/.test(profile.name || "")
-    )
-      throw Error("Profile mismatch");
-    const encoded = profile.properties?.find(
-      (p) => p.name === "textures",
-    )?.value;
-    if (typeof encoded !== "string" || encoded.length > 32000)
-      throw Error("Textures unavailable");
-    const textures = JSON.parse(atob(encoded));
-    if (textures.profileId?.toLowerCase() !== profile.id.toLowerCase())
-      throw Error("Texture identity mismatch");
-    const url = new URL(textures.textures?.SKIN?.url || "");
-    if (
-      !["http:", "https:"].includes(url.protocol) ||
-      url.hostname !== "textures.minecraft.net" ||
-      url.port ||
-      url.username ||
-      url.password ||
-      !/^\/texture\/[a-f0-9]{32,128}$/i.test(url.pathname)
-    )
-      throw Error("Invalid texture URL");
-    url.protocol = "https:";
-    const image = await provider(url.href, {
-      redirect: "error",
-      signal: AbortSignal.timeout(8000),
-    });
-    if (
-      !image.ok ||
-      !image.headers.get("Content-Type")?.startsWith("image/png")
-    )
-      throw Error("Skin unavailable");
-    const png = await skinReadLimited(image.body, 131072);
-    let matched = false;
-    try {
-      matched = await matchesVerificationSkin(png, challenge.token_hash);
-    } catch {}
-    if (!matched)
+    let profile = null;
+    for (const candidate of candidates) {
+      if (await skinCandidateMatches(challenge, candidate, provider)) {
+        profile = candidate.profile;
+        break;
+      }
+    }
+    if (!profile)
       return {
         content:
           "**Skin not confirmed yet**\nMake sure the downloaded verification PNG is applied to **" +
           challenge.name +
-          "** on your Java account. Allow Minecraft a moment to update, then check again. Your challenge is still active.",
+          "** on your Java account. Minecraft profile caches may take time to refresh. Keep the temporary skin applied and check again; your challenge remains active.",
         components: skinCheckButtons(),
       };
     await consumeOwnershipChallenge(

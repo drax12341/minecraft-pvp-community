@@ -264,7 +264,7 @@ export default {
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "mace-network-v15-verification",
+            release: "mace-network-v16-minecraft-relay",
             queueCapacity: 20,
           });
         }

@@ -15,7 +15,7 @@ The same actions are supported from the website account verification dialog when
 
 The PNG is an original 64×64 Java skin. Its chest pixels contain a challenge-specific pattern derived from the random, expiring ownership challenge. Verification resolves the saved UUID through Mojang's official session server and fetches only a strictly validated `textures.minecraft.net` URL. It compares decoded pixels, so PNG recompression and scanline filters do not break proof. The bot never asks for Microsoft passwords, Minecraft access tokens or a downloaded executable.
 
-Challenges are bound to the Discord user and verified UUID, expire after ten minutes, can be replaced no more than once per minute and can be checked no more than once per fifteen seconds. Finalization uses the same transactional account linking constraints and outbox as server-based proof. Duplicate account links, consumed challenges and expired proof cannot finalize again.
+Challenges are bound to the Discord user and verified UUID, expire after 45 minutes for skin proof (ten minutes for online-server proof), can be replaced no more than once per minute and can be checked no more than once per fifteen seconds. Finalization uses the same transactional account linking constraints and outbox as server-based proof. Duplicate account links, consumed challenges and expired proof cannot finalize again.
 
 The PNG decoder accepts only bounded 64×64, eight-bit RGB/RGBA images, verifies PNG chunk checksums, supports all five standard scanline filters and bounds compressed and decompressed sizes. Texture redirects and arbitrary external URLs are rejected. Only a matching official UUID texture can confirm ownership.
 
@@ -30,3 +30,11 @@ After deploying the Worker and migration 0018, update only the verification comm
 `node --env-file=.env discord/register-verification.mjs`
 
 The server proof integration remains optional. Website OAuth credentials are unrelated to Discord's verification command. Actual verification still requires the player to apply the skin on their own Minecraft account; development tests do not create production competitors.
+
+## Hosted network compatibility
+
+Production probes confirmed HTTP 403 responses from both official account lookup endpoints and the session-profile endpoint on the hosted network. Lookup now falls back to MineTools and PlayerDB. Relayed profile properties are accepted only after RSA verification against Mojang?s official profile-property public keys pinned in config/mojang-texture-keys.mjs. Unsigned relay names never grant ownership. The final verified name and UUID come from the signed property.
+
+Skin proof first compares the signed texture content hash to the exact generated challenge PNG hash. If they differ, the official texture is fetched and its pixels checked; relayed profiles also require the PNG?s SHA-256 to match the signed texture URL. Arbitrary relay images are never accepted. Cached profiles cannot match a fresh challenge until the provider updates. The longer skin challenge window accommodates relay caches.
+
+The authenticated GET /api/internal/verification-health endpoint probes actual production name lookup, signature verification and texture access without creating or linking accounts. HTTP errors, invalid JSON and missing usernames have separate diagnostic outcomes.
