@@ -12,11 +12,11 @@ export async function competitorProfile(i, env, store, progress = false) {
     throw Error("Enter a valid Minecraft username.");
   const account = name
     ? await store.one(
-        "SELECT discord,uuid,name FROM accounts WHERE lower(name)=lower(?)",
+        "SELECT discord,uuid,name,verified_by FROM accounts WHERE lower(name)=lower(?)",
         name,
       )
     : await store.one(
-        "SELECT discord,uuid,name FROM accounts WHERE discord=?",
+        "SELECT discord,uuid,name,verified_by FROM accounts WHERE discord=?",
         user,
       );
   if (!account)

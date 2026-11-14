@@ -1358,8 +1358,8 @@ test('complete official evaluation connects ownership, waitlist, live queue, pri
   const settings={...env,DB:adapter,MINECRAFT_VERIFICATION_SERVER:'test-only.example',MINECRAFT_PROOF_SECRET:'test-only-long-proof-secret-of-32-characters',DISCORD_TICKET_CATEGORY_ID:'80000',DISCORD_RESULTS_CHANNEL_ID:'83000'};
   const call=(actor,name,sub,values={},roles=[])=>runCommand(interaction(actor,name,sub,values,roles),settings,store,request);
   const start=await call('60000','verify','start',{name:'PlayerOne'});
-  const code=start.match(/linkdiscord ([a-f0-9]{32})/)[1];
-  await finishVerification(store,code,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne');
+  assert.match(start.content,/VERIFIED/);
+  assert.equal((await store.one('SELECT verified_by FROM accounts WHERE discord=?','60000')).verified_by,'ign-link');
   await call('60000','notifications',null,{delivery:'dm'});
   await call('60000','waitlist','join',{mode:'mace',region:'EU'});
   await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001','mace',0,'30000','Synthetic supervised qualification for this test',new Date().toISOString()).run();

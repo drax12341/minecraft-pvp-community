@@ -97,7 +97,7 @@ export async function home() {
     )}</div></section><section class="recent-section" data-reveal><div class="section-heading"><div><span class="micro-label">Official placements</span><h2>Every result tells a story.</h2></div><a class="text-link" href="/tests">All results ${icon("arrow")}</a></div>${results.results.length ? `<div class="grid four">${results.results.map(resultCard).join("")}</div>` : `<div class="results-awaiting"><div class="awaiting-icon">${icon("clock")}</div><div><h3>The next result is yet to be written.</h3><p>Completed evaluations and reviewed staff awards appear here automatically.</p></div><a class="button secondary" href="/how-to-test">How testing works ${icon("arrow")}</a></div>`}</section><section class="journey-section" data-reveal><div class="journey-heading"><span class="micro-label">From contender to competitor</span><h2>One test.<br>A new beginning.</h2><p>Your competitive identity follows you across every official Mace discipline.</p><a href="/how-to-test" class="text-link">See the complete process ${icon("arrow")}</a></div><ol class="journey-track">${[
     [
       "Prove your identity",
-      "Complete a Minecraft account ownership challenge.",
+      "Enter your Minecraft Java IGN in Discord.",
       "shield",
     ],
     [

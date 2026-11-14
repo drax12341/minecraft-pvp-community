@@ -16,8 +16,7 @@ import { staffAccess } from "../config/community-roles.mjs";
 import { testingDeskNames, runTestingDesk } from './testing-desk.mjs';
 import { communityDeskNames, runCommunityDesk } from './community-desk.mjs';
 import { approvedCommunityLoadout } from './loadouts.mjs';
-import { beginVerification } from './verification.mjs';
-import {skinVerificationInstructions,checkSkinVerification} from './skin-verification.mjs';
+import { linkMinecraftIGN } from './verification.mjs';
 import { drainOutbox, queueSessionNotifications } from './delivery.mjs';
 
 const regions = deskRegions;
@@ -131,13 +130,12 @@ export async function runCommand(interaction, env, store, request = fetch) {
       return runCommand({...interaction,resultConfirmed:true,data:{name:'result',options:[{name:'id',value:draft.test_id},{name:'tier',value:draft.tier},{name:'evidence',value:draft.evidence}]}},env,store,request);
     }
     case 'verify': {
-      if(sub?.name==='check')return checkSkinVerification(store,actor,request);
-      if(sub?.name==='status')return (await store.one('SELECT name FROM accounts WHERE discord=?',actor))?.name ? 'Your Minecraft ownership is verified.' : 'No verified account. Start with /verify start.';
-      const existing=await store.one('SELECT name FROM accounts WHERE discord=?',actor);if(existing)return '**'+existing.name+'** is already verified. Your linked account is ready for testing.';
-      const method=env.MINECRAFT_VERIFICATION_SERVER&&env.MINECRAFT_PROOF_SECRET?.length>=32?'online-server':'skin';
-      const challenge=await beginVerification(store,actor,get('name'),request,method);
-      if(method==='skin')return skinVerificationInstructions(challenge);
-      return '**VERIFY YOUR MINECRAFT ACCOUNT**\nJoin **'+env.MINECRAFT_VERIFICATION_SERVER+'** using **'+challenge.name+'**, then run:\n`/linkdiscord '+challenge.code+'`\nExpires <t:'+Math.floor(Date.parse(challenge.expires)/1000)+':R>. Keep this code private.';
+      const existing=await store.one('SELECT name FROM accounts WHERE discord=?',actor);
+      if(sub?.name==='status')return existing?'**Verified** ? Minecraft IGN: **'+existing.name+'**. You are ready to use the testing dashboard.':'Enter your Minecraft IGN using **/verify start** or the **Verify account** button.';
+      const pending=sub?.name==='check'?await store.one('SELECT name FROM account_challenges WHERE user=?',actor):null;
+      if(!existing&&!get('name')&&!pending)return {content:'Enter your Minecraft IGN to verify.',components:[{type:1,components:[{type:2,style:1,label:'Enter IGN',custom_id:'verify:start'}]}]};
+      const account=await linkMinecraftIGN(store,actor,get('name')||pending?.name,request);
+      return {content:'**VERIFIED**\nMinecraft IGN: **'+account.name+'**\nYou are ready to use the testing dashboard. Your Verified role is synchronizing.',components:[{type:1,components:[{type:2,style:1,label:'Find a test',custom_id:'community:boards'},{type:2,style:2,label:'My profile',custom_id:'community:self'}]}],allowed_mentions:{parse:[]}};
     }
     case 'notifications': {
       const delivery=get('delivery');

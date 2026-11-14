@@ -17,7 +17,7 @@ export const communityCommands=[
   {name:'system',description:'Staff: platform health and reconciliation',options:[sub('status','Inspect actual platform health'),sub('resync','Requeue current placement and verification roles safely')]},
   {name:'resync',description:'Staff: reconcile current placement and verification roles'},
   {name:'logs',description:'Staff: private audit log history',options:[user(false)]},
-  {name:'verify',description:'Link and verify your Minecraft Java account',options:[sub('start','Create an ownership verification challenge',[string('name','Minecraft Java username',true)]),sub('status','Check your verification'),sub('check','Confirm your temporary verification skin')]},
+  {name:'verify',description:'Enter your Minecraft IGN to get verified',options:[sub('start','Verify instantly with your Minecraft IGN',[string('name','Minecraft Java username',true)]),sub('status','Check your verification')]},
   {name:'notifications',description:'Control optional waitlist session alerts',options:[string('delivery','Optional notification preference',false,['dm','none'])]},
   {name:'delivery',description:'Moderator: inspect durable delivery failures',options:[sub('status','Inspect pending delivery'),sub('retry','Retry due delivery events')]},
   ...communityDeskCommands,

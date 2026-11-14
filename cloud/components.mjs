@@ -37,7 +37,7 @@ export function componentRoute(i) {
   if(id==='staff:delivery')return{command:command(i,'delivery','status')};
   if(id==='staff:setup')return{command:command(i,'setup',null)};
   if(id.startsWith('result:confirm:'))return{command:command(i,'result-confirm',null,{id:id.slice(15)})};
-  if(id==='verify:start')return{response:modal('verify:submit','Verify Minecraft ownership',[['name','Java username',1,3,16]])};
+  if(id==='verify:start')return{response:modal('verify:submit','Enter Minecraft IGN',[['name','Java username',1,3,16]])};
   if(id==='verify:check')return{command:command(i,'verify','check')};
   if(id==='verify:submit'&&i.type===5)return{command:command(i,'verify','start',{name:i.data.components?.[0]?.components?.[0]?.value})};
   if(id==='notify:dm'||id==='notify:none')return{command:command(i,'notifications',null,{delivery:id.slice(7)})};

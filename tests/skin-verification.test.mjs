@@ -221,7 +221,7 @@ test("ownership pixels survive PNG recompression and every standard RGB/RGBA sca
       );
     }
 });
-test("verification starts without any ownership-server configuration and check button routes correctly", async () => {
+test("IGN-only verification links immediately without ownership-server configuration", async () => {
   const { sql, store } = await database();
   try {
     const message = await runCommand(
@@ -230,13 +230,19 @@ test("verification starts without any ownership-server configuration and check b
       store,
       async () => Response.json({ id: "a".repeat(32), name: "PlayerOne" }),
     );
-    assert.match(message.content, /temporary skin/i);
+    assert.match(message.content, /VERIFIED/);
     assert.ok(
       message.components[0].components.some(
-        (b) => b.label === "Check verification",
+        (b) => b.label === "Find a test",
       ),
     );
-    assert.equal((await store.one("SELECT count(*) n FROM accounts")).n, 0);
+    assert.equal((await store.one("SELECT count(*) n FROM accounts")).n, 1);
+    assert.equal((await store.one('SELECT verified_by FROM accounts')).verified_by,'ign-link');
+    assert.equal((await store.one('SELECT count(*) n FROM account_challenges')).n,0);
+    const repeated=await runCommand(interaction('60000','start',{name:'PlayerOne'}),env,store,async()=>{throw Error('Existing links do not need another lookup');});
+    assert.match(repeated.content,/VERIFIED/);
+    assert.equal((await store.one('SELECT count(*) n FROM accounts')).n,1);
+    await assert.rejects(runCommand(interaction('60001','start',{name:'PlayerOne'}),env,store,async()=>Response.json({id:'a'.repeat(32),name:'PlayerOne'})),/already linked/);
     const route = componentRoute({
       type: 3,
       data: { custom_id: "verify:check" },

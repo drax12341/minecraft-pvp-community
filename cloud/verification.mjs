@@ -1,5 +1,20 @@
 import { lookupMinecraftAccount } from "./minecraft-lookup.mjs";
 const utf8 = new TextEncoder();
+export async function linkMinecraftIGN(store,user,input,provider=fetch){
+ const existing=await store.one('SELECT name,uuid,verified_by,verified_at FROM accounts WHERE discord=?',user);if(existing)return existing;
+ const name=typeof input==='string'?input.trim():'';if(!/^[A-Za-z0-9_]{3,16}$/.test(name))throw Error('Enter your Minecraft Java IGN (3–16 letters, numbers or underscores).');
+ const lookup=await lookupMinecraftAccount(name,provider);if(!lookup.profile)throw Error(lookup.reason==='not-found'?'That Java IGN was not found. Check your in-game username.':'Minecraft username lookup is temporarily unavailable. Try again shortly.');
+ const uuid=lookup.profile.id.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/,'$1-$2-$3-$4-$5'),now=new Date().toISOString();
+ await store.db.batch([
+  store.statement("INSERT OR IGNORE INTO accounts(discord,uuid,name,verified_by,verified_at) VALUES(?,?,?,'ign-link',?)",user,uuid,lookup.profile.name,now),
+  store.statement("INSERT INTO outbox_events(kind,subject,available_at,created) SELECT 'verified-role',discord,?,? FROM accounts WHERE discord=? AND uuid=? ON CONFLICT(kind,subject) DO UPDATE SET status='pending',available_at=excluded.available_at,last_error=NULL",now,now,user,uuid),
+  store.statement('DELETE FROM account_challenges WHERE user=? AND EXISTS(SELECT 1 FROM accounts WHERE discord=? AND uuid=?)',user,user,uuid),
+  store.audit(user,'ign-link-attempt',uuid)
+ ]);
+ const linked=await store.one('SELECT name,uuid,verified_by,verified_at FROM accounts WHERE discord=?',user);
+ if(!linked||linked.uuid!==uuid)throw Error('This IGN is already linked to another Discord account. Staff can correct the existing link.');
+ return linked;
+}
 export async function tokenHash(value) {
   return Array.from(
     new Uint8Array(await crypto.subtle.digest("SHA-256", utf8.encode(value))),
