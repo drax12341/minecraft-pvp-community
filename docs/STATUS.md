@@ -10,7 +10,10 @@ table/card views, comparisons, shareable views, CSV downloads, tag controls,
 private command preparation and real-data charts are interactive.
 Public tester activity uses the existing public testing-desk feed.
 See [the design and behavior contract](CHAMPION-CONTROL-ROOM.md).
-All 77 automated tests and the static Pages build pass; 15 routes render with
+Player profiles now include UUID-linked NameMC history links, 3D/front/texture
+skin views, skin PNG downloads and UUID copying. NameMC histories open on
+NameMC; skin images remain rendered by MCHeads. See [integration details](NAMEMC-INTEGRATION.md).
+All 81 automated tests and the static Pages build pass; 15 routes render with
 no missing local assets, duplicate IDs or script/CSS parse errors in jsdom.
 Browser visual QA remains unavailable.
 

@@ -1,3 +1,5 @@
+import {playerIdentity} from './player-identity.js?v=identity-v12';
+const crNameMCLink=p=>{const id=playerIdentity(p);return id?`<a class="cr-namemc-link" href="${id.nameMC}" target="_blank" rel="noopener noreferrer" aria-label="Open ${crEscape(p.name)} on NameMC" title="NameMC profile, skins and name history">MC ↗</a>`:'';};
 const crEscape = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -397,7 +399,7 @@ export function renderControlRoomHome({
   const playerButton = (p) =>
     `<button class="cr-player-identity" data-cr-profile="${crEscape(p.uuid)}">${crAvatar(p)}<span><strong>${crEscape(p.name)}</strong><small>View player profile</small></span></button>`;
   const playerActions = (p) =>
-    `<div class="cr-player-actions"><button class="cr-save-player" data-cr-save="${crEscape(p.uuid)}" aria-label="${saved.has(p.uuid) ? "Unsave" : "Save"} ${crEscape(p.name)}" aria-pressed="${saved.has(p.uuid)}">${crIcon("star", 15)}</button><label class="cr-compare-check"><input type="checkbox" data-cr-compare="${crEscape(p.uuid)}" aria-label="Compare ${crEscape(p.name)}"${selected.has(p.uuid) ? " checked" : ""}><span>Compare</span></label></div>`;
+    `<div class="cr-player-actions"><button class="cr-save-player" data-cr-save="${crEscape(p.uuid)}" aria-label="${saved.has(p.uuid) ? "Unsave" : "Save"} ${crEscape(p.name)}" aria-pressed="${saved.has(p.uuid)}">${crIcon("star", 15)}</button>${crNameMCLink(p)}<label class="cr-compare-check"><input type="checkbox" data-cr-compare="${crEscape(p.uuid)}" aria-label="Compare ${crEscape(p.name)}"${selected.has(p.uuid) ? " checked" : ""}><span>Compare</span></label></div>`;
   const drawIndex = () => {
     const rows = filtered(),
       pages = Math.max(1, Math.ceil(rows.length / 10));

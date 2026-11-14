@@ -1,6 +1,7 @@
-import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=champion-v11';
-import {mountLeagueShell,renderLeagueWatchlist,renderLeagueInsights,renderLeaguePlanner} from './league.js?v=champion-v11';
-import {renderControlRoomHome} from './control-room.js?v=champion-v11';
+import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=identity-v12';
+import {mountLeagueShell,renderLeagueWatchlist,renderLeagueInsights,renderLeaguePlanner} from './league.js?v=identity-v12';
+import {renderControlRoomHome} from './control-room.js?v=identity-v12';
+import {renderPlayerIdentity,mountPlayerIdentity} from './player-identity.js?v=identity-v12';
 const main = document.querySelector("main"),
   modal = document.querySelector("dialog"),
   body = document.querySelector("#modal-body");
@@ -675,6 +676,8 @@ function profile(p) {
     profile(p);
   };
   body.querySelectorAll('.profile-next').forEach(a=>a.addEventListener('click',()=>modal.close()));
+  body.querySelector('.dossier-stats').insertAdjacentHTML('beforebegin',renderPlayerIdentity(p));
+  mountPlayerIdentity(body,p,copyText);
   body.querySelector("#share").onclick = async () => {
     try {
       await navigator.clipboard.writeText(

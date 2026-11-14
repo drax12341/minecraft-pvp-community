@@ -48,9 +48,10 @@ async function website(
   };
   const deskSource=(await readFile('web/testing-desk.js','utf8')).replaceAll('export function','function').replaceAll('export async function','async function');
   const leagueSource=(await readFile('web/league.js','utf8')).replaceAll('export function','function');
-  const controlSource=(await readFile('web/control-room.js','utf8')).replaceAll('export function','function');
+  const controlSource=(await readFile('web/control-room.js','utf8')).replace(/^import .*\r?\n/gm,'').replaceAll('export function','function');
+  const identitySource=(await readFile('web/player-identity.js','utf8')).replaceAll('export function','function');
   const appSource=(await readFile('web/tierlist.js','utf8')).replace(/^import .*\r?\n/gm,'');
-  await w.eval(`(async()=>{${deskSource}\n${leagueSource}\n${controlSource}\n${appSource}\n})()`);
+  await w.eval(`(async()=>{${deskSource}\n${leagueSource}\n${identitySource}\n${controlSource}\n${appSource}\n})()`);
   return dom;
 }
 
@@ -68,6 +69,17 @@ test('universal finder searches real players and opens their existing profile',a
  d.querySelector('#global-kit-search').click();const input=d.querySelector('#kit-search');input.value='TestPlayer';input.dispatchEvent(new w.Event('input'));
  assert.equal(d.querySelectorAll('[data-search-player]').length,1);d.querySelector('[data-search-player]').click();
  assert.match(d.querySelector('#modal-body').textContent,/TestPlayer/);assert.ok(d.querySelector('#save-player'));dom.window.close();
+});
+
+test('player profiles link permanent NameMC identities and offer working skin views and UUID copy',async()=>{
+ const dom=await website([player],[],'rankings?player='+player.uuid),w=dom.window,d=w.document,copied=[];
+ Object.defineProperty(w.navigator,'clipboard',{value:{writeText:async text=>copied.push(text)}});
+ const link=d.querySelector('.identity-links a');assert.equal(link.href,'https://namemc.com/profile/'+player.uuid);assert.equal(link.rel,'noopener noreferrer');
+ d.querySelector('[data-skin-view="texture"]').click();assert.equal(d.querySelector('#identity-skin-render').src,'https://mc-heads.net/skin/'+player.uuid);assert.equal(d.querySelector('[data-skin-view="texture"]').getAttribute('aria-pressed'),'true');
+ d.querySelector('#identity-copy-uuid').click();await Promise.resolve();assert.equal(copied.at(-1),player.uuid);
+ d.querySelector('#identity-skin-render').dispatchEvent(new w.Event('error'));assert.equal(d.querySelector('#identity-skin-render').hidden,true);assert.match(d.querySelector('#identity-skin-status').textContent,/unavailable/);
+ d.querySelector('[data-skin-view="front"]').click();assert.equal(d.querySelector('#identity-skin-render').hidden,false);assert.equal(d.querySelector('#identity-skin-render').src,'https://mc-heads.net/player/'+player.uuid);
+ dom.window.close();
 });
 
 test('control room combines search, region and saved filters, resets pagination and retains scope across navigation',async()=>{
@@ -175,7 +187,7 @@ test('testing walkthrough supports keyboard steps, accurate commands and native 
 test('GitHub Pages uses project-relative assets, the correct canonical URL and live public data',async()=>{
  const dom=await website([player],[],'home',[],'drax12341.github.io'),w=dom.window,d=w.document;
  assert.equal(d.querySelector('link[rel="canonical"]').href,'https://drax12341.github.io/minecraft-pvp-community/');
- const css=[...d.querySelectorAll('link[rel="stylesheet"]')].filter(a=>!a.href.includes('googleapis'));assert.equal(css.length,2);assert.match(css[0].getAttribute('href'),/^\.\/site.css/);assert.match(css[1].getAttribute('href'),/^\.\/control-room.css/);
+ const css=[...d.querySelectorAll('link[rel="stylesheet"]')].filter(a=>!a.href.includes('googleapis'));assert.equal(css.length,3);assert.match(css[0].getAttribute('href'),/^\.\/site.css/);assert.match(css[1].getAttribute('href'),/^\.\/control-room.css/);assert.match(css[2].getAttribute('href'),/^\.\/player-identity.css/);
  assert.ok(w.__requests.includes('https://minecraft-pvp-community.draxion0.chatgpt.site/data/results.json'));
  assert.ok(w.__requests.includes('https://minecraft-pvp-community.draxion0.chatgpt.site/data/testing.json'));
  w.location.hash='kits';await new Promise(r=>w.setTimeout(r,10));assert.equal(d.querySelector('a[href="./standards.html"]').href,'https://drax12341.github.io/minecraft-pvp-community/standards.html');assert.doesNotMatch(d.querySelector('main').textContent,/Sword|Axe|Bow/);

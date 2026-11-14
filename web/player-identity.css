@@ -1,0 +1,157 @@
+.minecraft-identity {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 24px;
+  border: 1px solid #e1bd6030;
+  border-radius: 10px;
+  background: linear-gradient(130deg, #182635, #111a23);
+  padding: 20px;
+  margin: 22px 0;
+}
+.identity-skin {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 270px;
+  border: 1px solid #a9cbe312;
+  border-radius: 8px;
+  background:
+    radial-gradient(ellipse at center, #77bbd010, transparent 70%), #0b141e;
+  overflow: hidden;
+  padding: 15px 8px;
+  gap: 10px;
+}
+.identity-skin > img {
+  object-fit: contain;
+  width: 130px;
+  height: 200px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 10px 10px #0005);
+}
+.identity-skin > img.is-texture {
+  width: 128px;
+  height: 128px;
+  filter: none;
+  margin: 36px 0;
+}
+.identity-skin > [role="status"] {
+  font-size: 9px;
+  text-align: center;
+  color: #91aabf;
+  line-height: 1.6;
+}
+.identity-skin > [role="group"] {
+  display: flex;
+  gap: 3px;
+}
+.identity-skin button {
+  font-size: 9px;
+  padding: 5px 9px;
+  background: none;
+  border-color: #ffffff12;
+  border-radius: 4px;
+  color: #8fa6bd;
+}
+.identity-skin button[aria-pressed="true"] {
+  color: #f0d08a;
+  background: #e6bc5511;
+  border-color: #e6bc5544;
+}
+.identity-details {
+  align-self: center;
+  min-width: 0;
+}
+.identity-details h3 {
+  font-size: 21px;
+  margin: 10px 0 22px;
+}
+.identity-details dl {
+  margin: 0;
+}
+.identity-details dt {
+  font-size: 9px;
+  color: #8fa8bf;
+  margin: 14px 0 5px;
+}
+.identity-details dd {
+  margin: 0;
+  font-size: 13px;
+  color: #d7e2ed;
+  overflow-wrap: anywhere;
+}
+.identity-details dd code {
+  font-size: 10px;
+  line-height: 1.9;
+  padding: 0;
+  border: 0;
+  background: none;
+  overflow-wrap: anywhere;
+  color: #b0c8da;
+}
+.identity-details #identity-copy-uuid {
+  font-size: 9px;
+  display: block;
+  margin-top: 7px;
+}
+.identity-links {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 23px;
+}
+.identity-links .button {
+  font-size: 11px;
+  min-height: 37px;
+  padding: 8px 12px;
+}
+.identity-links > a:last-child {
+  font-size: 10px;
+  color: #c4ae7b;
+}
+.identity-details .identity-provenance {
+  font-size: 9px;
+  line-height: 1.9;
+  color: #829bb1;
+  margin-top: 18px;
+}
+.identity-provenance a {
+  color: #c3b17e;
+}
+.cr-namemc-link {
+  font:
+    600 8px Inter,
+    sans-serif;
+  color: #b8a36d;
+  white-space: nowrap;
+  padding: 5px;
+  border: 1px solid #ffffff10;
+  border-radius: 4px;
+}
+.cr-namemc-link:hover {
+  color: #ffdfa0;
+  border-color: #f0c25b55;
+}
+@media (max-width: 550px) {
+  .minecraft-identity {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 17px;
+  }
+  .identity-skin {
+    min-height: 240px;
+  }
+  .identity-skin > img {
+    height: 190px;
+  }
+  .identity-details h3 {
+    font-size: 23px;
+  }
+  .identity-links .button {
+    font-size: 12px;
+  }
+  .identity-details .identity-provenance {
+    font-size: 10px;
+  }
+}
