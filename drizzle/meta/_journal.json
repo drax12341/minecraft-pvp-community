@@ -127,6 +127,13 @@
       "when": 1794672000000,
       "tag": "0017_skin_appearance",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1794674000000,
+      "tag": "0018_skin_ownership",
+      "breakpoints": true
     }
   ]
 }

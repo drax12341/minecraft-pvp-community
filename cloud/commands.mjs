@@ -17,6 +17,7 @@ import { testingDeskNames, runTestingDesk } from './testing-desk.mjs';
 import { communityDeskNames, runCommunityDesk } from './community-desk.mjs';
 import { approvedCommunityLoadout } from './loadouts.mjs';
 import { beginVerification } from './verification.mjs';
+import {skinVerificationInstructions,checkSkinVerification} from './skin-verification.mjs';
 import { drainOutbox, queueSessionNotifications } from './delivery.mjs';
 
 const regions = deskRegions;
@@ -130,9 +131,12 @@ export async function runCommand(interaction, env, store, request = fetch) {
       return runCommand({...interaction,resultConfirmed:true,data:{name:'result',options:[{name:'id',value:draft.test_id},{name:'tier',value:draft.tier},{name:'evidence',value:draft.evidence}]}},env,store,request);
     }
     case 'verify': {
+      if(sub?.name==='check')return checkSkinVerification(store,actor,request);
       if(sub?.name==='status')return (await store.one('SELECT name FROM accounts WHERE discord=?',actor))?.name ? 'Your Minecraft ownership is verified.' : 'No verified account. Start with /verify start.';
-      if(!env.MINECRAFT_VERIFICATION_SERVER||env.MINECRAFT_PROOF_SECRET?.length<32||!env.MINECRAFT_PROOF_SECRET)throw Error('The ownership server is not configured. Open private account support.');
-      const challenge=await beginVerification(store,actor,get('name'),request);
+      const existing=await store.one('SELECT name FROM accounts WHERE discord=?',actor);if(existing)return '**'+existing.name+'** is already verified. Your linked account is ready for testing.';
+      const method=env.MINECRAFT_VERIFICATION_SERVER&&env.MINECRAFT_PROOF_SECRET?.length>=32?'online-server':'skin';
+      const challenge=await beginVerification(store,actor,get('name'),request,method);
+      if(method==='skin')return skinVerificationInstructions(challenge);
       return '**VERIFY YOUR MINECRAFT ACCOUNT**\nJoin **'+env.MINECRAFT_VERIFICATION_SERVER+'** using **'+challenge.name+'**, then run:\n`/linkdiscord '+challenge.code+'`\nExpires <t:'+Math.floor(Date.parse(challenge.expires)/1000)+':R>. Keep this code private.';
     }
     case 'notifications': {

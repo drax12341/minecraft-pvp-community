@@ -14,6 +14,7 @@ import { drainOutbox } from './delivery.mjs';
 import {websiteApi} from './website-api.mjs';
 import {websiteAuth} from './website-auth.mjs';
 import {websiteShell,websiteDiscovery} from './website-shell.mjs';
+import {verificationDownload} from './skin-verification.mjs';
 
 async function privateServiceAuth(request, secret) {
   if(typeof secret!=='string'||secret.length<32)return false;
@@ -137,6 +138,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const discovery=websiteDiscovery(url);if(discovery)return discovery;
+    if(url.pathname.startsWith('/verify/skin/')){if(!['GET','HEAD'].includes(request.method))return json({error:'Method not allowed'},405);if(!env.DB)return json({error:'Storage unavailable'},503);try{return await verificationDownload(request,new CloudStore(env.DB.withSession?.('first-primary')||env.DB));}catch{return json({error:'Verification skin unavailable. Please retry.'},503);}}
     if(url.pathname.startsWith('/api/v1/')||url.pathname.startsWith('/auth/discord/')){
       if(!env.DB)return json({error:'Storage unavailable'},503);
       const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);
@@ -260,7 +262,7 @@ export default {
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "mace-network-v14-cosmos",
+            release: "mace-network-v15-verification",
             queueCapacity: 20,
           });
         }

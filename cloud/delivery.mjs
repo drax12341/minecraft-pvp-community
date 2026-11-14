@@ -224,9 +224,10 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
             .run();
         }
       } else if (job.kind === "verified-role") {
-        if (env.DISCORD_VERIFIED_ROLE_ID) {
+        const verifiedRole=env.DISCORD_VERIFIED_ROLE_ID||(await store.one("SELECT discord_id FROM guild_resources WHERE key='role:verified'"))?.discord_id;
+        if (verifiedRole) {
           const roles = await api("/guilds/" + env.DISCORD_GUILD_ID + "/roles");
-          const role = roles.find((r) => r.id === env.DISCORD_VERIFIED_ROLE_ID);
+          const role = roles.find((r) => r.id === verifiedRole);
           if (!role || role.managed || BigInt(role.permissions) !== 0n)
             throw Error("Verified role must exist and have no permissions");
           await api(
@@ -238,7 +239,7 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
               role.id,
             "PUT",
           );
-        }
+        }else throw Error('Configure the Verified role with /setup. Verification is saved; role delivery will retry.');
       } else if (job.kind === "roles") {
         const r = await store.one(
           "SELECT a.discord AS user,r.mode FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE r.id=?",

@@ -569,6 +569,7 @@ async function database() {
   sql.exec(await readFile(new URL('../drizzle/0015_tester_active_time.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0016_competitive_website.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0017_skin_appearance.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0018_skin_ownership.sql',import.meta.url),'utf8'));
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({
