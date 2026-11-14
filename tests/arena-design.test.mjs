@@ -132,6 +132,10 @@ test("primary app uses new arena views, applies ranking layout changes and respe
     ...data,
     views: { ...classic, ...premium },
     workspace: async () => "<h1>Account</h1>",
+    mountAppearances() {},
+    installAppearanceControls() {},
+    updateAccountNavigation() {},
+    installCosmos() {},
     mountMotion() {
       w.__mounts = (w.__mounts || 0) + 1;
     },
@@ -147,7 +151,7 @@ test("primary app uses new arena views, applies ranking layout changes and respe
     )
     .replace("export async function render", "async function render");
   const bindings =
-    "const {state,escape:e,skin,safeUrl,api,post,action,empty,workspace,mountMotion,installMotion,stopMotion}=__test;";
+    "const {state,escape:e,skin,safeUrl,api,post,action,empty,workspace,mountMotion,installMotion,stopMotion,mountAppearances,installAppearanceControls,updateAccountNavigation,installCosmos}=__test;";
   try {
     w.eval(bindings + source);
     await new Promise((resolve) => setTimeout(resolve, 30));

@@ -260,7 +260,7 @@ export default {
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "mace-network-v13-arena",
+            release: "mace-network-v14-cosmos",
             queueCapacity: 20,
           });
         }

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-design="arena-v13">
+<html lang="en" data-design="cosmos-v14">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -18,25 +18,32 @@
       content="Official Mace rankings, results and live testing."
     />
     <meta property="og:type" content="website" />
-    <link rel="icon" href="/assets/league-mace.svg" />
+    <link rel="icon" href="/assets/community-crest.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/platform.css?v=arena-v13" />
-    <link rel="stylesheet" href="/platform-premium.css?v=arena-v13" />
-    <script type="module" src="/platform.js?v=arena-v13"></script>
+    <link rel="stylesheet" href="/platform.css?v=cosmos-v14" />
+    <link rel="stylesheet" href="/platform-premium.css?v=cosmos-v14" />
+    <link rel="stylesheet" href="/platform-space.css?v=cosmos-v14" />
+    <script type="module" src="/platform.js?v=cosmos-v14"></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
-    <div class="ambient" aria-hidden="true"></div>
+    <div class="cosmic-backdrop" aria-hidden="true">
+      <div class="cosmic-nebula"></div>
+      <div class="cosmic-dust"></div>
+      <div class="cosmic-planet"></div>
+      <canvas id="cosmic-stars"></canvas>
+      <div class="space-vignette"></div>
+    </div>
     <header class="site-header">
       <div class="nav-wrap">
         <a class="brand" href="/" aria-label="Mace Network home"
           ><img
-            src="/assets/league-mace.svg"
+            src="/assets/community-crest.png"
             width="36"
             height="36"
             alt=""
@@ -109,7 +116,7 @@
       <div class="footer-top">
         <a class="brand" href="/"
           ><img
-            src="/assets/league-mace.svg"
+            src="/assets/community-crest.png"
             width="32"
             height="32"
             alt=""

@@ -120,6 +120,13 @@
       "when": 1794670000000,
       "tag": "0016_competitive_website",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1794672000000,
+      "tag": "0017_skin_appearance",
+      "breakpoints": true
     }
   ]
 }
