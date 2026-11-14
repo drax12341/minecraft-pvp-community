@@ -1,10 +1,12 @@
+import {deskRegions} from '../config/testing-desk.mjs';
+import {tokenHash} from './verification.mjs';
 import config from '../config/community.json' with { type: 'json' };
 import { communityDeskCommands } from '../config/community-desk.mjs';
 import { staffAccess } from '../config/community-roles.mjs';
 import { requireQualification } from './journeys.mjs';
 
 export const communityDeskNames = new Set(communityDeskCommands.map(c => c.name));
-const communityRegions = ['EU','NA','AS','SA','AU','AF','ME','OC'];
+const communityRegions = deskRegions;
 const communityRank = r => `${r.pos === 0 ? 'HT' : 'LT'}${r.tier}`;
 const communityMode = id => {
   const mode = config.modes.find(m => m.id === id);
@@ -16,12 +18,15 @@ const communityRow = (...components) => ({ type: 1, components });
 const communityMessage = (content, components = []) => ({ content, components, allowed_mentions: { parse: [] } });
 const communityURL = 'https://minecraft-pvp-community.draxion0.chatgpt.site';
 
-export async function communityQueueBoard(store, mode, region) {
+export async function communityQueueBoard(store, mode, region, page=1) {
   const kit = communityMode(mode);
   if (!communityRegions.includes(region)) throw Error('Choose a valid region.');
   const session = await store.one('SELECT * FROM sessions WHERE mode=? AND region=?', mode, region);
   const counts = await store.one("SELECT count(*) AS occupied,sum(status='waiting') AS waiting,sum(status='claimed') AS claimed FROM queue WHERE mode=? AND region=? AND status IN ('waiting','claimed')", mode, region);
   const active = await store.all("SELECT q.tester,a.name FROM queue q JOIN accounts a ON a.discord=q.user WHERE q.mode=? AND q.region=? AND q.status='claimed' ORDER BY q.created,q.id LIMIT 20", mode, region);
+  const waiting=await store.all("SELECT CASE WHEN p.public_profile=0 THEN 'Private competitor' ELSE a.name END name FROM queue q JOIN accounts a ON a.discord=q.user LEFT JOIN player_settings p ON p.user=q.user WHERE q.mode=? AND q.region=? AND q.status='waiting' ORDER BY q.created,q.id LIMIT 20",mode,region);
+  const available=await store.all("SELECT t.user,t.status,EXISTS(SELECT 1 FROM queue q WHERE q.tester=t.user AND q.status='claimed') busy FROM tester_sessions t WHERE t.mode=? AND t.region=? AND t.ended IS NULL ORDER BY t.started,t.id",mode,region);
+  const currentPage=Math.max(1,Math.min(Math.ceil(waiting.length/10)||1,Number(page)||1));
   const capacity = Math.min(session?.capacity ?? 20, 20);
   const state = session?.status || 'Not scheduled';
   const full = counts.occupied >= capacity;
@@ -30,10 +35,12 @@ export async function communityQueueBoard(store, mode, region) {
   return {
     ...communityMessage(''),
     embeds: [{
-      title: `${kit.name} · ${region} · Testing Waitlist`,
+      title: `${kit.name} · ${region} · Live Testing Queue`,
       color: state === 'open' && !full ? 0x58c89b : state === 'paused' ? 0xe9bb62 : 0x8994a8,
       description: `**${badge} · ${counts.occupied}/${capacity} slots**\n${counts.waiting || 0} waiting · ${counts.claimed || 0} being tested\n\n**Tester → currently testing**\n${testers}`,
       fields: [
+        {name:'Live FIFO queue · page '+currentPage,value:waiting.slice((currentPage-1)*10,currentPage*10).map((p,n)=>String((currentPage-1)*10+n+1).padStart(2,'0')+' · '+p.name).join('\n')||'No players are waiting.'},
+        {name:'Tester availability',value:available.length?available.map(t=>'<@'+t.user+'> · '+(t.busy?'Testing':t.status==='available'?'Available':'Paused')).join('\n'):'No tester availability sessions are recorded. Use /start to open one.'},
         { name: 'Session host', value: session?.actor ? `<@${session.actor}>` : session ? 'Use Refresh for tester details.' : 'No tester has opened this session.', inline: true },
         { name: 'Retest cooldown', value: session ? `${session.cooldown} hours` : 'Set when staff open a session.', inline: true },
         { name: 'How it works', value: 'Verify Minecraft ownership first. Join an open session; a qualified tester calls you into a private room. Both confirm readiness before playing. Waiting and active tests share the 20 slots. No guaranteed waiting time.' },
@@ -42,12 +49,12 @@ export async function communityQueueBoard(store, mode, region) {
       timestamp: new Date().toISOString(),
     }],
     components: [communityRow(
-      communityButton('Join waitlist', `board:join:${mode}:${region}`, 3, state !== 'open' || full),
-      communityButton('Leave waitlist', `board:leave:${mode}:${region}`),
+      communityButton('Join live queue', `board:join:${mode}:${region}`, 3, state !== 'open' || full),
+      communityButton('Leave live queue', `board:leave:${mode}:${region}`),
       communityButton('My status', `board:status:${mode}:${region}`, 1),
       communityButton('Refresh', `board:refresh:${mode}:${region}`),
       communityButton('Testing guide', 'hub:guide'),
-    ), {type:1,components:[{type:3,custom_id:'board:region:'+mode,placeholder:'Choose another region',min_values:1,max_values:1,options:communityRegions.map(value=>({label:value,value,default:value===region}))}]}],
+    ),communityRow(communityButton('Save waitlist interest',`waitlist:join:${mode}:${region}`),communityButton('Enable DM alerts','notify:dm'),communityButton('Disable DM alerts','notify:none'),communityButton('Queue page '+(currentPage===1?2:1),'queuepage:'+mode+':'+region+':'+(currentPage===1?2:1))), {type:1,components:[{type:3,custom_id:'board:region:'+mode,placeholder:'Choose another region',min_values:1,max_values:1,options:communityRegions.map(value=>({label:value,value,default:value===region}))}]}],
   };
 }
 
@@ -59,11 +66,19 @@ export async function refreshCommunityBoards(store, env, request = fetch, mode =
   for (const board of boards) {
     try {
       const body = await communityQueueBoard(store, board.mode, board.region);
+      delete body.embeds[0].timestamp;
+      const key='queue:'+board.channel+':'+board.message,fingerprint=await tokenHash(JSON.stringify(body)),now=new Date().toISOString();
+      await store.statement('INSERT OR IGNORE INTO platform_panels(key,channel,message) VALUES(?,?,?)',key,board.channel,board.message).run();
+      const previous=await store.one('SELECT fingerprint FROM platform_panels WHERE key=?',key);
+      if(previous.fingerprint===fingerprint)continue;
+      const lock=await store.statement('UPDATE platform_panels SET lease_until=? WHERE key=? AND (lease_until IS NULL OR lease_until<?) AND (last_edit IS NULL OR last_edit<?)',new Date(Date.now()+30000).toISOString(),key,now,new Date(Date.now()-5000).toISOString()).run();
+      if(!lock.meta.changes)continue;
       const response = await request(`https://discord.com/api/v10/channels/${board.channel}/messages/${board.message}`, {
         method: 'PATCH', headers: { Authorization: 'Bot ' + env.DISCORD_TOKEN, 'Content-Type': 'application/json' },
         body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
       });
-      if (!response.ok) failed++; else updated++;
+      if (!response.ok) {failed++;await store.audit('system','queue-board-refresh-failed',board.channel).run();}
+      else {updated++;await store.statement('UPDATE platform_panels SET fingerprint=?,last_edit=?,lease_until=NULL WHERE key=?',fingerprint,now,key).run();}
     } catch { failed++; }
   }
   return { updated, failed };
@@ -115,13 +130,13 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
       const account = await store.one('SELECT name FROM accounts WHERE discord=?', actor);
       const entries = await store.one("SELECT count(*) n FROM queue WHERE user=? AND status IN ('waiting','claimed')", actor);
       return communityMessage(`**${config.name} · Your player desk**\n${account ? `Verified player: **${account.name}**` : 'Start by verifying your Minecraft account privately with staff.'}\n${entries.n} active evaluation${entries.n === 1 ? '' : 's'}\n\nChoose a testing mode to see your next step. Your profile, history and support cases are one click away.`, [
-        communityRow(communityButton('My testing hub', 'desk:my-hub', 1), communityButton('My profile', 'community:self'), communityButton('My history', 'community:history')),
+        communityRow(communityButton('Verify account', 'verify:start', 1), communityButton('My testing hub', 'desk:my-hub', 1), communityButton('My profile', 'community:self'), communityButton('My history', 'community:history')),
         communityRow(communityButton('Testing waitlists', 'community:boards', 3), communityButton('High-tier test', 'desk:player'), communityButton('Get support', 'hub:ticket')),
         communityRow(communityButton('Apply as tester', 'desk:tester'), communityButton('Roles & alerts', 'hub:interests'), communityButton('Guide', 'hub:guide')),
       ]);
     }
     case 'queue-board': {
-      const m = mode(), region = get('region'), board = await communityQueueBoard(store, m, region);
+      const m = mode(), region = get('region'), board = await communityQueueBoard(store, m, region,get('page'));
       if (!get('publish')) return board;
       if (!mod) throw Error('Only moderators can publish a public waitlist board.');
       if (!/^\d{5,22}$/.test(i.channel_id || '')) throw Error('Publish from the intended guild text channel.');
@@ -188,8 +203,10 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
         staffOnly();
         const entry = await store.one("SELECT q.*,a.name,r.channel FROM queue q JOIN accounts a ON a.discord=q.user LEFT JOIN test_rooms r ON r.id=q.id WHERE q.tester=? AND q.status='claimed'", actor);
         const demand = await store.all("SELECT q.mode,q.region,count(*) n FROM queue q JOIN tester_qualifications t ON t.mode=q.mode AND t.user=? WHERE q.status='waiting' GROUP BY q.mode,q.region ORDER BY n DESC,q.mode,q.region LIMIT 7", actor);
+        const memberships=await store.all("SELECT mode,region,status FROM tester_sessions WHERE user=? AND ended IS NULL ORDER BY started LIMIT 2",actor);
+        const sessionButtons=memberships.map(t=>communityRow(communityButton(t.mode+'/'+t.region+' · Pull',`tester:pull:${t.mode}:${t.region}`,1),communityButton(t.status==='paused'?'Resume':'Pause',`tester:${t.status==='paused'?'resume':'pause'}:${t.mode}:${t.region}`),communityButton('End my availability',`tester:end:${t.mode}:${t.region}`,4)));
         const buttons = entry ? [communityRow(communityButton('Open / recover room', `room:open:${entry.id}`, 1), communityButton('Ready', `room:ready:${entry.id}`, 3), communityButton('Score rubric', `room:assess:${entry.id}`), communityButton('Publish result', `room:result:${entry.id}`))] : [];
-        return communityMessage(`**Tester workspace**\n${entry ? `Assigned: **${entry.name}** · ${communityMode(entry.mode).name} / ${entry.region}\nAssessment: ${entry.id}${entry.channel ? ` · <#${entry.channel}>` : ''}` : 'No active assignment. /pull mode region selects the next eligible player and opens their private room.'}\n\n**Waiting in your qualified modes**\n${demand.map(r => `${communityMode(r.mode).name} / ${r.region}: ${r.n}`).join('\n') || 'No waiting players in your qualified modes.'}\n\nHigh-tier promotions keep their /high-test dashboard, opponent sets and independent review. /tester stats shows documented activity.`, buttons);
+        return communityMessage(`**Tester workspace**\n${entry ? `Assigned: **${entry.name}** · ${communityMode(entry.mode).name} / ${entry.region}\nAssessment: ${entry.id}${entry.channel ? ` · <#${entry.channel}>` : ''}` : 'No active assignment. /pull mode region selects the next eligible player and opens their private room.'}\n\n**Waiting in your qualified modes**\n${demand.map(r => `${communityMode(r.mode).name} / ${r.region}: ${r.n}`).join('\n') || 'No waiting players in your qualified modes.'}\n\nHigh-tier promotions keep their /high-test dashboard, opponent sets and independent review. /tester stats shows documented activity.`, [...buttons,...sessionButtons,communityRow(communityButton('Open queue','testerflow:start',3),communityButton('My quota','network:quota'),communityButton('My statistics','network:tester-stats'))]);
       }
       if (!['stats','leaderboard'].includes(sub?.name)) throw Error('Choose desk, stats or leaderboard.');
       if (get('mode')) mode();

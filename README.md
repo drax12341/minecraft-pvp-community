@@ -1,5 +1,7 @@
 # Minecraft PvP Tierlist · v0.2
 
+[Platform reliability upgrade](docs/PLATFORM-RELIABILITY.md): server-backed ownership challenges, confirmed results, durable announcements and roles, persistent cooldowns, live dashboards, installation steps and remaining master-spec work.
+
 [Community bot rebuild](docs/TIERBOT-REBUILD.md): a private `/desk`, 20-slot
 waitlist boards with tester/player activity, recoverable `/pull` rooms, tester
 statistics, placement history and independently reviewed retirement. The current

@@ -1,3 +1,6 @@
+import {installationBridge} from './installation.mjs';
+import {loadCompetitionConfig} from './competition-config.mjs';
+import { refreshTestingHubs, platformStatistics } from './platform-panels.mjs';
 import { CloudStore } from "./store.mjs";
 import { runCommand } from "./commands.mjs";
 import config from "../config/community.json" with { type: "json" };
@@ -5,6 +8,17 @@ import { componentRoute } from "./components.mjs";
 import { kitManifests } from '../config/kit-manifests.mjs';
 import { deskPublic } from './testing-desk.mjs';
 import { refreshCommunityBoards } from './community-desk.mjs';
+import { finishVerification, tokenHash } from './verification.mjs';
+import { drainOutbox } from './delivery.mjs';
+
+async function privateServiceAuth(request, secret) {
+  if(typeof secret!=='string'||secret.length<32)return false;
+  const supplied=request.headers.get('Authorization')||'';
+  if(!supplied.startsWith('Bearer ')||supplied.length>512)return false;
+  const [a,b]=await Promise.all([tokenHash(supplied.slice(7)),tokenHash(secret)]);
+  let different=0;for(let n=0;n<a.length;n++)different|=a.charCodeAt(n)^b.charCodeAt(n);
+  return different===0;
+}
 
 const website = "https://drax12341.github.io/minecraft-pvp-community";
 const json = (value, status = 200) =>
@@ -75,7 +89,9 @@ export async function completeInteraction(
   const message = typeof content==='object' && content ? {...content,content:String(content.content).slice(0,1900)} : {content:String(content).slice(0,1900),components:[]};
   await store.finishInteraction(interaction.id, JSON.stringify(message));
   await deliverInteraction(interaction,env,store,request,message);
-  if(['queue','queue-board','session','claim','result','pull','high-test','loadout'].includes(interaction.data.name)){
+  try { await drainOutbox(store,env,request,3); } catch { console.error('Outbox unavailable; inspect /delivery status.'); }
+  try { await refreshTestingHubs(store,env,request); } catch { console.error('Testing hub refresh unavailable.'); }
+  if(['queue','queue-board','session','claim','result','pull','high-test','loadout','start','pause','resume','end','match','result-confirm','confirm-action'].includes(interaction.data.name)){
     try{
       const sub=interaction.data.options?.find(o=>o.type===1),opts=sub?.options||interaction.data.options||[];
       const get=name=>opts.find(o=>o.name===name)?.value;
@@ -92,12 +108,15 @@ export async function completeInteraction(
   }
 }
 async function deliverInteraction(interaction,env,store,request,message){
+  const payload={...message,allowed_mentions:{parse:[]}};delete payload.artifact;
+  let body=JSON.stringify(payload),headers={'Content-Type':'application/json'};
+  if(message.artifact){const form=new FormData();payload.attachments=[{id:0,filename:message.artifact.name}];form.set('payload_json',JSON.stringify(payload));form.set('files[0]',new Blob([message.artifact.text],{type:'text/plain;charset=utf-8'}),message.artifact.name);body=form;headers={};}
   const response = await request(
     `https://discord.com/api/v10/webhooks/${env.DISCORD_CLIENT_ID}/${interaction.token}/messages/@original`,
     {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...message, allowed_mentions: { parse: [] } }),
+      headers,
+      body,
       signal: AbortSignal.timeout(10000),
     },
   );
@@ -107,8 +126,30 @@ async function deliverInteraction(interaction,env,store,request,message){
 }
 
 export default {
+  async scheduled(_event,env,ctx) {
+    if(env.DB){const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);ctx.waitUntil((async()=>{await drainOutbox(store,env);await refreshTestingHubs(store,env);await refreshCommunityBoards(store,env);})());}
+  },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if(url.pathname==='/api/internal/installation'){
+      if(!await privateServiceAuth(request,env.DISCORD_TOKEN))return json({error:'Unauthorized'},401);
+      if(!env.DB)return json({error:'Storage unavailable'},503);
+      try{return await installationBridge(request,env,new CloudStore(env.DB.withSession?.('first-primary')||env.DB));}catch{return json({error:'Installation synchronization failed. Inspect guild permissions and retry.'},503);}
+    }
+    if(url.pathname==='/api/platform'){if(!env.DB)return json({error:'Storage unavailable'},503);try{return json(await platformStatistics(new CloudStore(env.DB.withSession?.('first-primary')||env.DB)));}catch{return json({error:'Statistics unavailable'},503);}}
+    if(['/api/internal/ownership-proof','/api/internal/reconcile'].includes(url.pathname)){
+      if(request.method!=='POST')return json({error:'Method not allowed'},405);
+      const proof=url.pathname.endsWith('ownership-proof');
+      if(!await privateServiceAuth(request,proof?env.MINECRAFT_PROOF_SECRET:env.MAINTENANCE_SECRET))return json({error:'Unauthorized'},401);
+      if(!env.DB)return json({error:'Storage unavailable'},503);
+      const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);
+      if(!proof){try{const result=await drainOutbox(store,env);await refreshTestingHubs(store,env);return json(result);}catch{return json({error:'Reconciliation unavailable'},503);}}
+      if(Number(request.headers.get('Content-Length')||0)>4096)return json({error:'Request too large'},413);
+      const raw=await request.text();if(new TextEncoder().encode(raw).length>4096)return json({error:'Request too large'},413);
+      let body;try{body=JSON.parse(raw);}catch{return json({error:'Invalid JSON'},400);}
+      try{return json(await finishVerification(store,body.code,body.uuid,body.name));}
+      catch{return json({error:'Proof could not be accepted. Check challenge expiry and account linking.'},409);}
+    }
     if (url.pathname === "/discord/interactions") {
       if (request.method !== "POST")
         return json({ error: "Method not allowed" }, 405);
@@ -129,12 +170,14 @@ export default {
         return json({ error: "Wrong application" }, 403);
       if (interaction.type === 1) return json({ type: 1 });
       if (
-        ![2,3,5].includes(interaction.type) ||
+        ![2,3,4,5].includes(interaction.type) ||
         interaction.guild_id !== env.DISCORD_GUILD_ID ||
         !/^\d{5,22}$/.test(interaction.id || "") ||
         !interaction.token
       )
         return json({ error: "Unsupported interaction" }, 400);
+      if(env.DB)await loadCompetitionConfig(new CloudStore(env.DB.withSession?.('first-primary')||env.DB));
+      if(interaction.type===4){const sub=interaction.data.options?.find(o=>o.type===1),focused=(sub?.options||interaction.data.options||[]).find(o=>o.focused);return json({type:8,data:{choices:config.modes.filter(m=>(m.name+' '+m.id).toLowerCase().includes(String(focused?.value||'').toLowerCase())).slice(0,25).map(m=>({name:m.name,value:m.id}))}});}
       if(interaction.type===3 || interaction.type===5){
         try{
           const route=componentRoute(interaction);
@@ -196,7 +239,7 @@ export default {
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "community-desk-v8",
+            release: "mace-network-v10",
             queueCapacity: 20,
           });
         }

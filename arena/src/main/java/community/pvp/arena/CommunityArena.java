@@ -47,6 +47,7 @@ public final class CommunityArena extends JavaPlugin implements Listener, TabCom
   boolean flag(Player p,String key,boolean fallback){return data.getBoolean("players."+p.getUniqueId()+"."+key,fallback);}
   void save(){try{data.save(dataFile);}catch(Exception e){getLogger().severe("Could not save arena state: "+e.getMessage());}}
   @Override public void onEnable(){
+    new OwnershipLink(this);
     menuKey=new NamespacedKey(this,"action");getDataFolder().mkdirs();dataFile=new File(getDataFolder(),"players.yml");data=YamlConfiguration.loadConfiguration(dataFile);
     world=new WorldCreator("community_arena").generator(new ChunkGenerator(){@Override public boolean shouldGenerateNoise(){return false;}@Override public boolean shouldGenerateSurface(){return false;}@Override public boolean shouldGenerateCaves(){return false;}@Override public boolean shouldGenerateDecorations(){return false;}@Override public boolean shouldGenerateStructures(){return false;}@Override public boolean shouldGenerateMobs(){return false;}}).createWorld();
     world.setAutoSave(true);world.setTime(6000);world.setStorm(false);world.setDifficulty(Difficulty.NORMAL);world.setPVP(true);

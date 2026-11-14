@@ -1,3 +1,4 @@
+import {deskRegions} from '../config/testing-desk.mjs';
 import config from '../config/community.json' with {type:'json'};
 import { staffAccess } from '../config/community-roles.mjs';
 import { approvedCommunityLoadout } from './loadouts.mjs';
@@ -9,11 +10,14 @@ export async function requireQualification(store,actor,mode,senior=false) {
 export async function requireReadyRoom(store,id,actor){
   const room=await store.one("SELECT r.*,q.mode,q.status AS queue_status FROM test_rooms r JOIN queue q ON q.id=r.id WHERE r.id=? AND q.tester=? AND r.tester=q.tester",id,actor);
   if(!room||room.queue_status!=='claimed'||room.state==='archived'||!room.player_ready||!room.tester_ready||!await approvedCommunityLoadout(store,room.mode,room.kit_version))throw Error('Both participants must confirm readiness in the assigned private room using the approved session kit version before assessment or publication.');
+  const lifecycle=await store.one('SELECT state FROM test_lifecycle WHERE test_id=?',id);
+  if(lifecycle&&!['IN_PROGRESS','AWAITING_RESULT','RESULT_PENDING_CONFIRMATION'].includes(lifecycle.state))throw Error('Start the managed test before recording an assessment.');
   return room;
 }
 export function roomOverwrites(env,player,tester,archived=false){
   const view=1024n,send=2048n,history=65536n;
-  return [{id:env.DISCORD_GUILD_ID,type:0,allow:'0',deny:String(view)},...[...new Set([player,tester,env.DISCORD_CLIENT_ID])].map(id=>({id,type:1,allow:String(view|history|(archived?0n:send)),deny:archived?String(send):'0'}))];
+  const managers=String(env.DISCORD_TESTING_MANAGER_ROLE_IDS||env.DISCORD_MODERATOR_ROLE_IDS||env.MODERATOR_ROLE_ID||'').split(',').filter(id=>/^\d{5,22}$/.test(id));
+  return [...managers.map(id=>({id,type:0,allow:String(view|send|history),deny:'0'})),{id:env.DISCORD_GUILD_ID,type:0,allow:'0',deny:String(view)},...[...new Set([player,tester,env.DISCORD_CLIENT_ID])].map(id=>({id,type:1,allow:String(view|history|(archived?0n:send)),deny:archived?String(send):'0'}))];
 }
 export async function runJourney(i,env,store,request=fetch){
   const {actor,mod,tester}=staffAccess(i,env),sub=i.data.options?.find(o=>o.type===1),opts=sub?.options||[];
@@ -37,7 +41,7 @@ export async function runJourney(i,env,store,request=fetch){
     if(sub.name==='status')return (await store.all('SELECT mode,region,created FROM waitlists WHERE user=? ORDER BY created LIMIT 15',actor)).map(w=>`${w.mode} / ${w.region} / interest recorded ${w.created}`).join('\n')||'No waitlist preferences. Waitlists record demand; they reserve no active queue position.';
     const m=mode();
     if(sub.name==='leave'){await store.statement('DELETE FROM waitlists WHERE user=? AND mode=?',actor,m).run();return 'Waitlist preference removed. Active queue entries are unchanged.';}
-    if(!['EU','NA','AS','SA','AU','AF','ME','OC'].includes(get('region')))throw Error('Choose a valid region.');
+    if(!deskRegions.includes(get('region')))throw Error('Choose a valid region.');
     if(!await store.one('SELECT 1 FROM accounts WHERE discord=?',actor))throw Error('Verify account ownership privately with staff first.');
     await store.statement('INSERT INTO waitlists VALUES(?,?,?,?) ON CONFLICT(user,mode) DO UPDATE SET region=excluded.region',actor,m,get('region'),new Date().toISOString()).run();
     return 'Waitlist preference saved. This is demand for future testing, not an active queue entry or reserved position. /availability shows actual sessions; /queue join enters one. /interests tests opts into session alerts.';
@@ -71,8 +75,9 @@ export async function runJourney(i,env,store,request=fetch){
       // Always replace permissions before confirming a recovered channel.
       await discord(`/channels/${channel.id}`,'PATCH',{permission_overwrites:roomOverwrites(env,q.user,actor)});
       await store.statement("UPDATE test_rooms SET channel=?,state='ready-check',updated=? WHERE id=?",channel.id,now,q.id).run();
-      await discord(`/channels/${channel.id}/messages`,'POST',{content:`<@${q.user}> <@${actor}> • ${q.mode} / ${q.region}\nAssessment ${q.id}. Confirm readiness with /test-room ready id:${q.id} within five minutes. Missing a call awards no result or cooldown; the tester releases the claim with its original queue order.\nBefore play, write the exact version, versioned kit manifest, location, 2 warmups + first-to-10 format, recording agreement and interruption rules here. Unresolved lag pauses play; replay an interrupted round only by mutual agreement. No credentials or private account details. /test-room archive preserves this room privately.`,components:[{type:1,components:[{type:2,style:3,label:'I am ready',custom_id:'room:ready:'+q.id},{type:2,style:2,label:'Room status',custom_id:'room:status:'+q.id},{type:2,style:1,label:'Score rubric',custom_id:'room:assess:'+q.id},{type:2,style:2,label:'Publish result',custom_id:'room:result:'+q.id}]}],allowed_mentions:{parse:[],users:[q.user,actor]}});
+      await discord(`/channels/${channel.id}/messages`,'POST',{content:`<@${q.user}> <@${actor}> • ${q.mode} / ${q.region}\nAssessment ${q.id}. Confirm readiness with /test-room ready id:${q.id} within five minutes. Missing a call awards no result or cooldown; the tester releases the claim with its original queue order.\nBefore play, write the exact version, versioned kit manifest, location, 2 warmups + first-to-10 format, recording agreement and interruption rules here. Unresolved lag pauses play; replay an interrupted round only by mutual agreement. No credentials or private account details. /test-room archive preserves this room privately.`,components:[{type:1,components:[{type:2,style:3,label:'I am ready',custom_id:'room:ready:'+q.id},{type:2,style:2,label:'Test dashboard',custom_id:'match:status:'+q.id},{type:2,style:1,label:'Start test',custom_id:'match:start:'+q.id},{type:2,style:1,label:'Score rubric',custom_id:'room:assess:'+q.id},{type:2,style:2,label:'Publish result',custom_id:'room:result:'+q.id}]}],allowed_mentions:{parse:[],users:[q.user,actor]}});
     }
+    await store.statement("INSERT OR IGNORE INTO test_lifecycle(test_id,state,deadline,updated) SELECT id,'AWAITING_PLAYER',ready_by,updated FROM test_rooms WHERE id=? AND NOT EXISTS(SELECT 1 FROM high_tests WHERE queue_id=?)",q.id,q.id).run();
     return `Private testing room: <#${room.channel||(await store.one('SELECT channel FROM test_rooms WHERE id=?',q.id)).channel}>. Kit and benchmark approval is still required before official play.`;
   }
   if(!room?.channel)throw Error('The assigned tester must open the private room first.');
@@ -80,6 +85,7 @@ export async function runJourney(i,env,store,request=fetch){
     if(q.status!=='claimed'||room.tester!==q.tester||room.state==='archived')throw Error('This room is no longer assigned.');
     if(Date.parse(room.ready_by)<Date.now())throw Error('The readiness window expired. Ask your tester to release the claim without a penalty, then arrange a new call.');
     await store.statement(`UPDATE test_rooms SET ${actor===q.user?'player_ready':'tester_ready'}=1 WHERE id=?`,q.id).run();
+    await store.statement("UPDATE test_lifecycle SET state='PLAYER_READY',version=version+1,updated=? WHERE test_id=? AND state='AWAITING_PLAYER' AND EXISTS(SELECT 1 FROM test_rooms WHERE id=? AND player_ready=1 AND tester_ready=1)",new Date().toISOString(),q.id,q.id).run();
     return 'Your readiness is recorded. Both participants must agree the written kit, arena and recording terms before play.';
   }
   if(sub.name==='archive'){

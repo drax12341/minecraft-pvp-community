@@ -1,4 +1,6 @@
 import test from "node:test";
+import { beginVerification, finishVerification } from '../cloud/verification.mjs';
+import { drainOutbox } from '../cloud/delivery.mjs';
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { readFile } from "node:fs/promises";
@@ -31,7 +33,7 @@ test('community desk and queue board show real tester/player activity and enforc
   const board=await communityQueueBoard(store,'mace','EU');
   assert.match(board.embeds[0].description,/2\/20/);assert.match(board.embeds[0].description,/1 waiting/);
   assert.match(JSON.stringify(board),/50001/);assert.match(JSON.stringify(board),/PlayerOne/);
-  assert.doesNotMatch(JSON.stringify(board),/WaitingPlayer|60001/);
+  assert.match(JSON.stringify(board),/WaitingPlayer/);assert.doesNotMatch(JSON.stringify(board),/60001/);
   assert.equal(board.components[0].components.length,5);
   assert.deepEqual(board.allowed_mentions,{parse:[]});
   assert.equal((await store.one('SELECT capacity FROM sessions')).capacity,20);
@@ -364,7 +366,11 @@ test('result announcements include earned rank and ping only the optional result
     await store.statement("INSERT INTO test_rooms VALUES(?,?,?,?,?,?,?,?,?,?)",id,'81000','assignment','50001','ready-check',new Date(Date.now()+60000).toISOString(),1,1,'pilot-1-candidate',new Date().toISOString()).run();
     await new OperationsStore(store).assess(id,'50001','3,3,3,3,3,3','Benchmark comparison and feedback');
     const calls=[];const request=async(url,o)=>{calls.push(JSON.parse(o.body));return Response.json({id:'82000'});};
-    await runCommand(interaction('50001','result',null,{id,tier:'HT3',evidence:'https://example.com/match'},['50000']),{...env,DISCORD_RESULTS_CHANNEL_ID:'80000',DISCORD_RESULT_PING_ROLE_ID:'70000'},store,request);
+    const preview=await runCommand(interaction('50001','result',null,{id,tier:'HT3',evidence:'https://example.com/match'},['50000']),{...env,DISCORD_RESULTS_CHANNEL_ID:'80000',DISCORD_RESULT_PING_ROLE_ID:'70000'},store,request);
+    assert.equal((await store.one('SELECT count(*) n FROM results')).n,0);
+    const draft=preview.components[0].components[0].custom_id.slice(15);
+    await assert.rejects(runCommand(interaction('60000','result-confirm',null,{id:draft}),env,store),/confirmation/);
+    await runCommand(interaction('50001','result-confirm',null,{id:draft},['50000']),{...env,DISCORD_RESULTS_CHANNEL_ID:'80000',DISCORD_RESULT_PING_ROLE_ID:'70000'},store,request);
     assert.deepEqual(calls[0].allowed_mentions,{parse:[],roles:['70000']});
     assert.equal(calls[0].embeds[0].fields.find(f=>f.name==='Rank Earned').value,'HT3');
     assert.equal(calls[0].embeds[0].fields.find(f=>f.name==='Previous Rank').value,'Unranked');
@@ -468,6 +474,7 @@ test('room provisioning reconciles an API timeout without creating a duplicate, 
     const assessment=interaction('50001','assessment','record',{id,scores:'3,3,3,3,3,3',reason:'Strength: spacing. Practise hit selection and recovery.'},['50000']);
     await assert.rejects(runCommand(assessment,configured,store),/Both participants/);
     await runCommand(interaction('50001','test-room','ready',{id},['50000']),configured,store);
+    await runCommand(interaction('50001','match','start',{id},['50000']),configured,store);
     await runCommand(assessment,configured,store);
     assert.equal((await store.one('SELECT kit_version FROM assessments WHERE id=?',id)).kit_version,'pilot-1-candidate');
     await assert.rejects(runCommand(interaction('60001','test-room','status',{id}),configured,store),/Only the player/);
@@ -553,6 +560,8 @@ async function database() {
   sql.exec(await readFile(new URL('../drizzle/0006_connected_tests.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0007_community_desk.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0008_staff_loadouts.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0009_platform_reliability.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0010_competitive_platform.sql',import.meta.url),'utf8'));
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({
@@ -902,9 +911,10 @@ test("claim handoff only releases the assigned unfinished entry and retains queu
       env,
       store,
     );
-    assert.match(profile, /Mace: HT3/);
-    assert.ok(!profile.includes("60000"));
-    assert.ok(!profile.includes("70001"));
+    assert.match(JSON.stringify(profile), /HT3/);
+    assert.ok(profile.embeds[0].fields.some(f=>f.name==='Mace'));
+    assert.ok(!JSON.stringify(profile).includes("60000"));
+    assert.ok(!JSON.stringify(profile).includes("70001"));
     await assert.rejects(
       runCommand(
         interaction("60001", "profile", null, { name: "<bad>" }),
@@ -1211,4 +1221,237 @@ test("cloud site proxy preserves pages without forwarding credentials and uses e
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test('ownership challenges bind UUID, expire and prevent replay or duplicate account links',async()=>{
+ const {sql,store}=await database();try{
+  const provider=async()=>Response.json({id:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',name:'PlayerOne'});
+  const challenge=await beginVerification(store,'60000','PlayerOne',provider);
+  assert.equal((await store.one('SELECT count(*) n FROM accounts')).n,0);
+  await assert.rejects(finishVerification(store,challenge.code,'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','PlayerOne'),/challenge/);
+  await finishVerification(store,challenge.code,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne');
+  assert.equal((await store.one('SELECT name FROM accounts')).name,'PlayerOne');
+  await assert.rejects(finishVerification(store,challenge.code,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne'),/challenge/);
+  await assert.rejects(beginVerification(store,'60001','PlayerOne',provider),/linked/);
+  const other=await beginVerification(store,'60002','OtherUser',async()=>Response.json({id:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',name:'OtherUser'}));
+  await store.statement("UPDATE account_challenges SET expires='2000-01-01T00:00:00.000Z'").run();
+  await assert.rejects(finishVerification(store,other.code,'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','OtherUser'),/challenge/);
+ }finally{sql.close();}
+});
+
+test('result delivery and cooldown survive restarts and session setting changes',async()=>{
+ const {sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
+  await store.session('mace','EU','open','50001',20,720);
+  const id=await store.join('60000','mace','EU');await store.claim(id,'50001');
+  await store.result(id,3,0,'https://example.com/evidence','50001');
+  assert.equal((await store.one("SELECT count(*) n FROM outbox_events WHERE kind='result' AND subject=?",id)).n,1);
+  await store.session('mace','EU','open','50001',20,0);
+  await assert.rejects(store.join('60000','mace','EU'),/Queue unavailable/);
+  await assert.rejects(store.result(id,3,0,'https://example.com/evidence','50001'));
+  let failed=true,posts=0;
+  const request=async(url,opts)=>{if(opts.method==='POST'){if(url.includes('/70000/'))posts++;if(failed)return new Response('',{status:503});return Response.json({id:'80000'});}return Response.json([]);};
+  const settings={...env,DISCORD_RESULTS_CHANNEL_ID:'70000'};
+  await drainOutbox(store,settings,request);
+  assert.equal((await store.one("SELECT status FROM outbox_events WHERE kind='result'")).status,'pending');
+  failed=false;await store.statement("UPDATE outbox_events SET available_at='2000-01-01' WHERE kind='result'").run();
+  await drainOutbox(new CloudStore(store.db),settings,request);
+  assert.equal((await store.one("SELECT status FROM outbox_events WHERE kind='result'")).status,'done');
+  await drainOutbox(store,settings,request);assert.equal(posts,2);
+ }finally{sql.close();}
+});
+
+test('waitlist DM alerts are opt-in, scoped, throttled and never create live queue entries',async()=>{
+ const {sql,store}=await database();try{
+  const {queueSessionNotifications}=await import('../cloud/delivery.mjs');
+  await store.session('mace','EU','open','50001');
+  for(const user of ['60000','60001','60002']){
+   await store.verify(user,user.padEnd(8,'a')+'-aaaa-aaaa-aaaa-aaaaaaaaaaaa','Player'+user,'30000');
+   await store.statement('INSERT INTO waitlists VALUES(?,?,?,?)',user,'mace',user==='60002'?'NA':'EU',new Date().toISOString()).run();
+  }
+  await runCommand(interaction('60000','notifications',null,{delivery:'dm'}),env,store);
+  await runCommand(interaction('60002','notifications',null,{delivery:'dm'}),env,store);
+  await queueSessionNotifications(store,'mace','EU');await queueSessionNotifications(store,'mace','EU');
+  assert.equal((await store.one("SELECT count(*) n FROM outbox_events WHERE kind='queue-open'")).n,1);
+  assert.equal((await store.one('SELECT count(*) n FROM queue')).n,0);
+  let sends=0;await drainOutbox(store,env,async(url,opts)=>{sends++;return url.endsWith('/users/@me/channels')?Response.json({id:'88000'}):new Response('',{status:403});});
+  assert.equal(sends,2);assert.equal((await store.one('SELECT status FROM outbox_events')).status,'done');
+ }finally{sql.close();}
+});
+
+test('role synchronization preserves unrelated roles and other submode placements',async()=>{
+ const {sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');await store.session('mace','EU','open','50001');
+  const id=await store.join('60000','mace','EU');await store.claim(id,'50001');await store.result(id,3,0,'https://example.com/match','50001');
+  await store.statement('INSERT INTO tier_role_mappings VALUES(?,?,?)','mace','HT3','71000').run();
+  await store.statement('INSERT INTO tier_role_mappings VALUES(?,?,?)','mace','LT3','72000').run();
+  await store.statement('INSERT INTO tier_role_mappings VALUES(?,?,?)','mace_rod','HT2','73000').run();
+  const edits=[];
+  await drainOutbox(store,env,async(url,opts)=>{
+    if(opts.method==='PUT'||opts.method==='DELETE'){edits.push([opts.method,url.split('/').at(-1)]);return new Response(null,{status:204});}
+    if(url.endsWith('/roles'))return Response.json(['71000','72000','73000','74000'].map(id=>({id,permissions:'0',managed:false})));
+    if(url.includes('/members/'))return Response.json({roles:['72000','73000','74000']});
+    return Response.json({id:'80000'});
+  });
+  assert.deepEqual(edits,[['PUT','71000'],['DELETE','72000']]);
+ }finally{sql.close();}
+});
+
+test('ownership API rejects unauthenticated requests and consumes only matching live-server proof',async()=>{
+ const {sql,store,adapter}=await database();try{
+  const secret='test-only-proof-secret-at-least-32-characters',settings={...env,DB:adapter,MINECRAFT_PROOF_SECRET:secret};
+  const request=(body,auth)=>new Request('https://test.example/api/internal/ownership-proof',{method:'POST',headers:{'Content-Type':'application/json',...(auth?{Authorization:'Bearer '+auth}:{})},body:JSON.stringify(body)});
+  assert.equal((await worker.fetch(request({},null),settings,{})).status,401);
+  assert.equal((await worker.fetch(request({},'wrong'),settings,{})).status,401);
+  const challenge=await beginVerification(store,'60000','PlayerOne',async()=>Response.json({id:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',name:'PlayerOne'}));
+  const proof={code:challenge.code,uuid:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',name:'PlayerOne'};
+  assert.equal((await worker.fetch(request(proof,secret),settings,{})).status,200);
+  assert.equal((await worker.fetch(request(proof,secret),settings,{})).status,409);
+  assert.equal((await worker.fetch(new Request('https://test.example/api/internal/reconcile',{method:'POST',headers:{Authorization:'Bearer '+secret}}),settings,{})).status,401);
+ }finally{sql.close();}
+});
+
+test('public hub uses aggregate records, protects installation and skips unchanged panel edits',async()=>{
+ const {sql,store}=await database();try{
+  const {testingHubPanel,refreshTestingHubs}=await import('../cloud/platform-panels.mjs');
+  const initial=await testingHubPanel(store);assert.match(JSON.stringify(initial),/0 verified competitors|\*\*0\*\* verified competitors/);
+  await assert.rejects(runCommand({...interaction('60000','testing-hub',null,{publish:true}),channel_id:'81000'},env,store),/moderators/);
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PrivateIGN','30000');
+  let posts=0,patches=0;
+  const request=async(url,o)=>{
+   if(url.endsWith('/channels/81000'))return Response.json({id:'81000',type:0,guild_id:env.DISCORD_GUILD_ID});
+   if(o.method==='GET')return Response.json([]);
+   if(o.method==='POST'){posts++;return Response.json({id:'82000'});}
+   patches++;return Response.json({id:'82000'});
+  };
+  const install=()=>runCommand({...interaction('30000','testing-hub',null,{publish:true}),channel_id:'81000'},env,store,request);
+  await install();await install();assert.equal(posts,1);assert.equal(patches,1);
+  await refreshTestingHubs(store,env,request);assert.equal(patches,1);
+  await store.session('mace','EU','open','50001');await store.statement("UPDATE platform_panels SET last_edit='2000-01-01'").run();
+  await refreshTestingHubs(store,env,request);assert.equal(patches,2);
+  assert.doesNotMatch(JSON.stringify(await testingHubPanel(store)),/PrivateIGN|60000/);
+ }finally{sql.close();}
+});
+
+test('complete official evaluation connects ownership, waitlist, live queue, private room, confirmation, rankings and durable archive across store restarts',async()=>{
+ const {sql,adapter}=await database();let store=new CloudStore(adapter);try{
+  let channel;const sent=[];
+  const request=async(url,o={})=>{
+   if(url.includes('api.mojang.com'))return Response.json({id:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',name:'PlayerOne'});
+   const body=o.body?JSON.parse(o.body):{};
+   if(url.endsWith('/users/@me/channels'))return Response.json({id:'88000'});
+   if(url.endsWith('/guilds/20000/channels')){
+    if(o.method==='GET')return Response.json(channel?[channel]:[]);
+    channel={...body,id:'81000',guild_id:'20000'};return Response.json(channel);
+   }
+   if(o.method==='POST')sent.push({url,body});
+   return Response.json({id:'82000'});
+  };
+  const settings={...env,DB:adapter,MINECRAFT_VERIFICATION_SERVER:'test-only.example',MINECRAFT_PROOF_SECRET:'test-only-long-proof-secret-of-32-characters',DISCORD_TICKET_CATEGORY_ID:'80000',DISCORD_RESULTS_CHANNEL_ID:'83000'};
+  const call=(actor,name,sub,values={},roles=[])=>runCommand(interaction(actor,name,sub,values,roles),settings,store,request);
+  const start=await call('60000','verify','start',{name:'PlayerOne'});
+  const code=start.match(/linkdiscord ([a-f0-9]{32})/)[1];
+  await finishVerification(store,code,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne');
+  await call('60000','notifications',null,{delivery:'dm'});
+  await call('60000','waitlist','join',{mode:'mace',region:'EU'});
+  await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001','mace',0,'30000','Synthetic supervised qualification for this test',new Date().toISOString()).run();
+  await call('50001','session','open',{mode:'mace',region:'EU',kit:kitManifests.version,benchmarks:'Synthetic consented benchmark record for this automated test'},['50000']);
+  await drainOutbox(store,settings,request);
+  assert.ok(sent.some(s=>s.url.includes('/88000/messages')));
+  assert.equal((await store.one('SELECT count(*) n FROM queue')).n,0);
+  await call('60000','queue','join',{mode:'mace',region:'EU'});
+  store=new CloudStore(adapter);
+  assert.equal((await store.status('60000','mace','EU')).position,1);
+  await call('50001','pull',null,{mode:'mace',region:'EU'},['50000']);
+  const entry=await store.one('SELECT id FROM queue');
+  assert.ok(channel.permission_overwrites.some(p=>p.id==='60000'&&p.type===1));
+  await call('60000','test-room','ready',{id:entry.id});
+  await call('50001','test-room','ready',{id:entry.id},['50000']);
+  await call('50001','match','start',{id:entry.id},['50000']);
+  await call('50001','match','finish',{id:entry.id,score:'10-6',reason:'Completed the synthetic official set'},['50000']);
+  await new OperationsStore(store).assess(entry.id,'50001','2,2,2,2,2,2','Synthetic benchmark assessment and feedback');
+  const preview=await call('50001','result',null,{id:entry.id,tier:'LT3',evidence:'https://example.com/synthetic-evidence'},['50000']);
+  store=new CloudStore(adapter);
+  await call('50001','result-confirm',null,{id:preview.components[0].components[0].custom_id.slice(15)},['50000']);
+  await drainOutbox(store,settings,request);
+  const rankings=await (await worker.fetch(new Request('https://test.example/api/rankings'),settings,{})).json();
+  assert.equal(rankings.players[0].points,6);assert.equal(rankings.players[0].rankings.mace.peak_tier,3);
+  assert.equal((await store.one('SELECT state FROM test_rooms')).state,'archived');
+  assert.equal((await store.one('SELECT status FROM queue')).status,'complete');
+  assert.equal((await store.one("SELECT count(*) n FROM results WHERE tester='50001'")).n,1);
+  assert.ok((await store.status('60000','mace','EU')).eligibleAt>new Date().toISOString());
+  assert.ok(sent.some(s=>s.url.includes('/83000/messages')&&s.body.embeds));
+  assert.ok((await store.one('SELECT count(*) n FROM audit')).n>=5);
+ }finally{sql.close();}
+});
+
+test('multiple tester sessions pause and end independently and atomically reject paused assignments',async()=>{
+ const {sql,store}=await database();try{
+  for(const user of ['50001','50002'])await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)',user,'mace',0,'30000','Synthetic tester approval',new Date().toISOString()).run();
+  const call=(actor,name,values={})=>runCommand(interaction(actor,name,null,{mode:'mace',region:'EU',...values},['50000']),env,store);
+  await call('50001','start',{kit:kitManifests.version,benchmarks:'Synthetic consented benchmark record'});
+  await call('50002','start');
+  await call('50001','pause');assert.equal((await store.one('SELECT status FROM sessions')).status,'open');
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');const id=await store.join('60000','mace','EU');
+  await assert.rejects(store.claimNext('mace','EU','50001'),/not available/);
+  assert.equal((await store.one('SELECT status FROM queue WHERE id=?',id)).status,'waiting');
+  assert.equal(await store.claimNext('mace','EU','50002'),id);
+  await call('50001','end');assert.equal((await store.one('SELECT status FROM sessions')).status,'open');
+  await call('50002','end');assert.equal((await store.one('SELECT status FROM sessions')).status,'closed');
+  assert.equal((await store.one('SELECT status FROM queue')).status,'claimed');
+ }finally{sql.close();}
+});
+
+test('mode configuration preserves built-in names, supports new Mace submodes and confirms disable actions',async()=>{
+ const {sql,store}=await database();try{
+  const call=(actor,sub,values)=>runCommand(interaction(actor,'mode',sub,values),env,store);
+  await assert.rejects(call('60000','create',{id:'mace_custom',name:'Custom Mace',rules:'Staff-defined test rules'}),/managers/);
+  await call('30000','create',{id:'mace_custom',name:'Custom Mace',rules:'Real administrator supplied rules',cooldown:120,capacity:10});
+  assert.equal(config.modes.find(m=>m.id==='mace_custom').name,'Custom Mace');assert.equal(config.modes.find(m=>m.id==='mace').name,'Mace');
+  const preview=await call('30000','disable',{mode:'mace_custom',reason:'Temporarily suspend this official submode'});
+  assert.ok(config.modes.some(m=>m.id==='mace_custom'));
+  const id=preview.components[0].components[0].custom_id.slice(14);
+  await assert.rejects(runCommand(interaction('60000','confirm-action',null,{id}),env,store),/belongs/);
+  await runCommand(interaction('30000','confirm-action',null,{id}),env,store);
+  assert.ok(!config.modes.some(m=>m.id==='mace_custom'));
+  await call('30000','enable',{mode:'mace_custom',reason:'Restore the calibrated mode after review'});
+ }finally{sql.close();}
+});
+
+test('confirmed cooldown reset overrides the old session calculation and restrictions stay mode scoped',async()=>{
+ const {sql,store}=await database();try{
+  await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');await store.session('mace','EU','open','50001',20,720);
+  const entry=await store.join('60000','mace','EU');await store.claim(entry,'50001');await store.result(entry,3,1,'https://example.com/test','50001');
+  const draft=await runCommand(interaction('30000','cooldown','reset',{user:'60000',mode:'mace',reason:'Approved documented administrative retest'}),env,store);
+  assert.equal((await store.one('SELECT count(*) n FROM queue')).n,1);
+  await runCommand(interaction('30000','confirm-action',null,{id:draft.components[0].components[0].custom_id.slice(14)}),env,store);
+  assert.ok((await store.status('60000','mace','EU')).eligibleAt<=new Date().toISOString());
+  await store.join('60000','mace','EU');
+  const restrict=await runCommand(interaction('30000','player','restrict',{user:'60000',mode:'mace_rod',hours:24,reason:'Documented testing restriction pending review'}),env,store);
+  await runCommand(interaction('30000','confirm-action',null,{id:restrict.components[0].components[0].custom_id.slice(14)}),env,store);
+  await store.session('mace_rod','EU','open','50001');await assert.rejects(store.join('60000','mace_rod','EU'),/unavailable/);
+  assert.equal((await store.one("SELECT count(*) n FROM queue WHERE mode='mace' AND status='waiting'")).n,1);
+ }finally{sql.close();}
+});
+
+test('guided setup installs least-privilege server resources, functioning panels and stable resource IDs without duplicates',async()=>{
+ const {sql,store}=await database();try{
+  const roles=[{id:'20000',name:'@everyone',permissions:'0'},{id:'51000',name:'Bot',permissions:'268435472'}],channels=[],messages=new Map();let next=90000;
+  const request=async(url,o={})=>{
+   const path=url.replace('https://discord.com/api/v10',''),body=o.body?JSON.parse(o.body):{};
+   if(path==='/guilds/20000/members/10000')return Response.json({roles:['51000']});
+   if(path==='/guilds/20000/roles'){if(o.method==='POST'){const role={...body,id:String(next++)};roles.push(role);return Response.json(role);}return Response.json(roles);}
+   if(path==='/guilds/20000/channels'){if(o.method==='POST'){const c={...body,id:String(next++),guild_id:'20000'};channels.push(c);return Response.json(c);}return Response.json(channels);}
+   if(path.includes('/messages')){if(o.method==='GET')return Response.json([...messages.values()].filter(m=>m.channel===path.split('/')[2]));const m={...body,id:path.split('/').length>4?path.split('/').at(-1):String(next++),channel:path.split('/')[2],author:{id:'10000'}};messages.set(m.id,m);return Response.json(m);}
+   return Response.json({id:path.split('/').at(-1),...body});
+  };
+  const call=action=>runCommand(interaction('30000','setup',null,{action}),env,store,request);
+  await assert.rejects(runCommand(interaction('60000','setup'),env,store,request),/administrators/);
+  assert.match(JSON.stringify(await call('status')),/STAGE 1\/8/);
+  await call('install');const first=channels.length;await call('install');assert.equal(channels.length,first);
+  const staff=channels.find(c=>c.name.includes('staff-dashboard'));assert.ok(staff.permission_overwrites.some(p=>p.id==='20000'&&(BigInt(p.deny)&1024n)));
+  await call('panels');const count=messages.size;await call('panels');assert.equal(messages.size,count);
+  const valid=await call('validate');assert.match(valid,/Missing channels \/ roles: 0/);
+  const welcome=[...messages.values()].find(m=>m.embeds[0].title.includes('WELCOME'));assert.ok(welcome.components[0].components.some(b=>b.custom_id==='community:desk'));
+ }finally{sql.close();}
 });

@@ -4,6 +4,8 @@ main: community.pvp.arena.CommunityArena
 api-version: '1.21.11'
 description: Original practice arenas, fair queues, private duels and supervised test sets.
 commands:
+  linkdiscord:
+    description: Prove ownership using your private Discord challenge
   arena:
     description: Open the community arena
     aliases: [hub, lobby, spawn]

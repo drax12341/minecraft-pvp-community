@@ -1,3 +1,4 @@
+import {competitiveCommands,competitivePlayerOptions} from '../config/competitive-commands.mjs';
 import config from "../config/community.json" with { type: "json" };
 import { testingDeskCommands } from '../config/testing-desk.mjs';
 import { communityDeskCommands } from '../config/community-desk.mjs';
@@ -9,6 +10,13 @@ const id=(required=true)=>string("id","Case, application or test ID",required);
 const reason=()=>string("reason","Clear explanation; at least 10 characters",true);
 const mode=()=>string("mode","PvP testing mode",true,config.modes.map(m=>({name:m.name,value:m.id})));
 export const communityCommands=[
+  ...competitiveCommands,
+  {name:'testing-hub',description:'Live Mace platform dashboard',options:[{type:5,name:'publish',description:'Moderator: install in the current text channel'}]},
+  {name:'tier-role',description:'Moderator: map an independent Mace tier role',options:[mode(),string('tier','Official tier',true,['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5']),{type:8,name:'role',description:'Unmanaged role without permissions',required:true},reason()]},
+  {name:'system',description:'Staff: real platform health and delivery backlog'},
+  {name:'verify',description:'Prove premium Java ownership on our trusted server',options:[sub('start','Create a ten-minute ownership challenge',[string('name','Minecraft Java username',true)]),sub('status','Check your verification')]},
+  {name:'notifications',description:'Control optional waitlist session alerts',options:[string('delivery','Optional notification preference',false,['dm','none'])]},
+  {name:'delivery',description:'Moderator: inspect durable delivery failures',options:[sub('status','Inspect pending delivery'),sub('retry','Retry due delivery events')]},
   ...communityDeskCommands,
   ...testingDeskCommands,
   {name:'waitlist',description:'Future testing demand, separate from active queues',options:[sub('join','Save mode and region preference',[mode(),string('region','Playing region',true,['EU','NA','AS','SA','AU','AF','ME','OC'])]),sub('leave','Remove a preference',[mode()]),sub('status','View your private preferences')]},

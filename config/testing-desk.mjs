@@ -1,3 +1,4 @@
+import {competitiveCooldownOptions} from './competitive-commands.mjs';
 import config from './community.json' with {type:'json'};
 export const deskTiers = ['HT3','LT2','HT2','LT1','HT1'];
 export const deskRegions = ['EU','NA','AS','SA','AU','AF','ME','OC'];
@@ -50,7 +51,7 @@ export const testingDeskCommands=[
  {name:'tier-path',description:'Read the phases and rules for your target tier',options:[dt()]},
  {name:'tester-roster',description:'Find qualified testers by gamemode',options:[dm()]},
  {name:'test-stats',description:'Real testing totals and completed-test leaderboard',options:[dm(false)]},
- {name:'cooldown',description:'Your failed-test and session retest restrictions',options:[dm(),dr()]},
+ {name:'cooldown',description:'Your failed-test and session retest restrictions',options:competitiveCooldownOptions},
  {name:'roster',description:'One player list, filterable by gamemode, region and tier',options:[dm(),dr(false),ds('tier','Optional tier filter',false,['HT1','LT1','HT2','LT2','HT3','LT3','HT4','LT4','HT5','LT5']),{type:4,name:'page',description:'Roster page',min_value:1,max_value:1000}]},
  {name:'test-hub',description:'Your account, eligibility, current test and next action in one place',options:[dm(),dr()]},
 ];

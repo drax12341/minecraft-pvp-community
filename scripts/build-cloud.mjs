@@ -16,8 +16,8 @@ async function collect(dir,prefix=""){
 }
 await collect("web");
 worker+=`const siteAssets = ${JSON.stringify(siteAssets)};\n`;
-for (const path of ["config/kit-manifests.mjs","config/community-roles.mjs","config/rubrics.mjs","config/testing-desk.mjs","config/community-desk.mjs","config/phase-checks.mjs","cloud/store.mjs","cloud/loadouts.mjs","cloud/operations-store.mjs","cloud/operations.mjs","cloud/journeys.mjs","cloud/testing-desk.mjs","cloud/community-desk.mjs","cloud/commands.mjs","cloud/components.mjs","cloud/worker.mjs"]) {
-  let source = await readFile(path, "utf8");
+for (const path of ["config/kit-manifests.mjs","config/competitive-commands.mjs","config/community-roles.mjs","config/rubrics.mjs","config/testing-desk.mjs","config/community-desk.mjs","config/phase-checks.mjs","cloud/store.mjs","cloud/verification.mjs","cloud/delivery.mjs","cloud/platform-panels.mjs","cloud/loadouts.mjs","cloud/operations-store.mjs","cloud/operations.mjs","cloud/journeys.mjs","cloud/testing-desk.mjs","cloud/community-desk.mjs","cloud/competition-config.mjs","cloud/competition.mjs","cloud/setup-wizard.mjs","cloud/profiles.mjs","cloud/commands.mjs","cloud/components.mjs","cloud/installation.mjs","cloud/worker.mjs"]) {
+  let source = (await readFile(path, "utf8")).replace(/^\uFEFF/, "");
   source = source.replace(/^import[\s\S]*?;\r?\n/gm, "");
   worker += source + "\n";
 }

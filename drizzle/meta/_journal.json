@@ -1,69 +1,83 @@
 {
-    "version":  "7",
-    "dialect":  "sqlite",
-    "entries":  [
-                    {
-                        "idx":  0,
-                        "version":  "6",
-                        "when":  1794146400000,
-                        "tag":  "0000_discord_cloud",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  1,
-                        "version":  "6",
-                        "when":  1794150000000,
-                        "tag":  "0001_player_workflows",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  2,
-                        "version":  "6",
-                        "when":  1794157200000,
-                        "tag":  "0002_community_operations",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  3,
-                        "version":  "6",
-                        "when":  1794236400000,
-                        "tag":  "0003_journey_safety",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  4,
-                        "version":  "6",
-                        "when":  1794240600000,
-                        "tag":  "0004_interaction_delivery",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx": 5,
-                        "version": "6",
-                        "when": 1794254400000,
-                        "tag": "0005_testing_desk",
-                        "breakpoints": true
-                    },
-                    {
-                        "idx": 6,
-                        "version": "6",
-                        "when": 1794256800000,
-                        "tag": "0006_connected_tests",
-                        "breakpoints": true
-                    },
-                    {
-                        "idx": 7,
-                        "version": "6",
-                        "when": 1794596400000,
-                        "tag": "0007_community_desk",
-                        "breakpoints": true
-                    },
-                    {
-                        "idx": 8,
-                        "version": "6",
-                        "when": 1794597000000,
-                        "tag": "0008_staff_loadouts",
-                        "breakpoints": true
-                    }
-                ]
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1794146400000,
+      "tag": "0000_discord_cloud",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1794150000000,
+      "tag": "0001_player_workflows",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794157200000,
+      "tag": "0002_community_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794236400000,
+      "tag": "0003_journey_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794240600000,
+      "tag": "0004_interaction_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794254400000,
+      "tag": "0005_testing_desk",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794256800000,
+      "tag": "0006_connected_tests",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1794596400000,
+      "tag": "0007_community_desk",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794597000000,
+      "tag": "0008_staff_loadouts",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1794600000000,
+      "tag": "0009_platform_reliability",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1794650000000,
+      "tag": "0010_competitive_platform",
+      "breakpoints": true
+    }
+  ]
 }

@@ -9,6 +9,35 @@ function command(i,name,sub,values={}) { const opts=Object.entries(values).map((
 export function componentRoute(i) {
   const id=i.data.custom_id,value=i.data.values?.[0];
   const modes=config.modes.map(m=>({label:m.name,value:m.id,description:m.group,...(m.emoji?{emoji:{id:m.emoji}}:{})}));
+  if(id.startsWith('queuepage:')){const [,mode,region,page]=id.split(':');return{command:command(i,'queue-board',null,{mode,region,page:Number(page)})};}
+  if(id.startsWith('setup:')){
+    const action=id.slice(6);
+    if(action==='identity-form')return{response:modal('setup:identity-submit','Network identity',[['name','Network name',1,1,80],['color','Accent color (#RRGGBB)',1,7,7]])};
+    if(action==='identity-submit'&&i.type===5){const fields=Object.fromEntries(i.data.components.flatMap(r=>r.components.map(f=>[f.custom_id,f.value])));return{command:command(i,'setup',null,{action:'identity',...fields})};}
+    if(action==='regions-form')return{response:message('Choose regions for the installation.',[{type:1,components:[{type:3,custom_id:'setup:regions-submit',min_values:1,max_values:8,options:['EU','NA','AS','SA','AU','AF','ME','OC'].map(value=>({label:value,value}))}]}])};
+    if(action==='regions-submit')return{command:command(i,'setup',null,{action:'regions',regions:i.data.values.join(',')})};
+    return{command:command(i,'setup',null,{action})};
+  }
+  if(id.startsWith('regional:mode:'))return{command:command(i,'queue-board',null,{mode:value,region:id.slice(14)})};
+  if(id.startsWith('network:')){const action=id.slice(8),routes={rankings:['platform-rankings',null],progress:['progress',null],staff:['staff-center',null],system:['system',null],quota:['quota','status'],'tester-stats':['tester','stats'],'tester-leaderboard':['tester','leaderboard'],'high-pending':['high-test','list'],'support-status':['ticket','status']};if(!routes[action])throw Error('Unknown network action.');return{command:command(i,...routes[action])};}
+  if(id==='testerflow:start')return{response:message('Select your approved Mace mode.',menu('testerflow:mode','Mace submode',modes))};
+  if(id==='testerflow:mode')return{response:message('Choose the testing region.',menu('testerflow:region:'+value,'Testing region',deskRegions.map(value=>({label:value,value}))))};
+  if(id.startsWith('testerflow:region:'))return{command:command(i,'start',null,{mode:id.slice(18),region:value})};
+  if(id.startsWith('staff:confirm:'))return{command:command(i,'confirm-action',null,{id:id.slice(14)})};
+  if(id.startsWith('tester:')){const [,action,mode,region]=id.split(':');return{command:command(i,action,null,{mode,region})};}
+  if(id.startsWith('matchform:')){const [,action,testId]=id.split(':');return{response:modal('matchsubmit:'+action+':'+testId,action==='finish'?'Record final test score':'Private test action',action==='finish'?[['score','Final set score (for example 10-6)',1,3,5],['reason','Testing notes / reason',2,10,1000]]:[['reason','Private notes / reason',2,10,1000]])};}
+  if(id.startsWith('matchsubmit:')&&i.type===5){const [,action,testId]=id.split(':'),fields=Object.fromEntries(i.data.components.flatMap(row=>row.components.map(f=>[f.custom_id,f.value])));return{command:command(i,'match',action,{id:testId,...fields})};}
+  if(id.startsWith('match:')){const [,action,testId]=id.split(':');return{command:command(i,'match',action,{id:testId})};}
+  if(id==='staff:queues')return{command:command(i,'availability',null)};
+  if(id==='staff:testers')return{command:command(i,'qualification','list')};
+  if(id==='staff:modes')return{command:command(i,'mode','list')};
+  if(id==='staff:health')return{command:command(i,'health',null)};
+  if(id==='staff:delivery')return{command:command(i,'delivery','status')};
+  if(id==='staff:setup')return{command:command(i,'setup',null)};
+  if(id.startsWith('result:confirm:'))return{command:command(i,'result-confirm',null,{id:id.slice(15)})};
+  if(id==='verify:start')return{response:modal('verify:submit','Verify Minecraft ownership',[['name','Java username',1,3,16]])};
+  if(id==='verify:submit'&&i.type===5)return{command:command(i,'verify','start',{name:i.data.components?.[0]?.components?.[0]?.value})};
+  if(id==='notify:dm'||id==='notify:none')return{command:command(i,'notifications',null,{delivery:id.slice(7)})};
   if(id.startsWith('board:')){
     if(id.startsWith('board:region:')){
       const mode=id.slice(13);

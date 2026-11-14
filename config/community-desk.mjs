@@ -1,3 +1,4 @@
+import {competitivePlayerOptions} from './competitive-commands.mjs';
 import config from './community.json' with { type: 'json' };
 
 const cdString = (name, description, required = false, choices) => ({
@@ -20,6 +21,7 @@ export const communityDeskCommands = [
   { name: 'queue-board', description: 'Live testing availability and private queue controls', options: [cdMode(), cdRegion(), {type:5,name:'publish',description:'Moderator: publish or recover this board in the current channel'}] },
   { name: 'pull', description: 'Qualified tester: pull the next player into a private room', options: [cdMode(), cdRegion()] },
   { name: 'player', description: 'Verified profiles and documented placement history', options: [
+    ...competitivePlayerOptions,
     cdSub('self', 'Your verified profile and current placements'),
     cdSub('view', 'Look up a published Minecraft player', [cdString('name', 'Minecraft username', true)]),
     cdSub('history', 'Your history, or the public history of a Minecraft player', [cdString('name', 'Minecraft username'), cdMode(false)]),

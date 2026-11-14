@@ -1,3 +1,5 @@
+import {modeAutocompleteCatalog} from '../cloud/competition-config.mjs';
+import {competitiveQueueOptions} from '../config/competitive-commands.mjs';
 import {
   Client,
   GatewayIntentBits,
@@ -391,10 +393,10 @@ const playerProfile = new SlashCommandBuilder()
     o
       .setName("name")
       .setDescription("Minecraft username")
-      .setRequired(true)
+      .setRequired(false)
       .setMinLength(3)
       .setMaxLength(16),
-  );
+  ).addUserOption(o=>o.setName("user").setDescription("Verified Discord competitor"));
 await new REST()
   .setToken(process.env.DISCORD_TOKEN)
   .put(
@@ -403,7 +405,7 @@ await new REST()
       process.env.DISCORD_GUILD_ID,
     ),
     {
-      body: [...[
+      body: modeAutocompleteCatalog([...[ 
         queue,
         claim,
         result,
@@ -416,7 +418,7 @@ await new REST()
         practice,
         testerApply,
         playerProfile,
-      ].map((c) => c.toJSON()), ...communityCommands],
+      ].map((c) => c.toJSON()), ...communityCommands].map(c=>c.name==='queue'?{...c,options:[...c.options,...competitiveQueueOptions]}:c)),
     },
   );
 // Register cloud commands without starting the legacy local gateway.

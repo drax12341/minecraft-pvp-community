@@ -215,12 +215,16 @@ export class CloudStore {
       `INSERT INTO queue(id,user,mode,region,created)
       SELECT ?,?,?,?,? FROM sessions s WHERE s.mode=? AND s.region=? AND s.status='open'
       AND EXISTS(SELECT 1 FROM accounts WHERE discord=?)
+      AND NOT EXISTS(SELECT 1 FROM mode_settings ms WHERE ms.id=s.mode AND ms.enabled=0)
+      AND NOT EXISTS(SELECT 1 FROM region_settings rs WHERE rs.id=s.region AND rs.enabled=0)
+      AND NOT EXISTS(SELECT 1 FROM player_restrictions pr WHERE pr.user=? AND pr.mode=s.mode AND pr.until_at>?)
+      AND NOT EXISTS(SELECT 1 FROM cooldowns c WHERE c.user=? AND c.mode=s.mode AND c.until_at>? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=c.result_id))
       AND NOT EXISTS(SELECT 1 FROM test_restrictions tr WHERE tr.user=? AND tr.mode=s.mode AND tr.until_at>?)
       AND NOT EXISTS(SELECT 1 FROM queue WHERE user=? AND mode=? AND status IN ('waiting','claimed'))
       AND (SELECT count(*) FROM queue WHERE mode=s.mode AND region=s.region AND status IN ('waiting','claimed')) < min(s.capacity,20)
       AND NOT EXISTS(SELECT 1 FROM results r JOIN accounts a ON a.uuid=r.uuid WHERE a.discord=? AND r.mode=s.mode
         AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id)
-        AND julianday(?) - julianday(r.created) < s.cooldown / 24.0)`,
+        AND julianday(?) - julianday(r.created) < s.cooldown / 24.0 AND NOT EXISTS(SELECT 1 FROM platform_settings ov WHERE ov.key='cooldown-override:'||a.discord||':'||s.mode))`,
       id,
       user,
       mode,
@@ -229,6 +233,10 @@ export class CloudStore {
       mode,
       region,
       user,
+      user,
+      now,
+      user,
+      now,
       user,
       now,
       user,
@@ -294,12 +302,15 @@ export class CloudStore {
           entry.id,
         )
       ).position;
-    const eligibleAt =
+    let eligibleAt =
       latest && session
         ? new Date(
             Date.parse(latest.created) + session.cooldown * 3600000,
           ).toISOString()
         : null;
+    const savedCooldown=await this.one('SELECT until_at FROM cooldowns c WHERE user=? AND mode=? AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=c.result_id)',user,mode);
+    const override=await this.one('SELECT value FROM platform_settings WHERE key=?','cooldown-override:'+user+':'+mode);
+    if(override)eligibleAt=override.value;else if(savedCooldown&&(!eligibleAt||savedCooldown.until_at>eligibleAt))eligibleAt=savedCooldown.until_at;
     return {
       account,
       session,
@@ -362,6 +373,10 @@ export class CloudStore {
         id,
         actor,
       ),
+      this.statement("INSERT INTO cooldowns(user,mode,result_id,until_at) SELECT q.user,q.mode,r.id,strftime('%Y-%m-%dT%H:%M:%fZ',r.created,'+'||s.cooldown||' hours') FROM results r JOIN queue q ON q.id=r.id JOIN sessions s ON s.mode=q.mode AND s.region=q.region WHERE r.id=? ON CONFLICT(user,mode) DO UPDATE SET result_id=excluded.result_id,until_at=excluded.until_at",id),
+      ...['result','roles','result-high','archive'].map(kind=>this.statement("INSERT OR IGNORE INTO outbox_events(kind,subject,available_at,created) SELECT ?,id,created,created FROM results WHERE id=?",kind,id)),
+      this.statement("UPDATE test_lifecycle SET state='COMPLETED',version=version+1,updated=? WHERE test_id=? AND EXISTS(SELECT 1 FROM results WHERE id=?)",new Date().toISOString(),id,id),
+      this.statement("DELETE FROM platform_settings WHERE key IN (SELECT 'cooldown-override:'||q.user||':'||q.mode FROM queue q JOIN results r ON r.id=q.id WHERE q.id=?)",id),
       this.audit(actor, "result-attempt", id),
     ]);
     if (!outcomes[0].meta.changes)
