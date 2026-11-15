@@ -131,50 +131,50 @@ export const referenceLayout = [
 
 export const referenceGuides = {
   welcome: [
-    "👋 Welcome to the community",
-    "Find your next match. Improve your game. Earn your tier.\n\n**1.** Choose your modes and alerts.\n**2.** Verify your Minecraft Java account.\n**3.** Read the ranked rules and approved kit.\n**4.** Join an open regional testing queue.\n\nYour profile, results and cooldown are available privately through the player desk.",
+    "👋 Welcome to the Community",
+    "**Play. Improve. Earn your tier.**\nVerify your Java IGN, pick your mode and join an open queue.",
     ["Verify Account", "verify:start", "Player Desk", "community:desk"],
   ],
   information: [
-    "📋 Getting Started",
-    "**For players**\nVerify your IGN, choose a Mace mode and region, then join an open queue. A tester opens your private test room when it is your turn.\n\n**During your test**\nConfirm the kit, server, version and rules before playing. Follow your tester’s instructions in the room.\n\n**After your test**\nYour approved result appears in results. `/profile` shows current and peak tiers; `/cooldown status` shows your retest time.",
+    "📋 Start Here",
+    "**Verify → Queue → Test → Result**\nUse your own Java account. Your tester confirms the kit and rules before play.",
     ["Find a Test", "community:boards", "My Profile", "community:self"],
   ],
   rules: [
     "📜 Community Rules",
-    "**Respect everyone.** No harassment, hate speech, doxxing or threats.\n**Play fairly.** No cheats, macros, account sharing, boosting or staged tests.\n**Use the right channel.** Commands belong in bot-commands; reports belong in private support.\n**Protect your account.** Never share passwords, tokens or backup codes.\n**Respect the assessment.** Agree the kit and recording before playing. Tiers require evidence and independent review where applicable.\n**Keep it honest.** No bought ranks, queue priority or false reports.",
+    "**Respect people. Play fairly. Protect your account.**\nNo harassment, cheats, boosting or bought tiers. Keep reports private; never share login details.",
     ["Get Support", "hub:ticket"],
   ],
   "request-test": [
-    "📝 Evaluation Testing Waitlist",
-    "Select your testing mode and region to get started.\n\n• **Region:** choose where you can play reliably.\n• **Username:** use the Java account you will test on.\n• **Queue:** join when an approved tester opens a session.\n• **Closed session:** save waitlist interest for future availability.\n\n**Provide accurate account and region information.**\nSaved interest does not reserve a live queue position.",
+    "📝 Request a Test",
+    "**Choose your mode and region.**\nJoin when testing is open. Closed? Save waitlist interest for the next session.",
     [
       "Verify Account",
       "verify:start",
       "Enter Waitlist",
       "community:boards",
-      "View Cooldown",
+      "My Status",
       "community:desk",
     ],
   ],
   "request-support": [
-    "📬 Support Tickets",
-    "Choose account assistance, a player report or general support. Staff reports are handled through a separate confidential route.\n\nInclude a short description and relevant message or match links. A private channel keeps the discussion together. Never include login credentials.",
+    "📬 Private Support",
+    "**Need a hand?**\nOpen a ticket with a short explanation and relevant links. Account issues and reports stay private.",
     ["Open a Ticket", "hub:ticket"],
   ],
   "common-questions": [
-    "❓ Common Questions",
-    "**How do I get tested?**\nVerify your Java IGN, choose a mode and region, then join an open queue.\n\n**Why is the queue closed?**\nA qualified tester must open an approved session first.\n\n**How do I leave?**\nUse Leave Queue or `/leave mode`. An active test needs your assigned tester.\n\n**Where is my rank?**\nUse `/profile`, or open the player roster.\n\n**When can I retest?**\nUse `/cooldown status mode region`.\n\n**Can I appeal?**\nUse `/appeal submit` for independent review.",
+    "❓ Quick Answers",
+    "**Rank:** `/profile` · **Retest:** `/cooldown status`\n**Leave:** `/leave` · **Appeal:** `/appeal submit`\nTesting opens when a qualified tester is available.",
     ["Find a Test", "community:boards", "Get Support", "hub:ticket"],
   ],
   "bot-commands": [
-    "🤖 Bot Commands",
-    "**Players**\n`/profile [ign] [user]` — current tiers, points and region\n`/check_verification` — linked account\n`/queue-board mode region` — live queue\n`/leave mode` — leave a waiting queue\n`/cooldown status mode region` — retest time\n`/ticket` — private support\n\n**Tester statistics**\n`/testerlb` — this UTC month\n`/testerlbtotal` — all time\n`/testerlbuser user` — tester statistics\n`/hightesterlb` · `/hightesterlbtotal` · `/htlb` — HT3+ tests\n\n**Testers**\n`/start` → `/next` → `/match` → `/assessment` → `/result`\n`/pause` · `/resume` · `/end` manage your availability.\n\n**Management**\n`/cdreset` · `/restrict` · `/unrestrict` use audited, mode-specific decisions and the existing confirmation rules.",
+    "🤖 Command Desk",
+    "**Your profile, tests and support—in one place.**\n`/profile` · `/queue-board` · `/cooldown` · `/ticket`\nStaff: `/staff-help` shows tools available to your roles.",
     ["My Profile", "community:self", "Find a Test", "community:boards"],
   ],
   "tester-commands": [
-    "📋 Tester Commands",
-    "**Open testing**\n`/start mode region` opens your availability using an approved kit.\n\n**Take the next player**\n`/next mode region` checks your qualification, claims the next waiting player and opens a private room.\n\n**Complete the assessment**\nUse the room controls and `/match` to track readiness and score. Record the six assessment dimensions, then publish with `/result`. Required independent high-tier review stays in place.\n\n**Take a break**\n`/pause`, `/resume` and `/end` change your own availability. Active tests retain their assignment.\n\n**Statistics**\n`/testerlbuser` shows your genuine documented test counts and availability hours.",
+    "⚔️ Tester Tools",
+    "**Start → Next → Assess → Result**\n`/start` · `/next` · `/match` · `/assessment` · `/result`\nTake a break with `/pause`; end availability with `/end`.",
     [
       "Tester Desk",
       "network:tester-stats",
@@ -183,28 +183,28 @@ export const referenceGuides = {
     ],
   ],
   "community-support": [
-    "🏡 Community Support",
-    "Ask quick setup and community questions here. For account details, reports, appeals or a private conversation with staff, open a support ticket.",
+    "🏡 Ask the Community",
+    "Quick questions belong here. Use a **private ticket** for accounts, reports or appeals.",
     ["Private Support", "hub:ticket"],
   ],
   polls: [
-    "📊 Community Polls",
-    "Share clear proposals and vote respectfully. State the question, choices and closing time. Native Discord polls can be created here.",
+    "📊 Have Your Say",
+    "One clear question. Fair choices. A closing time. Use native Discord polls.",
   ],
   events: [
     "🎉 Community Events",
-    "Community matches and events belong here. Include the mode, region, version, rules, host and UTC start time. Watch announcements for confirmed events.",
+    "**Mode · Region · Rules · UTC start**\nLook here for confirmed events and community matches.",
   ],
   introductions: [
-    "👋 Introductions",
-    "Tell us your Minecraft name, region, favourite modes and what you want to improve. Keep personal information private.",
+    "👋 Introduce Yourself",
+    "Your IGN, region and favourite modes. What are you working on?",
   ],
   "guides-and-coaching": [
-    "📚 Guides & Coaching",
-    "Share useful techniques, annotated clips and practice advice. Explain the mode and version, credit your sources and keep feedback specific.",
+    "📚 Learn Something New",
+    "Share techniques, practice tips and annotated clips. Credit sources and keep feedback useful.",
   ],
   "advanced-matchmaking-info": [
-    "🔔 Advanced Matchmaking",
-    "Find a suitable practice partner in advanced-matchmaking. Include your mode, tier, region, server and availability. Practice matches do not create official placements.",
+    "⚔️ Find Your Match",
+    "**Mode · Tier · Region · Server · Time**\nPractice matches help you improve; official testing awards tiers.",
   ],
 };

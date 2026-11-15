@@ -1,3 +1,5 @@
+import {enforceCommandPolicy} from '../config/command-policy.mjs';
+import {staffToolNames,runStaffTool} from './staff-tools.mjs';
 import {referenceCommandData} from '../config/reference-commands.mjs';
 import {manageTesters} from './tester-management.mjs';
 import {seasonalAnalytics} from './analytics.mjs';
@@ -35,7 +37,10 @@ export async function runCommand(interaction, env, store, request = fetch) {
   const resources=await store.all("SELECT key,discord_id FROM guild_resources WHERE key IN ('role:manager','role:tester','role:high-tester','role:verified')");
   const resource=id=>resources.find(r=>r.key===id)?.discord_id;
   env={...env,DISCORD_MODERATOR_ROLE_IDS:[env.DISCORD_MODERATOR_ROLE_IDS||env.MODERATOR_ROLE_ID,resource('role:manager')].filter(Boolean).join(','),DISCORD_TESTER_ROLE_IDS:[env.DISCORD_TESTER_ROLE_IDS||env.TESTER_ROLE_ID,resource('role:tester'),resource('role:high-tester')].filter(Boolean).join(','),DISCORD_VERIFIED_ROLE_ID:env.DISCORD_VERIFIED_ROLE_ID||resource('role:verified')};
+  env={...env,DISCORD_MODERATOR_ROLE_IDS:[env.DISCORD_MODERATOR_ROLE_IDS,...(config.staffToolRoles?.moderation||[])].filter(Boolean).join(','),DISCORD_SUPPORT_ROLE_IDS:[env.DISCORD_SUPPORT_ROLE_IDS,...(config.staffToolRoles?.support||[])].filter(Boolean).join(','),DISCORD_REPORT_REVIEWER_ROLE_IDS:[env.DISCORD_REPORT_REVIEWER_ROLE_IDS,...(config.staffToolRoles?.reports||[])].filter(Boolean).join(',')};
   const ticketCategory=await store.one("SELECT value FROM platform_settings WHERE key='ticket-category'");if(ticketCategory)env.DISCORD_TICKET_CATEGORY_ID=ticketCategory.value;
+  enforceCommandPolicy(interaction,env);
+  if(staffToolNames.has(interaction.data.name))return runStaffTool(interaction,env,store,request);
   const data = interaction.data;
   const sub = data.options?.find((o) => o.type === 1);
   const options = sub ? sub.options || [] : data.options || [];

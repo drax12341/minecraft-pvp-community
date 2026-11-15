@@ -40,21 +40,21 @@ export function nativeQueuePanel({
           id: queueContainerId(kit.id, region),
           accent_color: 0xed1029,
           components: [
-            queueText("# 🔒 " + kit.name + " Queue Closed"),
+            queueText("### 🔒 " + kit.name + " Queue Closed"),
             queueSeparator(),
             queueText(
               session
-                ? "This testing session has ended. The live queue will return here when testing reopens."
-                : "Testing has not opened yet. The live queue will appear here when an approved tester opens a session.",
+                ? "**No Testers Online**\nCheck back when a tester opens this queue."
+                : "**No Testers Online**\nTesting has not opened yet. Check back later.",
             ),
             queueSeparator(),
-            queueText("### 📋 Reason\n" + reason),
+            queueText("**Reason**\n" + reason),
             queueText(
               ended
-                ? "### ⏰ Session Ended\n<t:" +
+                ? "**Last testing session**\n<t:" +
                     Math.floor(Date.parse(ended) / 1000) +
                     ":F>"
-                : "### ⏰ Session Status\nNot started · " + region,
+                : "**Status**\nNot started · " + region,
             ),
             queueSeparator(),
             queueText("*Thank you for testing!*"),

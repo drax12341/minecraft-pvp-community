@@ -99,7 +99,7 @@ export async function completeInteraction(
   await deliverInteraction(interaction,env,store,request,message);
   try { await enqueuePlatformNotifications(store); await drainOutbox(store,env,request,3); } catch { console.error('Outbox unavailable; inspect /delivery status.'); }
   try { await refreshTestingHubs(store,env,request); } catch { console.error('Testing hub refresh unavailable.'); }
-  if(['queue','queue-board','session','claim','result','pull','high-test','loadout','start','pause','resume','end','match','result-confirm','confirm-action','mode','region'].includes(interaction.data.name)){
+  if(['next','leave','queue','queue-board','session','claim','result','pull','high-test','loadout','start','pause','resume','end','match','result-confirm','confirm-action','mode','region'].includes(interaction.data.name)){
     try{
       const sub=interaction.data.options?.find(o=>o.type===1),opts=sub?.options||interaction.data.options||[];
       const get=name=>opts.find(o=>o.name===name)?.value;

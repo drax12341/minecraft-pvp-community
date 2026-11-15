@@ -1,6 +1,8 @@
 import { REST, Routes, PermissionFlagsBits as P } from "discord.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import config from "../config/community.json" with { type: "json" };
+import { staffRoleDefinitions } from "../config/command-policy.mjs";
 import {
   referenceLayout,
   referenceGuides,
@@ -13,6 +15,7 @@ export function referencePlan() {
     panels: Object.keys(referenceGuides),
     preservesMessages: true,
     preservesRoleAssignments: true,
+    roles: staffRoleDefinitions,
   };
 }
 export async function applyCommunityReference(env = process.env) {
@@ -22,12 +25,67 @@ export async function applyCommunityReference(env = process.env) {
   const rest = new REST().setToken(env.DISCORD_TOKEN),
     me = await rest.get(Routes.user("@me"));
   let channels = await rest.get(Routes.guildChannels(guild));
-  const roles = await rest.get(Routes.guildRoles(guild));
+  let roles = await rest.get(Routes.guildRoles(guild));
   const report = { channels: [], panels: [], blocked: [], verified: [] };
   await mkdir(".runtime", { recursive: true });
   await writeFile(
     ".runtime/community-reference-before-" + Date.now() + ".json",
     JSON.stringify({ channels, roles }, null, 2),
+  );
+  for (const spec of staffRoleDefinitions) {
+    if (!roles.some((r) => r.name === spec.name && !r.managed))
+      roles.push(
+        await rest.post(Routes.guildRoles(guild), {
+          body: {
+            name: spec.name,
+            color: spec.color,
+            permissions: "0",
+            hoist: true,
+            mentionable: false,
+          },
+        }),
+      );
+  }
+  roles = await rest.get(Routes.guildRoles(guild));
+  const capabilityRoles = {};
+  for (const spec of staffRoleDefinitions)
+    for (const cap of spec.capabilities)
+      (capabilityRoles[cap] ??= []).push(
+        roles.find((r) => r.name === spec.name && !r.managed).id,
+      );
+  const botMember = await rest.get(Routes.guildMember(guild, me.id));
+  const botTop = Math.max(
+    ...roles
+      .filter((r) => botMember.roles.includes(r.id))
+      .map((r) => r.position),
+  );
+  const staffOrder = [
+    "Community Manager",
+    "Senior Moderator",
+    "Community Moderator",
+    "Moderator",
+    "Security Analyst",
+    "Role Manager",
+    "Event Manager",
+    "Senior Tester",
+    "Tier Tester",
+    "Support Team",
+    "Helper",
+    "Trial Moderator",
+    "Trainee Tester",
+  ];
+  await rest.patch(Routes.guildRoles(guild), {
+    body: staffOrder
+      .map((name) =>
+        roles.find((r) => r.name === name && !r.managed && r.position < botTop),
+      )
+      .filter(Boolean)
+      .map((r, n) => ({ id: r.id, position: Math.max(1, botTop - 1 - n) })),
+  });
+  config.staffToolRoles = capabilityRoles;
+  await writeFile(
+    "config/community.json",
+    JSON.stringify(config, null, 2) + "\n",
   );
   const staff = roles.filter((r) =>
     [

@@ -28,23 +28,22 @@ export async function testingHubPanel(store) {
         title: brand?.name||"\u{1F3C6} MACE COMPETITIVE NETWORK",
         color: brand?parseInt(brand.color.slice(1),16):0x7861e8,
         description:
-          "Prove your skill. Earn your tier. Climb the rankings.\n\n**YOUR NEXT EVALUATION**\n1. Verify your Java account.\n2. Choose your Mace mode and region.\n3. Save waitlist interest for future sessions.\n4. Join an open live queue.\n5. Complete your official private evaluation.",
+          "**Verify. Queue. Play.**\nChoose your Mace mode and region below.",
         fields: [
           {
-            name: "Testing network",
-            value: `**${s.openQueues}** open queues · **${s.waiting}** waiting\n**${s.activeTests}** tests in progress · **${s.busyTesters}** testers in a test`,
+            name: "Open Queues",
+            value: String(s.openQueues),inline:true,
           },
           {
-            name: "Competitive community",
-            value: `**${s.verified}** verified competitors · **${s.completedTests}** official evaluations`,
+            name: "Players Waiting",
+            value: String(s.waiting),inline:true,
           },
           {
-            name: "Your account",
-            value:
-              "Account details, position, history and cooldowns open privately through your player desk.",
+            name: "Testing Now",
+            value: String(s.activeTests),inline:true,
           },
         ],
-        footer: { text: "Mace platform · official testing hub" },
+        footer: { text: `${s.verified} verified competitors · ${s.completedTests} official evaluations` },
       },
     ],
     components: [
