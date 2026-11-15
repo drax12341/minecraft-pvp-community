@@ -1,3 +1,4 @@
+import { referenceLeaderboardPanel } from './platform-panels.mjs';
 import {enqueuePlatformNotifications} from './notification-maintenance.mjs';
 import {installationBridge} from './installation.mjs';
 import {loadCompetitionConfig} from './competition-config.mjs';
@@ -140,6 +141,15 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const discovery=websiteDiscovery(url);if(discovery)return discovery;
+    if(url.pathname==='/api/internal/reference-panels'){
+      if(!['GET','POST'].includes(request.method))return json({error:'Method not allowed'},405);
+      if(!await privateServiceAuth(request,env.DISCORD_TOKEN))return json({error:'Unauthorized'},401);
+      if(!env.DB)return json({error:'Storage unavailable'},503);
+      const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);
+      if(request.method==='GET')return json(await referenceLeaderboardPanel(store));
+      await refreshTestingHubs(store,env);
+      return json(await refreshCommunityBoards(store,env));
+    }
     if(url.pathname==='/api/internal/result-posts'){
       if(request.method!=='POST')return json({error:'Method not allowed'},405);
       if(!await privateServiceAuth(request,env.DISCORD_TOKEN))return json({error:'Unauthorized'},401);

@@ -6,7 +6,7 @@ export async function competitorProfile(i, env, store, progress = false) {
     opts = sub?.options || i.data.options || [],
     get = (n) => opts.find((o) => o.name === n)?.value;
   const user = get("user") || actor,
-    name = get("name"),
+    name = get("name") || get("ign"),
     mode = get("mode") || "";
   if (name && !/^\w{3,16}$/.test(name))
     throw Error("Enter a valid Minecraft username.");
@@ -26,7 +26,7 @@ export async function competitorProfile(i, env, store, progress = false) {
       components: [],
     };
   const settings = await store.one(
-    "SELECT public_profile FROM player_settings WHERE user=?",
+    "SELECT public_profile,region FROM player_settings WHERE user=?",
     account.discord,
   );
   if (settings?.public_profile === 0 && actor !== account.discord && !mod)
@@ -56,18 +56,11 @@ export async function competitorProfile(i, env, store, progress = false) {
       inline: true,
     }));
   for(const [id,peak] of Object.entries(player?.peaks||{})){if(fields.length<18&&!player.rankings[id]&&(!mode||mode===id))fields.push({name:(config.modes.find(m=>m.id===id)?.name||id)+' ? Historical peak',value:'Unranked ? Peak **'+(peak.peak_pos===0?'HT':'LT')+peak.peak_tier+'**',inline:true});}
-  fields.push(
-    { name: "Official evaluations", value: String(total.n), inline: true },
-    {
-      name: "Overall points",
-      value: String(player?.points || 0),
-      inline: true,
-    },
-    {
-      name: "Overall placement",
-      value: position >= 0 ? "#" + (position + 1) : "Unranked",
-      inline: true,
-    },
+  fields.unshift(
+    {name:'Overall',value:position>=0?'#'+(position+1):'Unranked',inline:true},
+    {name:'Points',value:String(player?.points||0),inline:true},
+    {name:'Region',value:settings?.region||player?.region||'Not selected',inline:true},
+    {name:'Discord',value:actor===account.discord||mod?'<@'+account.discord+'>':'Linked Java account',inline:true},
   );
   if (actor === account.discord || mod) {
     const cooldowns = await store.all(
@@ -149,11 +142,11 @@ export async function competitorProfile(i, env, store, progress = false) {
       {
         title: progress
           ? "📈 MACE PLAYER PROGRESS"
-          : "👑 MACE COMPETITOR PROFILE",
-        color: 0x7861e8,
+          : account.name + "'s Tiers",
+        color: 0xff161e,
         description: `**${account.name}** · Verified Java account\n${total.modes} ranked Mace mode${total.modes === 1 ? "" : "s"} · Official tier-test history`,
         thumbnail: {
-          url: "https://mc-heads.net/avatar/" + account.uuid + "/128",
+          url: "https://mc-heads.net/body/" + account.uuid + "/240",
         },
         fields,
         footer: {

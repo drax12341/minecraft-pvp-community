@@ -396,7 +396,7 @@ const playerProfile = new SlashCommandBuilder()
       .setRequired(false)
       .setMinLength(3)
       .setMaxLength(16),
-  ).addUserOption(o=>o.setName("user").setDescription("Verified Discord competitor"));
+  ).addUserOption(o=>o.setName("user").setDescription("Verified Discord competitor")).addStringOption(o=>o.setName("ign").setDescription("Minecraft username, as shown in the reference").setMinLength(3).setMaxLength(16));
 await new REST()
   .setToken(process.env.DISCORD_TOKEN)
   .put(

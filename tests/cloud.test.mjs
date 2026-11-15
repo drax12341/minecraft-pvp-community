@@ -20,6 +20,24 @@ import { componentRoute } from "../cloud/components.mjs";
 import {deskPublic} from '../cloud/testing-desk.mjs';
 import {checkTierPhase} from '../config/phase-checks.mjs';
 import { communityQueueBoard, refreshCommunityBoards } from '../cloud/community-desk.mjs';
+import { referenceLeaderboardPanel } from '../cloud/platform-panels.mjs';
+
+test('reference command shortcuts enforce permissions and live leaderboard counts exclude revocations and awards',async()=>{
+ const {sql,store}=await database();try{
+  const call=(actor,name,values={})=>runCommand(interaction(actor,name,null,values),env,store);
+  await assert.rejects(call('60000','next',{mode:'mace',region:'EU'}),/testers|qualification/i);
+  await assert.rejects(call('60000','cdreset',{mode:'mace',user:'60001',reason:'Unauthorized cooldown reset attempt'}),/manager/i);
+  const stamp=new Date().toISOString();
+  for(const [id,type] of [['valid','test'],['revoked-ref','test'],['award-ref','adjustment']])await store.statement('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created,record_type) VALUES(?,?,?,?,?,?,?,?,?,?,?)',id,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','EU','mace',3,0,'50001','Private evidence',stamp,type).run();
+  await store.statement('INSERT INTO revoked VALUES(?,?,?,?)','revoked-ref','30000','Private appeal',stamp).run();
+  const card=await referenceLeaderboardPanel(store);
+  assert.match(card.embeds[0].title,/All Time/);
+  assert.match(card.embeds[0].description,/<@50001> — \*\*1\*\* tests/);
+  assert.doesNotMatch(JSON.stringify(card),/Private evidence|Private appeal/);
+  assert.deepEqual(card.allowed_mentions,{parse:[]});
+  const alias=await call('60000','testerlbtotal');assert.match(alias.content,/1 documented test/);
+ }finally{sql.close();}
+});
 
 test('community desk and queue board show real tester/player activity and enforce 20 slots without exposing waiting players', async () => {
  const {sql,store}=await database();try{
@@ -372,7 +390,7 @@ test('result announcements include earned rank and ping the linked player and op
     await assert.rejects(runCommand(interaction('60000','result-confirm',null,{id:draft}),env,store),/confirmation/);
     await runCommand(interaction('50001','result-confirm',null,{id:draft},['50000']),{...env,DISCORD_RESULTS_CHANNEL_ID:'80000',DISCORD_RESULT_PING_ROLE_ID:'70000'},store,request);
     assert.deepEqual(calls[0].allowed_mentions,{parse:[],users:['60000'],roles:['70000']});
-    assert.equal(calls[0].embeds[0].fields.find(f=>f.name==='Rank Earned').value,'HT3');
+    assert.equal(calls[0].embeds[0].fields.find(f=>f.name==='Rank Earned').value,'High Tier 3');
     assert.equal(calls[0].embeds[0].fields.find(f=>f.name==='Previous Rank').value,'Unranked');
   }finally{sql.close();}
 });

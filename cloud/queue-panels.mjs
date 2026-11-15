@@ -17,7 +17,6 @@ export function nativeQueuePanel({
   waiting,
   available,
   capacity,
-  page,
   controls,
 }) {
   const state = session?.status || "closed",
@@ -64,18 +63,14 @@ export function nativeQueuePanel({
       ],
     };
   }
-  const full = counts.occupied >= capacity;
-  const stateTitle = paused
-    ? "🟡 QUEUE PAUSED"
-    : full
-      ? "🟠 QUEUE FULL"
-      : "🟢 TESTING OPEN";
   const testerLines = available.length
     ? available
-        .slice(0, 12)
+        .slice(0, 20)
         .map(
-          (t) =>
-            "<@" +
+          (t, n) =>
+            n +
+            1 +
+            ". <@" +
             t.user +
             "> — " +
             (t.busy
@@ -85,17 +80,11 @@ export function nativeQueuePanel({
                 : "Paused"),
         )
         .join("\n")
-    : "No availability sessions recorded.";
+    : "No testers have marked themselves available.";
   const queueLines =
     waiting
-      .slice((page - 1) * 10, page * 10)
-      .map(
-        (p, n) =>
-          "`" +
-          String((page - 1) * 10 + n + 1).padStart(2, "0") +
-          "` " +
-          p.name,
-      )
+      .slice(0, 20)
+      .map((p, n) => n + 1 + ". " + p.name)
       .join("\n") || "No players are waiting.";
   const activeLines = active
     .map((t) => "<@" + t.tester + "> → **" + t.name + "**")
@@ -106,46 +95,48 @@ export function nativeQueuePanel({
     components: [
       {
         type: 17,
-        accent_color: paused ? 0xe9b448 : 0x35c895,
+        id: queueContainerId(kit.id, region),
+        accent_color: paused ? 0xe9b448 : 0x7861e8,
         components: [
-          queueText("# ⚔️ " + region + " " + kit.name + " Queue"),
-          queueSeparator(),
           queueText(
-            "## " +
-              stateTitle +
-              "\n" +
+            "### " +
               (paused
-                ? "Players already queued retain their positions. New entries are temporarily paused."
-                : "Official Mace testing is accepting eligible players."),
+                ? "Testing Paused"
+                : available.some((t) => t.status === "available")
+                  ? "Tester(s) Available!"
+                  : "TESTING OPEN"),
           ),
           queueText(
-            "### SESSION OVERVIEW\n**" +
+            "Use **Leave Queue** or /leave if you wish to be removed from the queue." +
+              (paused
+                ? "\nYour place is kept while new entries are paused."
+                : ""),
+          ),
+          queueText(
+            "**Queue (" +
               counts.occupied +
               "/" +
               capacity +
-              "** slots · **" +
-              (counts.waiting || 0) +
-              " waiting** · **" +
-              (counts.claimed || 0) +
-              "** active tests",
+              "):**\n" +
+              queueLines,
           ),
-          queueSeparator(),
           queueText(
-            "### AVAILABLE TESTERS\n" +
+            "**Active Testers:**\n" +
               testerLines +
-              (activeLines ? "\n\n**Currently testing**\n" + activeLines : ""),
+              (activeLines ? "\n\n**Currently testing:**\n" + activeLines : ""),
           ),
-          queueSeparator(),
-          queueText("### LIVE QUEUE · PAGE " + page + "\n" + queueLines),
-          queueSeparator(),
           queueText(
-            "**Region:** " +
+            "-# " +
               region +
-              " · **Mace mode:** " +
+              " · " +
               kit.name +
-              "\n**Retest policy:** " +
+              " · " +
+              (counts.waiting || 0) +
+              " waiting · " +
+              (counts.claimed || 0) +
+              " active · " +
               session.cooldown +
-              " hours\nWaitlist interest never reserves a live queue position.",
+              "h retest cooldown. Updates after queue actions; Refresh checks now.",
           ),
         ],
       },
@@ -153,6 +144,7 @@ export function nativeQueuePanel({
     ],
   };
 }
+
 export function queuePanelEdit(body) {
   return body.flags & queueV2Flag
     ? { ...body, content: null, embeds: [], attachments: [] }

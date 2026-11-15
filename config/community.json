@@ -199,5 +199,10 @@
   "scoring": {
     "basis": "peak",
     "includeRetired": true
+  },
+  "referenceLeaderboard": {
+    "guild": "1568767259168608267",
+    "channel": "1569435066801590375",
+    "message": "1569435178848227331"
   }
 }

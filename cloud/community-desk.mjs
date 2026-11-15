@@ -19,7 +19,7 @@ const communityRow = (...components) => ({ type: 1, components });
 const communityMessage = (content, components = []) => ({ content, components, allowed_mentions: { parse: [] } });
 const communityURL = 'https://minecraft-pvp-community.draxion0.chatgpt.site';
 
-export async function communityQueueBoard(store, mode, region, page=1) {
+export async function communityQueueBoard(store, mode, region) {
   let kit=config.modes.find(m=>m.id===mode);
   if(!kit){const saved=await store.one('SELECT id,name FROM mode_settings WHERE id=?',mode);if(saved)kit=saved;else throw Error('Choose a valid community testing mode.');}
   if(!communityRegions.includes(region)&&!await store.one('SELECT 1 FROM region_settings WHERE id=?',region))throw Error('Choose a valid region.');
@@ -28,20 +28,17 @@ export async function communityQueueBoard(store, mode, region, page=1) {
   const active = await store.all("SELECT q.tester,CASE WHEN p.public_profile=0 THEN 'Private competitor' ELSE a.name END name FROM queue q JOIN accounts a ON a.discord=q.user LEFT JOIN player_settings p ON p.user=q.user WHERE q.mode=? AND q.region=? AND q.status='claimed' ORDER BY q.created,q.id LIMIT 20", mode, region);
   const waiting=await store.all("SELECT CASE WHEN p.public_profile=0 THEN 'Private competitor' ELSE a.name END name FROM queue q JOIN accounts a ON a.discord=q.user LEFT JOIN player_settings p ON p.user=q.user WHERE q.mode=? AND q.region=? AND q.status='waiting' ORDER BY q.created,q.id LIMIT 20",mode,region);
   const available=await store.all("SELECT t.user,t.status,EXISTS(SELECT 1 FROM queue q WHERE q.tester=t.user AND q.status='claimed') busy FROM tester_sessions t WHERE t.mode=? AND t.region=? AND t.ended IS NULL ORDER BY t.started,t.id",mode,region);
-  const currentPage=Math.max(1,Math.min(Math.ceil(waiting.length/10)||1,Number(page)||1));
   const capacity = Math.min(session?.capacity ?? 20, 20);
   const state = session?.status || 'Not scheduled';
   const full = counts.occupied >= capacity;
-  const badge = state === 'open' ? (full ? 'FULL' : 'OPEN') : state.toUpperCase();
-  const testers = active.length ? active.map(q => `<@${q.tester}> → **${q.name}**`).join('\n') : 'No player is being tested right now.';
   const closure=await store.one('SELECT * FROM queue_closures WHERE mode=? AND region=?',mode,region);
-  return nativeQueuePanel({kit,region,session,closure,counts,active,waiting,available,capacity,page:currentPage,controls:[communityRow(
-      communityButton('Join live queue', `board:join:${mode}:${region}`, 3, state !== 'open' || full),
-      communityButton('Leave live queue', `board:leave:${mode}:${region}`),
+  return nativeQueuePanel({kit,region,session,closure,counts,active,waiting,available,capacity,controls:[communityRow(
+      communityButton('Join Queue', `board:join:${mode}:${region}`, 1, state !== 'open' || full),
+      communityButton('Leave Queue', `board:leave:${mode}:${region}`),
       communityButton('My status', `board:status:${mode}:${region}`, 1),
       communityButton('Refresh', `board:refresh:${mode}:${region}`),
       communityButton('Testing guide', 'hub:guide'),
-    ),communityRow(communityButton('Save waitlist interest',`waitlist:join:${mode}:${region}`),communityButton('Enable DM alerts','notify:dm'),communityButton('Disable DM alerts','notify:none'),communityButton('Queue page '+(currentPage===1?2:1),'queuepage:'+mode+':'+region+':'+(currentPage===1?2:1),2,waiting.length<=10)), {type:1,components:[{type:3,custom_id:'board:region:'+mode,placeholder:'Choose another region',min_values:1,max_values:1,options:communityRegions.map(value=>({label:value,value,default:value===region}))}]}]});
+    ),communityRow(communityButton('Save waitlist interest',`waitlist:join:${mode}:${region}`),communityButton('Enable DM alerts','notify:dm'),communityButton('Disable DM alerts','notify:none')), {type:1,components:[{type:3,custom_id:'board:region:'+mode,placeholder:'Choose another region',min_values:1,max_values:1,options:communityRegions.map(value=>({label:value,value,default:value===region}))}]}]});
 }
 
 export async function refreshCommunityBoards(store, env, request = fetch, mode = '', region = '') {
@@ -200,9 +197,10 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
       if (!['month','overall'].includes(period)) throw Error('Choose month or overall.');
       const stamp = new Date(), start = period === 'month' ? new Date(Date.UTC(stamp.getUTCFullYear(),stamp.getUTCMonth(),1)).toISOString() : '';
       const end = new Date(Date.UTC(stamp.getUTCFullYear(),stamp.getUTCMonth()+1,1)).toISOString();
-      const user = sub.name === 'stats' ? get('user') || actor : '';
+      const user = sub.name === 'stats' ? get('user') || actor : get('user') || '';
       if (user && !/^\d{5,22}$/.test(user)) throw Error('Choose a valid community member.');
-      const filter = "r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND (?='' OR r.mode=?) AND (?='' OR r.tester=?) AND r.created>=? AND r.created<?";
+      const highOnly=get('high_only')===true;
+      const filter = (highOnly ? "(r.tier<3 OR (r.tier=3 AND r.pos=0)) AND " : "") + "r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND (?='' OR r.mode=?) AND (?='' OR r.tester=?) AND r.created>=? AND r.created<?";
       const params = [get('mode') || '', get('mode') || '', user, user, start, end];
       const rows = await store.all(`SELECT r.tester,a.name,count(*) n FROM results r LEFT JOIN accounts a ON a.discord=r.tester WHERE ${filter} GROUP BY r.tester ORDER BY n DESC,r.tester LIMIT 10`, ...params);
       const total = await store.one(`SELECT count(*) n FROM results r WHERE ${filter}`, ...params);
@@ -212,7 +210,7 @@ export async function runCommunityDesk(i, env, store, request = fetch, dispatch)
         const counts=await store.one("SELECT count(*) lifetime,COALESCE(sum(created>=?),0) today,COALESCE(sum(created>=?),0) week,COALESCE(sum(created>=?),0) month FROM results r WHERE tester=? AND record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=r.id)",today.toISOString(),week.toISOString(),monthStart,user);
         const time=await store.one("SELECT COALESCE(sum(max(0,(julianday(COALESCE(i.ended,?))-julianday(i.started))*24)),0) hours FROM tester_active_intervals i JOIN tester_sessions s ON s.id=i.session_id WHERE s.user=?",current.toISOString(),user);
         const outcomes=await store.one("SELECT COALESCE(sum(l.state='CANCELLED'),0) cancelled,COALESCE(sum(l.state='ABSENT'),0) absent FROM test_lifecycle l JOIN queue q ON q.id=l.test_id WHERE q.tester=?",user);
-        return {content:'**'+counts.lifetime+' documented tests**',embeds:[{title:'?? TESTER PERFORMANCE',color:0x7861e8,description:'Official evaluations and recorded availability. UTC calendar boundaries apply.',fields:[{name:'Today',value:String(counts.today),inline:true},{name:'This week',value:String(counts.week),inline:true},{name:'This month',value:String(counts.month),inline:true},{name:'Lifetime',value:String(counts.lifetime),inline:true},{name:'Available session hours',value:Number(time.hours).toFixed(2),inline:true},{name:'Reviewed absences',value:String(outcomes.absent),inline:true},{name:'Cancelled tests',value:String(outcomes.cancelled),inline:true}],footer:{text:'Paused and offline intervals do not add availability hours.'}}],components:[communityRow(communityButton('My monthly quota','network:quota'),communityButton('Tester leaderboard','network:tester-leaderboard'))]};
+        return {content:'**'+counts.lifetime+' documented tests**',embeds:[{title:'🏅 Tester Statistics',color:0x7861e8,description:'Official evaluations and recorded availability. UTC calendar boundaries apply.',fields:[{name:'Today',value:String(counts.today),inline:true},{name:'This week',value:String(counts.week),inline:true},{name:'This month',value:String(counts.month),inline:true},{name:'Lifetime',value:String(counts.lifetime),inline:true},{name:'Available session hours',value:Number(time.hours).toFixed(2),inline:true},{name:'Reviewed absences',value:String(outcomes.absent),inline:true},{name:'Cancelled tests',value:String(outcomes.cancelled),inline:true}],footer:{text:'Paused and offline intervals do not add availability hours.'}}],components:[communityRow(communityButton('My monthly quota','network:quota'),communityButton('Tester leaderboard','network:tester-leaderboard'))]};
       }
       return communityMessage(`**${sub.name === 'stats' ? 'Tester activity' : 'Testing leaderboard'} · ${period === 'month' ? stamp.toISOString().slice(0,7) + ' UTC' : 'Overall'}**\n**${total.n} documented test${total.n === 1 ? '' : 's'}**\n${rows.map((r,n) => `${n+1}. ${r.name || '<@'+r.tester+'>'} — **${r.n}**`).join('\n') || 'No completed, valid tests yet.'}\n\nCounts exclude revoked results. Volume is recognition, not an automatic staff promotion.`);
     }

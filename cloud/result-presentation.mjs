@@ -38,22 +38,14 @@ export function resultAnnouncement(
   const role = resultSnowflake.test(env.DISCORD_RESULT_PING_ROLE_ID)
     ? env.DISCORD_RESULT_PING_ROLE_ID
     : null;
-  const field = (name, value) => ({ name, value, inline: true });
+  const field = (name, value) => ({ name, value, inline: false });
+  const rankLabel = r => r && r.record_type !== "reset" ? `${r.pos === 0 ? "High" : "Low"} Tier ${r.tier}` : "Unranked";
   const fields = [
-    field(
-      "Mace mode",
-      config.modes.find((m) => m.id === result.mode)?.name || result.mode,
-    ),
-    field("Region", result.region),
-    field(
-      "Tester",
-      resultSnowflake.test(result.tester)
-        ? `<@${result.tester}>`
-        : "Official staff",
-    ),
-    field("Previous Rank", old),
-    field("Rank Earned", tier),
-    field("Peak tier", best),
+    field('Tester', resultSnowflake.test(result.tester) ? '<@'+result.tester+'>' : 'Official staff'),
+    field('Region',result.region),
+    field('Username',result.name),
+    field('Previous Rank',rankLabel(previous)),
+    field('Rank Earned',reset?'Unranked':rankLabel(result)),
   ];
   if (!staff && score)
     fields.push(field("Final score", String(score).slice(0, 100)));
@@ -61,7 +53,7 @@ export function resultAnnouncement(
   const embeds = [
     {
       author: {
-        name: result.name,
+        name: reset ? result.name + "'s Placement Reset" : result.name + "'s Test Results 🏆",
         ...(validUuid
           ? { icon_url: `https://mc-heads.net/avatar/${result.uuid}/80` }
           : {}),
@@ -71,15 +63,7 @@ export function resultAnnouncement(
         : `${tier} · ${config.modes.find((m) => m.id === result.mode)?.name || result.mode}`,
       url: profile,
       description: `**${staff ? "STAFF TIER AWARD" : "OFFICIAL TEST RESULT"}**\n${movement}${!reset && tier === best && old !== tier ? " · PEAK TIER " + best : ""}`,
-      color: reset
-        ? 0x98a3ba
-        : movement === "DEMOTED"
-          ? 0xff5575
-          : movement === "PROMOTED"
-            ? 0x31d6a1
-            : result.tier <= 2
-              ? 0xffc76b
-              : 0x7966ff,
+      color: reset ? 0x98a3ba : 0xff161e,
       fields,
       // SkinMC's preview is a four-view sheet; Discord needs one portrait render.
       ...(skinUrl ? { thumbnail: { url: skinUrl } } : {}),

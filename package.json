@@ -20,7 +20,9 @@
     "discord:desk:apply": "node --env-file=.env discord/community-desk-setup.mjs --apply",
     "bot": "node --env-file=.env discord/bot.mjs",
     "start:community": "node --env-file-if-exists=.env server/runtime.mjs",
-    "discord:platform:apply": "node --env-file=.env discord/platform-install.mjs"
+    "discord:platform:apply": "node --env-file=.env discord/platform-install.mjs",
+    "discord:reference": "node discord/community-v4.mjs",
+    "discord:reference:apply": "node --env-file=.env discord/community-v4.mjs --apply"
   },
   "dependencies": {
     "discord.js": "^14.24.0"

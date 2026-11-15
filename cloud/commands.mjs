@@ -1,3 +1,4 @@
+import {referenceCommandData} from '../config/reference-commands.mjs';
 import {manageTesters} from './tester-management.mjs';
 import {seasonalAnalytics} from './analytics.mjs';
 import {supportExtensionActions,supportExtension} from './support-extensions.mjs';
@@ -28,6 +29,8 @@ export async function runCommand(interaction, env, store, request = fetch) {
     interaction.application_id !== env.DISCORD_CLIENT_ID
   )
     throw Error("This command is only available in our community server.");
+  const referenceData=referenceCommandData(interaction.data);
+  if(referenceData)return runCommand({...interaction,data:referenceData},env,store,request);
   await loadCompetitionConfig(store);
   const resources=await store.all("SELECT key,discord_id FROM guild_resources WHERE key IN ('role:manager','role:tester','role:high-tester','role:verified')");
   const resource=id=>resources.find(r=>r.key===id)?.discord_id;

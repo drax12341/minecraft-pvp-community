@@ -188,4 +188,30 @@ export async function refreshTestingHubs(store, env, request = fetch) {
         .run();
     }
   }
+  const board=config.referenceLeaderboard;
+  if(board && env.DISCORD_GUILD_ID===board.guild) {
+    const body=await referenceLeaderboardPanel(store);
+    const fingerprint=await tokenHash(JSON.stringify(body)),key='reference-leaderboard';
+    const previous=await store.one('SELECT fingerprint FROM platform_panels WHERE key=?',key);
+    if(previous?.fingerprint!==fingerprint){
+      await panelDiscord(env,request,'/channels/'+board.channel+'/messages/'+board.message,'PATCH',body);
+      await store.statement('INSERT INTO platform_panels(key,channel,message,fingerprint,last_edit) VALUES(?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET fingerprint=excluded.fingerprint,last_edit=excluded.last_edit',key,board.channel,board.message,fingerprint,new Date().toISOString()).run();
+    }
+  }
+}
+
+export async function referenceLeaderboardPanel(store, date=new Date()) {
+  const start=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),1)).toISOString();
+  const end=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth()+1,1)).toISOString();
+  const filter="r.record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id) AND r.created<?";
+  const all=await store.all(`SELECT tester,count(*) n FROM results r WHERE ${filter} GROUP BY tester ORDER BY n DESC,tester LIMIT 10`,end);
+  const month=await store.all(`SELECT tester,count(*) n FROM results r WHERE ${filter} AND r.created>=? GROUP BY tester ORDER BY n DESC,tester LIMIT 10`,end,start);
+  const total=await store.one(`SELECT count(*) n FROM results r WHERE ${filter} AND r.created>=?`,end,start);
+  const monthName=date.toLocaleString('en-US',{month:'long',timeZone:'UTC'});
+  const lines=rows=>rows.map((r,n)=>`**${n+1}.** <@${r.tester}> — **${r.n.toLocaleString('en-US')}** tests`).join('\n')||'No completed tests yet.';
+  return {content:'',allowed_mentions:{parse:[]},embeds:[{
+    title:'🏆 All Time Testing Leaderboard',color:0x7861e8,
+    description:lines(all)+'\n\n## 🏅 '+monthName+' Testing Leaderboard\n\n'+lines(month)+'\n\n**Total Tests in '+monthName+' : '+total.n.toLocaleString('en-US')+'**',
+    footer:{text:'Mace Community · Completed official tests · UTC'},
+  }]};
 }
