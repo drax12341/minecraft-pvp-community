@@ -1,3 +1,4 @@
+import {deliverResultAnnouncement,deliverResultReaction} from './result-presentation.mjs';
 import {synchronizeTesterRoles} from './tester-management.mjs';
 import {platformNotificationKinds,deliverPlatformNotification} from './notification-maintenance.mjs';
 import { roomOverwrites } from "./journeys.mjs";
@@ -77,122 +78,9 @@ export async function drainOutbox(store, env, request = fetch, limit = 8) {
       if(job.kind==='tester-roles'){await synchronizeTesterRoles(job,store,env,api);}
       else if(platformNotificationKinds.has(job.kind)){await deliverPlatformNotification(job,store,api);}
       else if (job.kind === "result" || job.kind === "result-high" || job.kind==='staff-result') {
-        const r = await store.one(
-          "SELECT * FROM results WHERE id=?",
-          job.subject,
-        );
-        if (!r)
-          throw Error("Result missing; staff must inspect " + job.subject);
-        const channelId =
-          job.kind === "result-high"
-            ? config.testingDeskChannels?.highResults
-            : env.DISCORD_RESULTS_CHANNEL_ID;
-        if (
-          job.kind === "result-high" &&
-          (!channelId || r.tier > 3 || (r.tier === 3 && r.pos !== 0))
-        ) {
-          await store
-            .statement(
-              "UPDATE outbox_events SET status='done',lease=NULL,lease_until=NULL WHERE id=? AND lease=?",
-              job.id,
-              lease,
-            )
-            .run();
-          done++;
-          continue;
-        }
-        if (!channelId) throw Error("Configure DISCORD_RESULTS_CHANNEL_ID");
-        if (await store.one("SELECT 1 FROM revoked WHERE result_id=?", r.id)) {
-          await store
-            .statement(
-              "UPDATE outbox_events SET status='done',lease=NULL,lease_until=NULL WHERE id=? AND lease=?",
-              job.id,
-              lease,
-            )
-            .run();
-          done++;
-          continue;
-        }
-        const previous = await store.one(
-          "SELECT tier,pos,record_type FROM results WHERE uuid=? AND mode=? AND sequence<? AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=results.id) ORDER BY sequence DESC LIMIT 1",
-          r.uuid,
-          r.mode,
-          r.sequence,
-        );
-        const rank = (x) => `${x.pos === 0 ? "HT" : "LT"}${x.tier}`,
-          tier = r.record_type==='reset'?'Unranked':rank(r),
-          old = previous && previous.record_type!=='reset' ? rank(previous) : null;
-        const change = !old
-          ? "FIRST PLACEMENT"
-          : old === tier
-            ? "RANK RETAINED"
-            : config.points[tier] > config.points[old]
-              ? "PROMOTED"
-              : "DEMOTED";
-        const finalScore=await store.one('SELECT score FROM test_lifecycle WHERE test_id=?',r.id);
-        const peak = await store.one(
-          "SELECT tier,pos FROM results WHERE uuid=? AND mode=? AND sequence<=? AND record_type<>'reset' AND NOT EXISTS(SELECT 1 FROM revoked WHERE result_id=results.id) ORDER BY tier,pos LIMIT 1",
-          r.uuid,
-          r.mode,
-          r.sequence,
-        );
-        const marker = "Official test " + r.id;
-        const channel = "/channels/" + channelId + "/messages";
-        // Discord nonce deduplication is short-lived; inspect the durable test marker on retries too.
-        const recent =
-          job.attempts > 1 ? await api(channel + "?limit=100") : [];
-        if (
-          !recent.some(
-            (m) =>
-              m.author?.id === env.DISCORD_CLIENT_ID &&
-              m.embeds?.some((e) => e.footer?.text === marker),
-          )
-        )
-          await api(channel, "POST", {
-            nonce: String(job.id),
-            enforce_nonce: true,
-            content: env.DISCORD_RESULT_PING_ROLE_ID
-              ? "<@&" + env.DISCORD_RESULT_PING_ROLE_ID + ">"
-              : undefined,
-            allowed_mentions: {
-              parse: [],
-              roles: env.DISCORD_RESULT_PING_ROLE_ID
-                ? [env.DISCORD_RESULT_PING_ROLE_ID]
-                : [],
-            },
-            embeds: [
-              {
-                title: job.kind==='staff-result'?'\u{1F3C6} STAFF MACE TIER AWARD':"\u{1F3C6} OFFICIAL MACE TEST RESULT",
-                description: `**${r.name}**\n${r.record_type==='reset'?'PLACEMENT RESET':change}${job.kind==='staff-result'?'\nAudited staff placement adjustment.':''}`,
-                color:
-                  change === "DEMOTED"
-                    ? 0xd84a68
-                    : change === "PROMOTED"
-                      ? 0x39c99a
-                      : 0x7861e8,
-                fields: [
-                  {
-                    name: "Mace mode",
-                    value:
-                      config.modes.find((m) => m.id === r.mode)?.name || r.mode,
-                    inline: true,
-                  },
-                  { name: "Region", value: r.region, inline: true },
-                  {
-                    name: "Previous Rank",
-                    value: old || "Unranked",
-                    inline: true,
-                  },
-                  { name: "Rank Earned", value: tier, inline: true },
-                  { name: "Peak tier", value: peak?rank(peak):'Unranked', inline: true },
-                  { name: job.kind==='staff-result'?'Tester / awarding staff':'Tester', value: `<@${r.tester}>`, inline: true },
-                  ...(job.kind==='staff-result'?[]:[{ name: "Match evidence", value: r.evidence||'No public evidence' }]),
-                ],
-                footer: { text: marker },
-                timestamp: r.created,
-              },
-            ],
-          });
+        await deliverResultAnnouncement(job,store,env,api);
+      } else if(job.kind === "result-reaction"){
+        await deliverResultReaction(job,store,api);
       } else if (job.kind === "archive") {
         const room = await store.one(
           "SELECT r.*,q.user FROM test_rooms r JOIN queue q ON q.id=r.id LEFT JOIN results result ON result.id=q.id WHERE r.id=? AND q.status IN ('complete','cancelled')",

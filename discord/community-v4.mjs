@@ -57,7 +57,7 @@ const profile=(kind)=>{
  const trusted=kind==="private"?[...mods,...testers]:kind==="support"?[...mods,...support]:kind==="mods"?mods:[...mods,...testers,...support];
  const hidden=["private","support","mods"].includes(kind);
  return [{id:guild,type:0,allow:String(hidden?0n:P.ViewChannel|P.ReadMessageHistory),deny:String(hidden?P.ViewChannel:kind==="read"?readOnlyDeny:0n)},
- ...trusted.map(id=>({id,type:0,allow:String(allow),deny:"0"})),{id:me.id,type:1,allow:String(allow),deny:"0"}];
+ ...trusted.map(id=>({id,type:0,allow:String(allow),deny:"0"})),{id:me.id,type:1,allow:String(allow|P.AddReactions),deny:"0"}];
 };
 // Only this server's named infrastructure is managed; unrelated channels remain.
 const parentByName=new Map();

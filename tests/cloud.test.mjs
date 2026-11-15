@@ -358,20 +358,20 @@ test('mode qualification and one active tester claim are mandatory even for mode
   }finally{sql.close();}
 });
 
-test('result announcements include earned rank and ping only the optional result role',async()=>{
+test('result announcements include earned rank and ping the linked player and optional result role',async()=>{
   const {sql,store}=await database();try{
     await store.verify('60000','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','PlayerOne','30000');
     await store.session('mace','EU','open','30000');const id=await store.join('60000','mace','EU');await store.claim(id,'50001');
     await store.statement('INSERT INTO tester_qualifications VALUES(?,?,?,?,?,?)','50001','mace',0,'30000','Supervised calibration',new Date().toISOString()).run();
     await store.statement("INSERT INTO test_rooms VALUES(?,?,?,?,?,?,?,?,?,?)",id,'81000','assignment','50001','ready-check',new Date(Date.now()+60000).toISOString(),1,1,'pilot-1-candidate',new Date().toISOString()).run();
     await new OperationsStore(store).assess(id,'50001','3,3,3,3,3,3','Benchmark comparison and feedback');
-    const calls=[];const request=async(url,o)=>{calls.push(JSON.parse(o.body));return Response.json({id:'82000'});};
+    const calls=[];const request=async(url,o)=>{if(o.body)calls.push(JSON.parse(o.body));return Response.json({id:'82000'});};
     const preview=await runCommand(interaction('50001','result',null,{id,tier:'HT3',evidence:'https://example.com/match'},['50000']),{...env,DISCORD_RESULTS_CHANNEL_ID:'80000',DISCORD_RESULT_PING_ROLE_ID:'70000'},store,request);
     assert.equal((await store.one('SELECT count(*) n FROM results')).n,0);
     const draft=preview.components[0].components[0].custom_id.slice(15);
     await assert.rejects(runCommand(interaction('60000','result-confirm',null,{id:draft}),env,store),/confirmation/);
     await runCommand(interaction('50001','result-confirm',null,{id:draft},['50000']),{...env,DISCORD_RESULTS_CHANNEL_ID:'80000',DISCORD_RESULT_PING_ROLE_ID:'70000'},store,request);
-    assert.deepEqual(calls[0].allowed_mentions,{parse:[],roles:['70000']});
+    assert.deepEqual(calls[0].allowed_mentions,{parse:[],users:['60000'],roles:['70000']});
     assert.equal(calls[0].embeds[0].fields.find(f=>f.name==='Rank Earned').value,'HT3');
     assert.equal(calls[0].embeds[0].fields.find(f=>f.name==='Previous Rank').value,'Unranked');
   }finally{sql.close();}
@@ -570,6 +570,7 @@ async function database() {
   sql.exec(await readFile(new URL('../drizzle/0016_competitive_website.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0017_skin_appearance.sql',import.meta.url),'utf8'));
   sql.exec(await readFile(new URL('../drizzle/0018_skin_ownership.sql',import.meta.url),'utf8'));
+  sql.exec(await readFile(new URL('../drizzle/0019_result_publications.sql',import.meta.url),'utf8'));
   const adapter = {
     prepare(query) {
       const make = (values = []) => ({
@@ -1296,7 +1297,7 @@ test('role synchronization preserves unrelated roles and other submode placement
   await store.statement('INSERT INTO tier_role_mappings VALUES(?,?,?)','mace_rod','HT2','73000').run();
   const edits=[];
   await drainOutbox(store,env,async(url,opts)=>{
-    if(opts.method==='PUT'||opts.method==='DELETE'){edits.push([opts.method,url.split('/').at(-1)]);return new Response(null,{status:204});}
+    if(opts.method==='PUT'||opts.method==='DELETE'){if(url.includes('/roles/'))edits.push([opts.method,url.split('/').at(-1)]);return new Response(null,{status:204});}
     if(url.endsWith('/roles'))return Response.json(['71000','72000','73000','74000'].map(id=>({id,permissions:'0',managed:false})));
     if(url.includes('/members/'))return Response.json({roles:['72000','73000','74000']});
     return Response.json({id:'80000'});

@@ -15,6 +15,8 @@ import {websiteApi} from './website-api.mjs';
 import {websiteAuth} from './website-auth.mjs';
 import {websiteShell,websiteDiscovery} from './website-shell.mjs';
 import {minecraftVerificationHealth} from './minecraft-lookup.mjs';
+import {refreshPublishedResults} from './result-presentation.mjs';
+import {competitionDiscord} from './competition.mjs';
 
 async function privateServiceAuth(request, secret) {
   if(typeof secret!=='string'||secret.length<32)return false;
@@ -138,6 +140,15 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const discovery=websiteDiscovery(url);if(discovery)return discovery;
+    if(url.pathname==='/api/internal/result-posts'){
+      if(request.method!=='POST')return json({error:'Method not allowed'},405);
+      if(!await privateServiceAuth(request,env.DISCORD_TOKEN))return json({error:'Unauthorized'},401);
+      if(!env.DB)return json({error:'Storage unavailable'},503);
+      const store=new CloudStore(env.DB.withSession?.('first-primary')||env.DB);
+      await loadCompetitionConfig(store);
+      try{return json(await refreshPublishedResults(store,env,(path,method,body)=>competitionDiscord(env,fetch,path,method,body)));}
+      catch{return json({error:'Result refresh failed. Check Discord permissions and retry; saved results remain intact.'},503);}
+    }
     if(url.pathname==='/api/internal/verification-health'){if(request.method!=='GET')return json({error:'Method not allowed'},405);if(!await privateServiceAuth(request,env.DISCORD_TOKEN))return json({error:'Unauthorized'},401);const name=url.searchParams.get('name')||'Notch';if(!/^[A-Za-z0-9_]{3,16}$/.test(name))return json({error:'Enter a Java username'},422);return json(await minecraftVerificationHealth(name));}
     if(url.pathname.startsWith('/verify/skin/'))return new Response('Skin verification has been removed. Enter your IGN using Verify account in Discord.',{status:410,headers:{'Cache-Control':'no-store'}});
     if(url.pathname.startsWith('/api/v1/')||url.pathname.startsWith('/auth/discord/')){
@@ -263,7 +274,7 @@ export default {
             ok: true,
             runtime: "cloud-http",
             pcRequired: false,
-            release: "mace-network-v17-ign-link",
+            release: "mace-network-v18-competitive-results",
             queueCapacity: 20,
           });
         }

@@ -30,7 +30,7 @@ export async function applyLayout() {
   const permissions = (chat = false) => [
     { id: guild, type: 0, allow: String(P.ViewChannel | P.ReadMessageHistory | (chat ? P.SendMessages | P.SendMessagesInThreads | P.CreatePublicThreads : 0n)), deny: chat ? '0' : String(P.SendMessages | P.CreatePublicThreads | P.CreatePrivateThreads | P.SendMessagesInThreads) },
     ...staff.map(r => ({ id: r.id, type: 0, allow: String(write), deny: '0' })),
-    { id: me.id, type: 1, allow: String(write), deny: '0' },
+    { id: me.id, type: 1, allow: String(write | P.AddReactions), deny: '0' },
   ];
   const report = { channels: [], panels: [], leaderboard: null };
   async function ensure(name, parent, old, chat = false, forum = false) {

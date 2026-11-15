@@ -191,7 +191,7 @@ export async function setupWizard(i, env, store, request = fetch) {
       {
         id: env.DISCORD_CLIENT_ID,
         type: 1,
-        allow: String(view | send | history | embed | attach),
+        allow: String(view | send | history | embed | attach | 64n),
         deny: "0",
       },
       ...[manager, tester, high].map((id) => ({
