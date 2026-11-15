@@ -194,8 +194,12 @@ export async function refreshTestingHubs(store, env, request = fetch) {
     const fingerprint=await tokenHash(JSON.stringify(body)),key='reference-leaderboard';
     const previous=await store.one('SELECT fingerprint FROM platform_panels WHERE key=?',key);
     if(previous?.fingerprint!==fingerprint){
-      await panelDiscord(env,request,'/channels/'+board.channel+'/messages/'+board.message,'PATCH',body);
-      await store.statement('INSERT INTO platform_panels(key,channel,message,fingerprint,last_edit) VALUES(?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET fingerprint=excluded.fingerprint,last_edit=excluded.last_edit',key,board.channel,board.message,fingerprint,new Date().toISOString()).run();
+      try {
+        await panelDiscord(env,request,'/channels/'+board.channel+'/messages/'+board.message,'PATCH',body);
+        await store.statement('INSERT INTO platform_panels(key,channel,message,fingerprint,last_edit) VALUES(?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET channel=excluded.channel,message=excluded.message,fingerprint=excluded.fingerprint,last_edit=excluded.last_edit',key,board.channel,board.message,fingerprint,new Date().toISOString()).run();
+      } catch {
+        await store.audit('system','reference-leaderboard-refresh-failed',board.channel+'/'+board.message).run();
+      }
     }
   }
 }
