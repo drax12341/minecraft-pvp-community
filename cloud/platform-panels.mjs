@@ -43,7 +43,7 @@ export async function testingHubPanel(store) {
             value: String(s.activeTests),inline:true,
           },
         ],
-        footer: { text: `${s.verified} verified competitors · ${s.completedTests} official evaluations` },
+        footer: { text: `Mace Community · ${s.verified} verified · ${s.completedTests} evaluations` },
       },
     ],
     components: [

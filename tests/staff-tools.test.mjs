@@ -10,6 +10,25 @@ import { runStaffTool } from "../cloud/staff-tools.mjs";
 import { DatabaseSync } from "node:sqlite";
 import { readFile, readdir } from "node:fs/promises";
 import { CloudStore } from "../cloud/store.mjs";
+import config from '../config/community.json' with {type:'json'};
+import { testingHubPanel } from '../cloud/platform-panels.mjs';
+
+test('specialist security and role staff do not inherit unrelated moderator powers',()=>{
+  const original=config.staffToolRoles;
+  try{
+    config.staffToolRoles={security:['71000'],roles:['72000']};
+    assert.equal(canUseCommand(member('50000',['71000']),env,{name:'alt-check'}),true);
+    assert.equal(canUseCommand(member('50000',['71000']),env,{name:'add-role'}),false);
+    assert.equal(canUseCommand(member('50000',['72000']),env,{name:'add-role'}),true);
+    assert.equal(canUseCommand(member('50000',['72000']),env,{name:'timeout'}),false);
+  }finally{config.staffToolRoles=original;}
+});
+
+test('public testing hub stays concise and retains its managed panel marker',async()=>{
+  const body=await testingHubPanel({one:async query=>query.includes('platform_settings')?null:{verified:4,completedTests:2,openQueues:0,waiting:0,activeTests:0}});
+  assert.ok(body.embeds[0].description.length<150);
+  assert.match(body.embeds[0].footer.text,/Mace Community/);
+});
 
 const env = {
   DISCORD_GUILD_ID: "20000",
