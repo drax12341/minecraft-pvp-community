@@ -3,6 +3,18 @@
   --competition-surface: #101720;
   --competition-line: #26313f;
 }
+/* SkinMC preview is a 1200×696 sheet with four 300px views. Show its front panel. */
+.skin-body[data-skin-provider="skinmc"][data-skin-kind="body"] {
+  aspect-ratio: 300 / 696;
+  object-fit: cover;
+  object-position: left center;
+}
+.placement-skin .skin-body[data-skin-provider="skinmc"][data-skin-kind="body"] {
+  width: 72px;
+  height: 168px;
+  object-fit: cover;
+  object-position: left center;
+}
 .pixel-mode {
   object-fit: contain;
   image-rendering: pixelated;
@@ -582,6 +594,11 @@
   }
 }
 @media (max-width: 700px) {
+  .placement-skin
+    .skin-body[data-skin-provider="skinmc"][data-skin-kind="body"] {
+    width: 65px;
+    height: 151px;
+  }
   .mode-tabs.competition-tabs {
     gap: 4px;
     margin-top: 20px;

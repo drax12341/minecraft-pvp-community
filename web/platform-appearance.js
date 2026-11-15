@@ -135,6 +135,7 @@ export function installAppearanceControls() {
       if (!validUUID(uuid)) return;
       if (image.dataset.skinFailed !== "true") {
         image.dataset.skinFailed = "true";
+        image.dataset.skinProvider = "mc-heads";
         image.src =
           "https://mc-heads.net/" +
           (image.dataset.skinKind === "head" ? "avatar" : "body") +

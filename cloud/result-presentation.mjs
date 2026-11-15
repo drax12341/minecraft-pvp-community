@@ -10,7 +10,7 @@ const resultRank = (r) =>
 
 export function resultAnnouncement(
   result,
-  { previous, peak, account, appearance, score } = {},
+  { previous, peak, account, score } = {},
   env = {},
 ) {
   const tier = resultRank(result),
@@ -32,12 +32,6 @@ export function resultAnnouncement(
   const skinUrl = validUuid
     ? `https://mc-heads.net/body/${result.uuid}/240`
     : null;
-  // Only URLs from the already validated appearance cache may replace the fallback.
-  const cachedSkin =
-    appearance?.body_url &&
-    /^https:\/\/(?:skinmc\.net|mc-heads\.net)\//.test(appearance.body_url)
-      ? appearance.body_url
-      : null;
   const player = resultSnowflake.test(account?.discord)
     ? account.discord
     : null;
@@ -87,7 +81,8 @@ export function resultAnnouncement(
               ? 0xffc76b
               : 0x7966ff,
       fields,
-      ...(skinUrl ? { thumbnail: { url: cachedSkin || skinUrl } } : {}),
+      // SkinMC's preview is a four-view sheet; Discord needs one portrait render.
+      ...(skinUrl ? { thumbnail: { url: skinUrl } } : {}),
       footer: { text: "Official test " + result.id },
       timestamp: result.created,
     },
@@ -154,15 +149,11 @@ async function resultPresentationContext(r, store) {
     "SELECT discord FROM accounts WHERE uuid=?",
     r.uuid,
   );
-  const appearance = await store.one(
-    "SELECT body_url FROM skin_previews WHERE uuid=?",
-    r.uuid,
-  );
   const lifecycle = await store.one(
     "SELECT score FROM test_lifecycle WHERE test_id=?",
     r.id,
   );
-  return { previous, peak, account, appearance, score: lifecycle?.score };
+  return { previous, peak, account, score: lifecycle?.score };
 }
 
 // Restyle only existing official bot posts. Never create an announcement or repeat its ping.

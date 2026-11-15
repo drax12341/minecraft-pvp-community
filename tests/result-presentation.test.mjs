@@ -103,6 +103,7 @@ test("compact result posts show the skin, mention only the linked player and con
       roles: ["71000"],
     });
     assert.match(p.embeds[0].thumbnail.url, /aaaaaaaa/);
+    assert.match(p.embeds[0].thumbnail.url, /^https:\/\/mc-heads.net\/body\//);
     assert.match(p.embeds[0].description, /STAFF TIER AWARD/);
     assert.ok(p.embeds[0].fields.some((f) => f.value === "<@50001>"));
     assert.ok(
