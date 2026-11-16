@@ -1,6 +1,6 @@
 # Command access matrix
 
-99 commands and 205 actions. Access is enforced server-side; assignment, tester qualification, role hierarchy, independent review and confirmation rules still apply. Mixed commands such as queue-board/testing-hub require moderation access when publish is true. Discord autocomplete visibility is separate from execution access.
+99 commands and 206 actions. Access is enforced server-side; assignment, tester qualification, role hierarchy, independent review and confirmation rules still apply. Mixed commands such as queue-board/testing-hub require moderation access when publish is true. Discord autocomplete visibility is separate from execution access.
 
 | Command | Minimum access |
 | --- | --- |
@@ -133,6 +133,7 @@
 | `/role-info` | public |
 | `/roster` | public |
 | `/rubric` | public |
+| `/security status` | security |
 | `/security sources` | security |
 | `/security audit` | security |
 | `/server-info` | public |

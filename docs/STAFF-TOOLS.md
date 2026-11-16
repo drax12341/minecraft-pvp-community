@@ -61,13 +61,37 @@ A 403 ban lookup is reported as unavailable, distinct from a 404 missing ban.
 Ban reasons are not copied into the report. Account checks are audited and their
 replies are ephemeral, with mentions disabled.
 
-## Native bot permissions
+## Native bot permissions · verified 16 November 2026
 
-The live bot already has Manage Roles and Manage Channels. Read-back found it
-does **not** have Ban Members or Moderate Members. Discord requires the former
-to read bans and the latter to apply timeouts. Those actions remain unavailable
-until the owner authorizes and enables the precise missing permissions. No
-Administrator grant is requested or applied.
+The owner enabled the permissions after Discord rejected the bot's attempt with
+HTTP 403 Missing Permissions. Live role read-back now confirms Ban Members and
+Moderate Members, and the real Discord ban-list endpoint returns successfully.
+Manage Roles and Manage Channels also remain available. Native timeout actions
+are covered with mocked requests; no live member was punished for verification.
+
+The bot currently also has Administrator enabled by the owner's role change.
+The new tools do not require Administrator. `/security status` reports its actual
+permission coverage, including this broader grant. The application has not
+silently removed or expanded the owner's native role configuration.
+
+## Expanded account statistics
+
+`/alt-check user` now returns two compact, private cards with 24 fields:
+account age/creation, server tenure/join date, role count, membership screening,
+local ban state, timeout, server boost, linked IGN/verification date, moderation
+counts, active restrictions/cooldowns, and explicitly qualified review signals;
+plus official test totals, 30-day activity, modes, peak placement, latest test,
+waiting/active queue entries, completed tester work, qualifications and last
+logged bot action. The last action is not claimed to be general Discord activity.
+
+Test counters exclude revoked results and staff awards. Peak placement includes
+valid reviewed staff placements. Case reasons, appeal text and evidence links
+are not included in the report. A Refresh Report button routes through the same
+security checks; a removed staff role cannot keep refreshing a cached report.
+
+`/server-info` adds live member/presence/boost/channel/role counts and testing
+activity. `/security status` distinguishes ready native actions from missing
+permissions and explicitly reports that no partner servers are connected.
 
 ## Verification
 

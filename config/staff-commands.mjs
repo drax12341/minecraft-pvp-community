@@ -89,6 +89,7 @@ export const staffCommands = [
     description:
       "Security staff: review role exposure and investigation sources",
     options: [
+      stSub("status", "Check live bot permissions and security coverage"),
       stSub("sources", "List exactly what alt-check can inspect"),
       stSub("audit", "Inspect permissions on server roles"),
     ],

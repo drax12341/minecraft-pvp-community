@@ -10,6 +10,7 @@ function command(i,name,sub,values={}) { const opts=Object.entries(values).map((
 export function componentRoute(i) {
   const id=i.data.custom_id,value=i.data.values?.[0];
   const modes=config.modes.map(m=>({label:m.name,value:m.id,description:m.group,...(m.emoji?{emoji:{id:m.emoji}}:{})}));
+  if(id.startsWith('review:refresh:')){const target=id.slice(15);if(!/^\d{5,22}$/.test(target))throw Error('Choose a valid account.');return{command:command(i,'alt-check',null,{user:target})};}
   if(id.startsWith('tier:confirm:'))return{command:command(i,'tier-confirm',null,{id:id.slice(13)})};
   if(id.startsWith('queuepage:')){const [,mode,region,page]=id.split(':');return{command:command(i,'queue-board',null,{mode,region,page:Number(page)})};}
   if(id.startsWith('setup:')){

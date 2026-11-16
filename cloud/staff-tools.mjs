@@ -1,3 +1,4 @@
+import { buildAccountReview } from "./account-review.mjs";
 import config from "../config/community.json" with { type: "json" };
 import { staffAccess } from "../config/community-roles.mjs";
 import {
@@ -160,65 +161,13 @@ export async function runStaffTool(i, env, store, request = fetch) {
   switch (i.data.name) {
     case "alt-check": {
       const target = user();
-      const [member, ban, account, cases, restrictions] = await Promise.all([
+      const [member, ban] = await Promise.all([
         api(base + "/members/" + target, "GET", undefined, true),
         api(base + "/bans/" + target, "GET", undefined, true),
-        store.one("SELECT name,uuid FROM accounts WHERE discord=?", target),
-        store.one(
-          "SELECT count(*) n FROM moderation_cases WHERE user=? AND status='open'",
-          target,
-        ),
-        store.all(
-          "SELECT mode,until_at FROM player_restrictions WHERE user=? AND until_at>?",
-          target,
-          stamp(),
-        ),
       ]);
-      const created = accountCreatedAt(target),
-        days = Math.floor((Date.now() - Date.parse(created)) / 86400000);
-      const fields = [
-        staffField("Account age", days + " days"),
-        staffField(
-          "Joined",
-          member.joined_at
-            ? "<t:" + Math.floor(Date.parse(member.joined_at) / 1000) + ":R>"
-            : "Not available",
-        ),
-        staffField(
-          "Local ban",
-          ban.unavailable === 404
-            ? "No ban found"
-            : ban.unavailable
-              ? "Unavailable · bot lacks access"
-              : "Ban found",
-        ),
-        staffField(
-          "Minecraft account",
-          account ? account.name : "No linked IGN",
-        ),
-        staffField(
-          "Local records",
-          cases.n +
-            " open case(s) · " +
-            restrictions.length +
-            " active restriction(s)",
-        ),
-        staffField(
-          "Signals",
-          days < 7
-            ? "Account is less than 7 days old. This alone is not evidence of abuse."
-            : "No age warning.",
-          false,
-        ),
-      ];
+      const report = await buildAccountReview(store, target, member, ban);
       await audit("account-signal-check", target);
-      return staffCard(
-        "🛡 Account Review",
-        "<@" +
-          target +
-          ">\n**Alt relationship: unknown.**\nSources: Discord account/member API and this community’s records. No IP, device or other-server ban data is available.",
-        fields,
-      );
+      return report;
     }
     case "add-role":
     case "remove-role":
@@ -369,22 +318,41 @@ export async function runStaffTool(i, env, store, request = fetch) {
       ]);
     }
     case "server-info": {
-      const s = await api(base + "?with_counts=true"),
-        stats = await store.one(
-          "SELECT (SELECT count(*) FROM sessions WHERE status='open') queues,(SELECT count(*) FROM queue WHERE status='waiting') waiting,(SELECT count(*) FROM queue WHERE status='claimed') active",
-        );
-      return staffCard("🌐 " + s.name, "Community overview", [
-        staffField("Members", s.approximate_member_count ?? "Unavailable"),
-        staffField(
-          "Testing",
-          stats.queues +
-            " open · " +
-            stats.waiting +
-            " waiting · " +
-            stats.active +
-            " active",
+      const [s, roles, channels, stats] = await Promise.all([
+        api(base + "?with_counts=true"),
+        api(base + "/roles"),
+        api(base + "/channels"),
+        store.one(
+          "SELECT (SELECT count(*) FROM sessions WHERE status='open') queues,(SELECT count(*) FROM queue WHERE status='waiting') waiting,(SELECT count(*) FROM queue WHERE status='claimed') active,(SELECT count(*) FROM accounts) verified,(SELECT count(*) FROM results r WHERE record_type='test' AND NOT EXISTS(SELECT 1 FROM revoked v WHERE v.result_id=r.id)) tests,(SELECT count(*) FROM tester_sessions WHERE ended IS NULL AND status='available') available",
         ),
       ]);
+      const card = staffCard(
+        "🌐 " + s.name,
+        "**Community Snapshot** · Live Discord + testing records",
+        [
+          staffField("Members", s.approximate_member_count ?? "Unavailable"),
+          staffField("Online", s.approximate_presence_count ?? "Unavailable"),
+          staffField("Server Boosts", s.premium_subscription_count ?? 0),
+          staffField("Channels", channels.filter((c) => c.type !== 4).length),
+          staffField("Roles", roles.length - 1),
+          staffField("Verified Players", stats.verified),
+          staffField("Open Queues", stats.queues),
+          staffField("Waiting / Testing", stats.waiting + " / " + stats.active),
+          staffField("Available Tester Sessions", stats.available),
+          staffField("Official Tests", stats.tests),
+        ],
+      );
+      card.embeds[0].timestamp = stamp();
+      if (s.icon && /^[a-zA-Z0-9_]+$/.test(s.icon))
+        card.embeds[0].thumbnail = {
+          url:
+            "https://cdn.discordapp.com/icons/" +
+            guild +
+            "/" +
+            s.icon +
+            ".png?size=128",
+        };
+      return card;
     }
     case "staff-help":
     case "permissions": {
@@ -426,12 +394,57 @@ export async function runStaffTool(i, env, store, request = fetch) {
       );
     }
     case "security": {
+      if (sub?.name === "status") {
+        const [roles, bot] = await Promise.all([
+          api(base + "/roles"),
+          api(base + "/members/" + env.DISCORD_CLIENT_ID),
+        ]);
+        const bits = roles
+          .filter((r) => r.id === guild || bot.roles.includes(r.id))
+          .reduce((p, r) => p | BigInt(r.permissions), 0n);
+        const can = (p) => !!(bits & 8n) || !!(bits & p);
+        const card = staffCard(
+          "🛡 Security Coverage",
+          "**Local records + Discord checks**\nAlt relationships remain unproven.",
+          [
+            staffField(
+              "Local Ban Lookup",
+              can(4n) ? "Ready" : "Missing Ban Members",
+            ),
+            staffField(
+              "Timeout Controls",
+              can(1099511627776n) ? "Ready" : "Missing Moderate Members",
+            ),
+            staffField(
+              "Role Tools",
+              can(268435456n)
+                ? "Ready · hierarchy applies"
+                : "Missing Manage Roles",
+            ),
+            staffField(
+              "Channel Tools",
+              can(16n) ? "Ready" : "Missing Manage Channels",
+            ),
+            staffField("Partner Servers", "None connected"),
+            staffField("Privacy", "Private replies · no IP/device collection"),
+            staffField(
+              "Administrator",
+              bits & 8n
+                ? "Enabled · broader than these tools require"
+                : "Disabled",
+            ),
+          ],
+        );
+        card.embeds[0].timestamp = stamp();
+        return card;
+      }
       if (sub?.name === "sources")
         return staffCard(
           "🛡 Investigation Sources",
-          "**Available:** account creation, server join, local bans, linked IGN, local cases and restrictions.\n**Unavailable:** IPs, devices, private account links and universal ban lists.\n\nSignals support human review. They do not prove an alt.",
+          "**Sources:** account/member data, linked IGN, local moderation and testing records. Local bans require Ban Members.\n**Unavailable:** IPs, devices and universal ban lists.\nSignals do not prove an alt.",
         );
-      if (sub?.name !== "audit") throw Error("Choose sources or audit.");
+      if (sub?.name !== "audit")
+        throw Error("Choose status, sources or audit.");
       const roles = await api(base + "/roles");
       const risky = roles.filter(
         (r) =>

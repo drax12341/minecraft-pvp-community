@@ -10,24 +10,195 @@ import { runStaffTool } from "../cloud/staff-tools.mjs";
 import { DatabaseSync } from "node:sqlite";
 import { readFile, readdir } from "node:fs/promises";
 import { CloudStore } from "../cloud/store.mjs";
-import config from '../config/community.json' with {type:'json'};
-import { testingHubPanel } from '../cloud/platform-panels.mjs';
+import config from "../config/community.json" with { type: "json" };
+import { testingHubPanel } from "../cloud/platform-panels.mjs";
+import { buildAccountReview } from "../cloud/account-review.mjs";
+import { componentRoute } from "../cloud/components.mjs";
 
-test('specialist security and role staff do not inherit unrelated moderator powers',()=>{
-  const original=config.staffToolRoles;
-  try{
-    config.staffToolRoles={security:['71000'],roles:['72000']};
-    assert.equal(canUseCommand(member('50000',['71000']),env,{name:'alt-check'}),true);
-    assert.equal(canUseCommand(member('50000',['71000']),env,{name:'add-role'}),false);
-    assert.equal(canUseCommand(member('50000',['72000']),env,{name:'add-role'}),true);
-    assert.equal(canUseCommand(member('50000',['72000']),env,{name:'timeout'}),false);
-  }finally{config.staffToolRoles=original;}
+test("report refresh goes through the same security authorization as a slash command", async () => {
+  const action = componentRoute({
+    ...member(),
+    type: 3,
+    data: { custom_id: "review:refresh:175928847299117063" },
+  }).command;
+  assert.equal(action.data.name, "alt-check");
+  assert.equal(canUseCommand(action, env), false);
+  assert.throws(
+    () =>
+      componentRoute({
+        ...member(),
+        type: 3,
+        data: { custom_id: "review:refresh:bad/id" },
+      }),
+    /valid/,
+  );
 });
 
-test('public testing hub stays concise and retains its managed panel marker',async()=>{
-  const body=await testingHubPanel({one:async query=>query.includes('platform_settings')?null:{verified:4,completedTests:2,openQueues:0,waiting:0,activeTests:0}});
-  assert.ok(body.embeds[0].description.length<150);
-  assert.match(body.embeds[0].footer.text,/Mace Community/);
+test("timeout applies only to a lower member, uses the requested duration and records the action", async () => {
+  const { sql, store } = await staffFixture();
+  try {
+    const roles = [
+      { id: "20000", position: 0, permissions: "0" },
+      { id: "40000", position: 8, permissions: "0" },
+      { id: "90000", position: 10, permissions: "1099511627776" },
+    ];
+    let mutation;
+    const start = Date.now();
+    const request = async (url, o) => {
+      if (o.method === "PATCH") {
+        mutation = JSON.parse(o.body);
+        return Response.json({});
+      }
+      if (url.endsWith("/roles")) return Response.json(roles);
+      if (url.endsWith("/members/90000"))
+        return Response.json({ roles: ["90000"] });
+      if (url.endsWith("/members/50000"))
+        return Response.json({ roles: ["40000"] });
+      if (url.endsWith("/members/60000")) return Response.json({ roles: [] });
+      return Response.json({ owner_id: "30000" });
+    };
+    await runStaffTool(
+      staffInteraction("timeout", {
+        user: "60000",
+        minutes: 5,
+        reason: "Moderator reviewed the reported disruption",
+      }),
+      { ...env, DISCORD_CLIENT_ID: "90000" },
+      store,
+      request,
+    );
+    const until = Date.parse(mutation.communication_disabled_until);
+    assert.ok(until >= start + 300000 && until < Date.now() + 301000);
+    assert.equal(
+      (
+        await store.one(
+          "SELECT count(*) n FROM audit WHERE action='timeout-applied'",
+        )
+      ).n,
+      1,
+    );
+  } finally {
+    sql.close();
+  }
+});
+
+test("account review counts genuine activity, excludes revoked results and keeps private details out of the report", async () => {
+  const { sql, store } = await staffFixture();
+  try {
+    const target = "175928847299117063",
+      uuid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      now = new Date();
+    await store.verify(target, uuid, "StatsPlayer", "30000");
+    for (const [id, type] of [
+      ["real", "test"],
+      ["revoked-stat", "test"],
+      ["award-stat", "adjustment"],
+    ])
+      await store
+        .statement(
+          "INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created,record_type) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+          id,
+          uuid,
+          "StatsPlayer",
+          "EU",
+          "mace",
+          3,
+          0,
+          "50000",
+          "PRIVATE_EVIDENCE",
+          now.toISOString(),
+          type,
+        )
+        .run();
+    await store
+      .statement(
+        "INSERT INTO revoked VALUES(?,?,?,?)",
+        "revoked-stat",
+        "30000",
+        "PRIVATE_APPEAL",
+        now.toISOString(),
+      )
+      .run();
+    await store
+      .statement(
+        "INSERT INTO moderation_cases(id,user,actor,reason,created) VALUES(?,?,?,?,?)",
+        "case-stat",
+        target,
+        "30000",
+        "PRIVATE_CASE",
+        now.toISOString(),
+      )
+      .run();
+    const body = await buildAccountReview(
+      store,
+      target,
+      {
+        user: { id: target, username: "StatsPlayer", avatar: "abc" },
+        roles: ["70000", "71000"],
+        joined_at: "2025-01-01T00:00:00Z",
+      },
+      { unavailable: 403 },
+      now,
+    );
+    assert.equal(body.embeds.length, 2);
+    const fields = body.embeds.flatMap((e) => e.fields || []),
+      field = (name) => fields.find((f) => f.name === name)?.value;
+    assert.equal(field("Official Tests"), "1");
+    assert.equal(field("Last 30 Days"), "1");
+    assert.equal(field("Discord Roles"), "2");
+    assert.equal(field("Moderation Cases"), "1 open · 1 total");
+    assert.match(field("Local Ban"), /Unavailable/);
+    assert.doesNotMatch(
+      JSON.stringify(body),
+      /PRIVATE_EVIDENCE|PRIVATE_APPEAL|PRIVATE_CASE/,
+    );
+    assert.ok(fields.length >= 15);
+    assert.deepEqual(body.allowed_mentions, { parse: [] });
+  } finally {
+    sql.close();
+  }
+});
+
+test("specialist security and role staff do not inherit unrelated moderator powers", () => {
+  const original = config.staffToolRoles;
+  try {
+    config.staffToolRoles = { security: ["71000"], roles: ["72000"] };
+    assert.equal(
+      canUseCommand(member("50000", ["71000"]), env, { name: "alt-check" }),
+      true,
+    );
+    assert.equal(
+      canUseCommand(member("50000", ["71000"]), env, { name: "add-role" }),
+      false,
+    );
+    assert.equal(
+      canUseCommand(member("50000", ["72000"]), env, { name: "add-role" }),
+      true,
+    );
+    assert.equal(
+      canUseCommand(member("50000", ["72000"]), env, { name: "timeout" }),
+      false,
+    );
+  } finally {
+    config.staffToolRoles = original;
+  }
+});
+
+test("public testing hub stays concise and retains its managed panel marker", async () => {
+  const body = await testingHubPanel({
+    one: async (query) =>
+      query.includes("platform_settings")
+        ? null
+        : {
+            verified: 4,
+            completedTests: 2,
+            openQueues: 0,
+            waiting: 0,
+            activeTests: 0,
+          },
+  });
+  assert.ok(body.embeds[0].description.length < 150);
+  assert.match(body.embeds[0].footer.text, /Mace Community/);
 });
 
 const env = {
@@ -132,6 +303,18 @@ async function staffFixture() {
     .sort())
     sql.exec(await readFile("drizzle/" + file, "utf8"));
   const db = {
+    async batch(items) {
+      sql.exec("BEGIN");
+      try {
+        const results = [];
+        for (const item of items) results.push(await item.run());
+        sql.exec("COMMIT");
+        return results;
+      } catch (e) {
+        sql.exec("ROLLBACK");
+        throw e;
+      }
+    },
     prepare(query) {
       const make = (values = []) => ({
         bind: (...args) => make(args),
