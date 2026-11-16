@@ -259,5 +259,19 @@ export async function buildAccountReview(
       },
     ],
   };
+  if (
+    ban.user?.id === target &&
+    typeof ban.reason === "string" &&
+    ban.reason.trim()
+  ) {
+    body.embeds[0].fields.push({
+      name: "Local Ban Reason",
+      value: ban.reason
+        .replace(/[\u0000-\u001f\u007f]/g, " ")
+        .replace(/([\\`*_~<>\[\]])/g, "\\$1")
+        .slice(0, 300),
+      inline: false,
+    });
+  }
   return body;
 }

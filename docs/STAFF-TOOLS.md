@@ -50,8 +50,10 @@ Visible command names confer no authority.
 
 ## Alt-check limits
 
-The default source scope is **this community only**. No partner servers or external
-ban databases are connected. Discord has no universal alternate-account lookup.
+The source scope includes this community and up to ten other Discord servers
+where the bot is installed and can read bans. Live discovery currently finds
+**zero other servers**. No private third-party server is scanned without bot
+membership and the required API access. Discord has no universal alternate-account lookup.
 An old/new account, a linked IGN or a missing local ban is not proof that an
 account is safe, malicious, or related to another account. The tool does not
 obtain IP addresses or device fingerprints, create an automatic risk verdict,
@@ -91,7 +93,46 @@ security checks; a removed staff role cannot keep refreshing a cached report.
 
 `/server-info` adds live member/presence/boost/channel/role counts and testing
 activity. `/security status` distinguishes ready native actions from missing
-permissions and explicitly reports that no partner servers are connected.
+permissions and reports the current count of other bot servers.
+
+## External ban checks · researched 16 November 2026
+
+The report now has a third card, **External Ban Evidence**. Discord discovery
+uses the bot's own guild list, checks at most ten other servers with at most
+three concurrent requests, and requests each exact Discord user ID's ban entry.
+Ban Members, View Audit Log or Administrator access is required. A response is
+accepted as a finding only when the source returns the requested user ID.
+Only Discord's `Unknown Ban` error code 10026 is treated as no current ban;
+403, unknown-guild 404, rate limits and network failures remain unavailable.
+Reasons are source-attributed, escaped and bounded. Discord does not provide
+the original ban date through this endpoint, so the report shows the check time.
+
+Minecraft research used the named services' own public sites and frontend APIs:
+
+- [PvPHQ](https://pvphq.com): its public `/api/v1/players/{uuid}` endpoint is
+  queried only for a locally linked Minecraft UUID. Returned UUIDs must match.
+  The verified profile schema does not provide ban history. A profile, a 404,
+  or a valid tier is never treated as a clean ban record.
+- [CatPvP](https://catpvp.xyz): public player pages were found, but no supported
+  public ban-history API was verified. The report provides a source/profile
+  link and explicitly marks the ban feed as unverified; it does not claim to
+  scan a hidden database.
+- [PvP Club](https://mcpvp.club): the official site identifies the modern PvP
+  server, but no public ban-history endpoint was verified. Other similarly
+  named domains were not substituted as this source.
+
+The CatPvP/PvP Club statuses are research coverage notes, not successful live ban
+queries. Actual ban-history integrations require those operators to provide an
+authorized feed or install the bot in their Discord with read access. No login,
+CAPTCHA, private API or account restriction is bypassed. External payloads are
+bounded to 128 KiB, redirects are rejected, timeouts are five seconds, and the
+Discord bot token is sent only to Discord. External findings are not persisted
+as local convictions and never trigger automatic punishments.
+
+Validation includes real public-profile probes, inaccessible/malformed sources,
+UUID mismatches, precise Discord error handling, token isolation and report-size
+limits. The current real probe found zero other bot guilds and therefore returned
+zero external Discord bans; no test finding was posted into the community.
 
 ## Verification
 

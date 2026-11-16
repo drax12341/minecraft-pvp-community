@@ -1,3 +1,4 @@
+import { externalBanChecks, externalBanEmbed } from "./external-bans.mjs";
 import { buildAccountReview } from "./account-review.mjs";
 import config from "../config/community.json" with { type: "json" };
 import { staffAccess } from "../config/community-roles.mjs";
@@ -166,6 +167,16 @@ export async function runStaffTool(i, env, store, request = fetch) {
         api(base + "/bans/" + target, "GET", undefined, true),
       ]);
       const report = await buildAccountReview(store, target, member, ban);
+      const identity = await store.one(
+        "SELECT uuid,name FROM accounts WHERE discord=?",
+        target,
+      );
+      const external = await externalBanChecks(env, target, identity, request);
+      report.embeds.push(externalBanEmbed(external));
+      report.embeds[0].description = report.embeds[0].description.replace(
+        "Local evidence only.",
+        "Local + accessible external sources.",
+      );
       await audit("account-signal-check", target);
       return report;
     }
@@ -395,9 +406,10 @@ export async function runStaffTool(i, env, store, request = fetch) {
     }
     case "security": {
       if (sub?.name === "status") {
-        const [roles, bot] = await Promise.all([
+        const [roles, bot, guilds] = await Promise.all([
           api(base + "/roles"),
           api(base + "/members/" + env.DISCORD_CLIENT_ID),
+          api("/users/@me/guilds?limit=100").catch(() => null),
         ]);
         const bits = roles
           .filter((r) => r.id === guild || bot.roles.includes(r.id))
@@ -409,7 +421,9 @@ export async function runStaffTool(i, env, store, request = fetch) {
           [
             staffField(
               "Local Ban Lookup",
-              can(4n) ? "Ready" : "Missing Ban Members",
+              can(4n) || can(128n)
+                ? "Ready"
+                : "Missing Ban Members / View Audit Log",
             ),
             staffField(
               "Timeout Controls",
@@ -425,7 +439,13 @@ export async function runStaffTool(i, env, store, request = fetch) {
               "Channel Tools",
               can(16n) ? "Ready" : "Missing Manage Channels",
             ),
-            staffField("Partner Servers", "None connected"),
+            staffField(
+              "Other Discord Servers",
+              Array.isArray(guilds)
+                ? guilds.filter((g) => g.id !== guild).length +
+                    " installed · scan limit 10"
+                : "Discovery unavailable",
+            ),
             staffField("Privacy", "Private replies · no IP/device collection"),
             staffField(
               "Administrator",
@@ -441,7 +461,7 @@ export async function runStaffTool(i, env, store, request = fetch) {
       if (sub?.name === "sources")
         return staffCard(
           "🛡 Investigation Sources",
-          "**Sources:** account/member data, linked IGN, local moderation and testing records. Local bans require Ban Members.\n**Unavailable:** IPs, devices and universal ban lists.\nSignals do not prove an alt.",
+          "**Discord:** local + other bot servers with ban-read access (up to 10).\n**Minecraft:** UUID-matched PvPHQ profile; CatPvP/PvP Club ban feeds unverified.\n**Unavailable:** IPs, devices and universal ban lists.",
         );
       if (sub?.name !== "audit")
         throw Error("Choose status, sources or audit.");

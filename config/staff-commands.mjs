@@ -28,7 +28,7 @@ export const staffCommands = [
   {
     name: "alt-check",
     description:
-      "Security: sourced account signals and local ban check; never proof of an alt",
+      "Security: account signals and sourced local / accessible cross-server ban evidence",
     options: [stUser()],
   },
   ...["add-role", "remove-role"].map((name) => ({
