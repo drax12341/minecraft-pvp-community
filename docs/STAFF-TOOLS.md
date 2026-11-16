@@ -60,8 +60,9 @@ obtain IP addresses or device fingerprints, create an automatic risk verdict,
 punish anyone, or publish an accusation.
 
 A 403 ban lookup is reported as unavailable, distinct from a 404 missing ban.
-Ban reasons are not copied into the report. Account checks are audited and their
-replies are ephemeral, with mentions disabled.
+Ban reasons returned by an authorized source are attributed in the private staff
+report. Private moderation-case notes and appeal text are not copied. Account
+checks are audited and replies are ephemeral, with mentions disabled.
 
 ## Native bot permissions · verified 16 November 2026
 
