@@ -1,5 +1,10 @@
 # Minecraft PvP Tierlist · v0.2
 
+**Website hosting: GitHub Pages only.**
+[Mace Network](https://drax12341.github.io/minecraft-pvp-community/) now serves
+the redesigned website directly, with an interactive voxel Mace, persistent
+atmosphere and community player tools. [Design and verification notes](docs/GITHUB-WEBSITE-REDESIGN.md).
+
 [Mace Network v11](docs/MACE-NETWORK-V11.md): native closed-queue panels, audited staff tier corrections, support reopening/transcripts, tester approvals, seasonal analytics and durable notification maintenance.
 
 [Live Mace Network v10 delivery](docs/MACE-NETWORK-V10.md): 63 registered commands, 20 installed Discord dashboards, multi-tester sessions, managed test tickets, configuration, staff controls and verified private sections.

@@ -21,6 +21,8 @@ await writeFile(
   }),
 );
 await cp("web", "dist", { recursive: true });
+await cp("web/pages.html", "dist/index.html");
+await writeFile("dist/.nojekyll", "");
 for (const name of ["community", "results", "testing"])
   await cp(
     name === "community" ? "config/community.json" : `data/${name}.json`,

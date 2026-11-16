@@ -184,12 +184,13 @@ test('testing walkthrough supports keyboard steps, accurate commands and native 
  dom.window.close();
 });
 
-test('GitHub Pages uses project-relative assets, the correct canonical URL and live public data',async()=>{
+test('GitHub Pages uses project-relative assets, the correct canonical URL and its own published data',async()=>{
  const dom=await website([player],[],'home',[],'drax12341.github.io'),w=dom.window,d=w.document;
  assert.equal(d.querySelector('link[rel="canonical"]').href,'https://drax12341.github.io/minecraft-pvp-community/');
  const css=[...d.querySelectorAll('link[rel="stylesheet"]')].filter(a=>!a.href.includes('googleapis'));assert.equal(css.length,3);assert.match(css[0].getAttribute('href'),/^\.\/site.css/);assert.match(css[1].getAttribute('href'),/^\.\/control-room.css/);assert.match(css[2].getAttribute('href'),/^\.\/player-identity.css/);
- assert.ok(w.__requests.includes('https://minecraft-pvp-community.draxion0.chatgpt.site/data/results.json'));
- assert.ok(w.__requests.includes('https://minecraft-pvp-community.draxion0.chatgpt.site/data/testing.json'));
+ assert.ok(w.__requests.includes('./data/results.json'));
+ assert.ok(w.__requests.includes('./data/testing.json'));
+ assert.ok(w.__requests.every(url=>!url.includes('chatgpt.site')));
  w.location.hash='kits';await new Promise(r=>w.setTimeout(r,10));assert.equal(d.querySelector('a[href="./standards.html"]').href,'https://drax12341.github.io/minecraft-pvp-community/standards.html');assert.doesNotMatch(d.querySelector('main').textContent,/Sword|Axe|Bow/);
  dom.window.close();
 });
@@ -227,8 +228,8 @@ test('profile testing paths preserve the gamemode, region and next tier in the a
  const link=d.querySelector('.profile-next');assert.ok(link);assert.match(link.hash,/mode=mace/);assert.match(link.hash,/tier=LT2/);link.click();await new Promise(r=>w.setTimeout(r,15));
  const form=d.querySelector('#desk-form');assert.equal(form.elements.mode.value,'mace');assert.equal(form.elements.region.value,'EU');assert.equal(form.elements.tier.value,'LT2');assert.equal(d.querySelector('dialog').open,false);dom.window.close();
 });
-test('the public Pages mirror reads live testing demand from the same cloud service as rankings',async()=>{
- const dom=await website([],[],'test-desk',[],'drax12341.github.io');await new Promise(r=>dom.window.setTimeout(r,10));assert.ok(dom.window.__requests.includes('https://minecraft-pvp-community.draxion0.chatgpt.site/api/testing-desk'));dom.window.close();
+test('the public Pages testing desk reads its published guide without requiring another host',async()=>{
+ const dom=await website([],[],'test-desk',[],'drax12341.github.io');await new Promise(r=>dom.window.setTimeout(r,10));assert.ok(dom.window.__requests.includes('./data/testing-desk.json'));assert.ok(dom.window.__requests.every(url=>!url.includes('chatgpt.site')));dom.window.close();
 });
 test("standalone board has five tiers, explicit sample preview, and no external ranks", async () => {
   const dom = await website(),

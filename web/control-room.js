@@ -11,8 +11,8 @@ const crEscape = (value) =>
 const crTier = (rank) => (rank.pos === 0 ? "HT" : "LT") + rank.tier;
 const crActive = (player) =>
   Object.entries(player.rankings || {}).filter(([, r]) => !r.retired);
-const crPoints = (player, config, mode = "overall") =>
-  crActive(player).reduce(
+export function crPoints(player, config, mode = "overall") {
+  return crActive(player).reduce(
     (sum, [id, r]) =>
       sum +
       (mode === "overall" || mode === id
@@ -20,6 +20,7 @@ const crPoints = (player, config, mode = "overall") =>
         : 0),
     0,
   );
+}
 const crBest = (player, config) =>
   Math.max(
     0,
@@ -710,11 +711,7 @@ export function renderControlRoomHome({
   );
   drawActivity();
   const testerNode = main.querySelector("#tester-activity");
-  const deskOrigin =
-    location.hostname === "drax12341.github.io"
-      ? "https://minecraft-pvp-community.draxion0.chatgpt.site"
-      : "";
-  fetch(deskOrigin + "/api/testing-desk", {
+  fetch("./data/testing-desk.json", {
     cache: "no-store",
     signal: AbortSignal.timeout(10000),
   })

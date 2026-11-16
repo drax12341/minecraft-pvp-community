@@ -1,6 +1,7 @@
-import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=identity-v12';
+import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=orbit-v1';
 import {mountLeagueShell,renderLeagueWatchlist,renderLeagueInsights,renderLeaguePlanner} from './league.js?v=identity-v12';
-import {renderControlRoomHome} from './control-room.js?v=identity-v12';
+import {renderControlRoomHome} from './control-room.js?v=orbit-v1';
+import {renderOrbitHome} from './orbit-home.js?v=orbit-v1';
 import {renderPlayerIdentity,mountPlayerIdentity} from './player-identity.js?v=identity-v12';
 const main = document.querySelector("main"),
   modal = document.querySelector("dialog"),
@@ -200,7 +201,8 @@ function arenaHub() {
   return '<section class="arena-hub" aria-label="Community player hub"><div class="hub-identity"><img src="./mark.svg" alt="Community shield" width="68" height="68"><div><h2>Your community. In sync.</h2><p>Practice in Minecraft, request a test in Discord, follow your placements here.</p></div></div><div class="hub-destinations"><article><h3>Join the arena</h3><p>Java · Paper 1.21.11 · Europe</p><button class="server-copy" data-command="mcpvpcommunity.minekeep.gg" aria-label="Copy Minecraft server address">mcpvpcommunity.minekeep.gg <span>Copy</span></button><small>Practice setup in progress. The free host may sleep when empty.</small><details><summary>In-game commands</summary><p><code>/arena</code> Practice lobby<br><code>/play</code> Kit matchmaking<br><code>/duel player kit</code> Private challenge<br><code>/ffa</code> Sword free-for-all<br><code>/settings</code> Personal settings</p></details></article><article><h3>Request your test</h3><p>Choose a mode and region. Your verified account, cooldown and actual session capacity are checked.</p><a class="button secondary" href="https://discord.com/channels/1568767259168608267/1569347570214506607" target="_blank" rel="noopener">Open testing desk</a><small>Waiting does not guarantee a session or tier.</small></article><article><h3>Talk to the team</h3><p>Choose a category and fill out a short form. Support staff are notified inside your private ticket.</p><a class="button secondary" href="https://discord.com/channels/1568767259168608267/1569347634395746364" target="_blank" rel="noopener">Open a support ticket</a><small>Account help, player reports and confidential staff reports.</small></article></div></section>';
 }
 function home(){
- renderControlRoomHome({main,config,data,testing,saved:savedPlayers,selected,profile,copy:copyText,download,
+ const renderHome=document.documentElement.dataset.design==='orbit-v1'?renderOrbitHome:renderControlRoomHome;
+ renderHome({main,config,data,testing,saved:savedPlayers,selected,profile,copy:copyText,download,
   openMode:id=>{mode=id;modeGroup=kit(id).group==='Main modes'?'main':'sub';preview=false;view='board';location.hash='rankings';},
   onSave:id=>{savedPlayers.has(id)?savedPlayers.delete(id):savedPlayers.add(id);writePreference('savedPlayers',[...savedPlayers]);},
   onCompare:id=>{if(!selected.has(id)&&selected.size>=2){toast('Choose two players to compare.');return;}selected.has(id)?selected.delete(id):selected.add(id);compareDock();}
@@ -1004,7 +1006,7 @@ function about() {
       )
       .join(
         " ",
-      )}</div><h2 style="margin-top:25px">Testing & appeals</h2><p>Sessions open by mode and region. Account ownership must be verified by staff. A tester cannot claim their own test. Results require evidence. Appeals are private staff records and cannot be reviewed by the original tester. Revoked results remain in the audit trail and are excluded from rankings.</p><p>Do not install unknown files, share passwords or expose personal information for a test. No cheating, boosting, harassment or account sharing.</p></section><section class="panel"><h2>Privacy & freshness</h2><p>The website refreshes this community’s live public cloud rankings and session counts. If refresh fails, the last loaded snapshot is clearly marked. Discord account IDs, practice-post owners and private application or appeal text are never published in these feeds. No sign-in or analytics run on this static website.</p><p>Google Fonts and mc-heads.net serve fonts and avatars and receive normal network requests. Saved players and your calm-view preference are stored only in this browser. Testing drafts are saved in this browser so a refresh does not erase them. They are never submitted to the server by this website. Preview players are visibly marked and never become test records.</p><p>Ask staff in Discord for corrections, appeals or deletion. No affiliation with Mojang or Microsoft.</p><a class="button secondary" href="${config.invite}" target="_blank" rel="noopener">Contact staff ↗</a></section></div>`;
+      )}</div><h2 style="margin-top:25px">Testing & appeals</h2><p>Sessions open by mode and region. Account ownership must be verified by staff. A tester cannot claim their own test. Results require evidence. Appeals are private staff records and cannot be reviewed by the original tester. Revoked results remain in the audit trail and are excluded from rankings.</p><p>Do not install unknown files, share passwords or expose personal information for a test. No cheating, boosting, harassment or account sharing.</p></section><section class="panel"><h2>Privacy & freshness</h2><p>The website reads this community’s published ranking and session snapshots from GitHub Pages. Discord has the latest session availability. If refresh fails, the last loaded snapshot is clearly marked. Discord account IDs, practice-post owners and private application or appeal text are never published in these feeds. No sign-in or analytics run on this static website.</p><p>Google Fonts and mc-heads.net serve fonts and avatars and receive normal network requests. Saved players and your calm-view preference are stored only in this browser. Testing drafts are saved in this browser so a refresh does not erase them. They are never submitted to the server by this website. Preview players are visibly marked and never become test records.</p><p>Ask staff in Discord for corrections, appeals or deletion. No affiliation with Mojang or Microsoft.</p><a class="button secondary" href="${config.invite}" target="_blank" rel="noopener">Contact staff ↗</a></section></div>`;
 }
 function staff() {
   main.innerHTML =
@@ -1035,21 +1037,19 @@ modal.addEventListener("click", (e) => {
 try {
   [config, data, testing] = await Promise.all(
     ["community", "results", "testing"].map(async (p) => {
-      const cloud = "https://minecraft-pvp-community.draxion0.chatgpt.site";
-      const live =
-        location.hostname === "drax12341.github.io" && p !== "community";
-      const r = await fetch(
-        live ? `${cloud}/data/${p}.json` : `./data/${p}.json`,
-      );
+      const r = await fetch(`./data/${p}.json`);
       if (!r.ok) throw Error("Data unavailable");
       return r.json();
     }),
   );
   render();
   window.addEventListener("hashchange", () => {
-    modal.close();
-    render();
-    main.focus({ preventScroll: true });
+    const update=()=>{modal.close();render();main.focus({preventScroll:true});};
+    if(document.documentElement.dataset.design==='orbit-v1'&&document.startViewTransition&&!readPreference('calm',false)&&!matchMedia('(prefers-reduced-motion:reduce)').matches){
+      const transition=document.startViewTransition(update);
+      // A second navigation may supersede the animation; the page update still completes.
+      transition.ready.catch(()=>{});
+    }else update();
   });
   setInterval(() => {
     if (
@@ -1190,13 +1190,9 @@ async function refreshPublicData(manual) {
   refreshBusy = true;
   decoratePage();
   try {
-    const base =
-      location.hostname === "drax12341.github.io"
-        ? "https://minecraft-pvp-community.draxion0.chatgpt.site"
-        : "";
     const result = await Promise.all(
       ["results", "testing"].map(async (name) => {
-        const r = await fetch((base || ".") + "/data/" + name + ".json", {
+        const r = await fetch("./data/" + name + ".json", {
           cache: "no-store",
           signal: AbortSignal.timeout(10000),
         });
