@@ -77,6 +77,72 @@ const account = {
     name: "ItzRealMe",
   },
   target = "519370708107919370";
+test("Workers-compatible requests return UUID-matched profiles, while failed APIs retain useful diagnostics", async () => {
+  const result = await tierNetworkChecks(
+    account,
+    target,
+    async (url, options) => {
+      if (options.redirect === "error")
+        throw new TypeError("Unsupported redirect mode: error");
+      if (url.includes("pvptiers"))
+        return new Response("Rate limit", { status: 429 });
+      if (url.includes("subtiers"))
+        throw new DOMException("Secret diagnostic", "TimeoutError");
+      return Response.json({
+        uuid: account.uuid,
+        discord_id: target,
+        rankings: {},
+      });
+    },
+  );
+  assert.equal(result[0].status, "profile-found");
+  assert.match(result[1].failure, /429/);
+  assert.match(result[2].failure, /timed out/i);
+  assert.doesNotMatch(JSON.stringify(result), /Secret diagnostic/);
+});
+
+test("failed source coverage never claims absent Discord links, zero connected guilds or zero successful readings", () => {
+  const external = {
+    findings: [],
+    sources: [],
+    discoveryStatus: "unavailable",
+    discoveredDiscordGuilds: null,
+    installedDiscordGuildIds: [],
+    checkedAt: new Date().toISOString(),
+    messageReading: { references: [], channelsRead: 0, unavailable: 0 },
+  };
+  const profiles = ["mctiers", "pvptiers", "subtiers"].map((id) => ({
+    id,
+    status: "unavailable",
+    failure: "HTTP 503",
+  }));
+  const base = { embeds: [{ fields: [] }] };
+  const networks = reviewPresentation(
+    base,
+    external,
+    profiles,
+    target,
+    "networks",
+  );
+  assert.match(JSON.stringify(networks), /503/);
+  assert.match(JSON.stringify(networks), /not checked/i);
+  assert.doesNotMatch(JSON.stringify(networks), /not published|0\/0|0\/6/);
+  const evidence = reviewPresentation(
+    base,
+    external,
+    profiles,
+    target,
+    "evidence",
+  );
+  assert.match(JSON.stringify(evidence), /not run/i);
+  assert.doesNotMatch(JSON.stringify(evidence), /0 channel\(s\) read/);
+  const overview = reviewPresentation(base, external, profiles, target);
+  assert.equal(
+    overview.embeds[1].fields.find((f) => f.name === "Other Bot Servers").value,
+    "Unknown · discovery failed",
+  );
+});
+
 test("network profiles require exact UUID matches and disclose linked Discord differences without inferring bans", async () => {
   const request = async (url, options) => {
     assert.equal(options.headers?.Authorization, undefined);

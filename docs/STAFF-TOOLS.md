@@ -182,6 +182,29 @@ Primary research: [MCTiers OpenAPI](https://mctiers.net/api/openapi.json),
 [PvPTiers' official mod](https://github.com/PvPTiers/Tiers),
 [PvPTiers](https://pvptiers.com), [SubTiers](https://subtiers.net).
 
+## Hosted source diagnostics
+
+The external lookups use `redirect: "manual"` and never follow redirects.
+Cloudflare Workers rejects `redirect: "error"` before sending a request, although
+Node accepts it. That mismatch caused every shared external lookup to fail in
+production while local public-profile probes passed. See the
+[Workers Request documentation](https://developers.cloudflare.com/workers/runtime-apis/request/).
+
+Failed discovery returns an unknown server count, never zero. Reports distinguish
+HTTP failures/rate limits, timeouts, invalid JSON and oversized responses without
+exposing raw provider errors. Missing profiles, unpublished Discord links and
+unperformed checks have separate labels. Unresolved invite directories no longer
+appear as `0/0` installed servers. Moderation reading shows why it was not run.
+The Networks card shows UUID-matched mode counts, points, overall rank and badges
+when those fields are published; shared coverage notes avoid repeated paragraphs.
+
+`GET /api/internal/account-review-health` requires the existing service Bearer
+credential and checks the fixed public sample `ItzRealMe` using the same helpers
+as `/alt-check`. It returns provider statuses and discovery counts, excluding
+private server names, IDs, ban reasons and credentials. No arbitrary URL or
+identity is accepted. Use this endpoint after deployment to verify the actual
+Worker runtime, in addition to Node regression tests. Responses are not cached.
+
 ## Verification
 
 Tests cover the complete command-policy catalogue, role escalation/private-access

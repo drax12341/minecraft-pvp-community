@@ -1,4 +1,4 @@
-import { externalJSON } from "./external-bans.mjs";
+import { externalJSON, externalFailure } from "./external-bans.mjs";
 const tierReviewUUID = (value) =>
   String(value || "")
     .replaceAll("-", "")
@@ -55,8 +55,13 @@ export async function tierNetworkChecks(account, target, request = fetch) {
           response.status !== 200 ||
           !response.body ||
           typeof response.body !== "object"
-        )
+        ) {
+          result.failure =
+            response.status !== 200
+              ? externalFailure(response.status)
+              : "Unexpected API response";
           return result;
+        }
         const profile = response.body;
         if (tierReviewUUID(profile.uuid) !== uuid) {
           result.status = "identity-mismatch";
@@ -89,8 +94,8 @@ export async function tierNetworkChecks(account, target, request = fetch) {
         result.badgeCount = Array.isArray(profile.badges)
           ? profile.badges.length
           : 0;
-      } catch {
-        /* A failed profile request supplies no ban verdict. */
+      } catch (error) {
+        result.failure = externalFailure(error);
       }
       return result;
     }),

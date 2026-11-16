@@ -18,6 +18,8 @@ import {websiteShell,websiteDiscovery} from './website-shell.mjs';
 import {minecraftVerificationHealth} from './minecraft-lookup.mjs';
 import {refreshPublishedResults} from './result-presentation.mjs';
 import {competitionDiscord} from './competition.mjs';
+import {externalBanChecks} from './external-bans.mjs';
+import {tierNetworkChecks} from './tier-networks.mjs';
 
 async function privateServiceAuth(request, secret) {
   if(typeof secret!=='string'||secret.length<32)return false;
@@ -160,6 +162,27 @@ export default {
       catch{return json({error:'Result refresh failed. Check Discord permissions and retry; saved results remain intact.'},503);}
     }
     if(url.pathname==='/api/internal/verification-health'){if(request.method!=='GET')return json({error:'Method not allowed'},405);if(!await privateServiceAuth(request,env.DISCORD_TOKEN))return json({error:'Unauthorized'},401);const name=url.searchParams.get('name')||'Notch';if(!/^[A-Za-z0-9_]{3,16}$/.test(name))return json({error:'Enter a Java username'},422);return json(await minecraftVerificationHealth(name));}
+    if (url.pathname === '/api/internal/account-review-health') {
+      if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405);
+      if (!await privateServiceAuth(request, env.DISCORD_TOKEN)) return json({ error: 'Unauthorized' }, 401);
+      // Fixed public sample: diagnostics cannot query arbitrary identities or URLs.
+      const sample = { name: 'ItzRealMe', uuid: '06ec3577-3299-45fa-bbdf-613b1f86c8ab' };
+      const [external, profiles] = await Promise.all([
+        externalBanChecks(env, '519370708107919370', sample),
+        tierNetworkChecks(sample, '519370708107919370'),
+      ]);
+      return json({
+        checkedAt: external.checkedAt,
+        sample: sample.name,
+        discord: {
+          status: external.discoveryStatus,
+          otherServers: external.discoveredDiscordGuilds,
+          failure: external.sources.find(s => s.name === 'Discord server discovery')?.failure,
+        },
+        profiles: profiles.map(({ name, status, failure, modeCount }) => ({ name, status, failure, modeCount })),
+        minecraft: external.sources.filter(s => s.kind === 'minecraft').map(({ name, status, failure }) => ({ name, status, failure })),
+      });
+    }
     if(url.pathname.startsWith('/verify/skin/'))return new Response('Skin verification has been removed. Enter your IGN using Verify account in Discord.',{status:410,headers:{'Cache-Control':'no-store'}});
     if(url.pathname.startsWith('/api/v1/')||url.pathname.startsWith('/auth/discord/')){
       if(!env.DB)return json({error:'Storage unavailable'},503);

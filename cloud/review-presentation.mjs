@@ -2,7 +2,7 @@ import tierNetworkDirectory from "../config/tier-network-directory.json" with { 
 import { externalBanEmbed } from "./external-bans.mjs";
 const networkProfileLabel = {
   "identity-required": "Link a Minecraft account first",
-  unavailable: "Public profile unavailable",
+  unavailable: "Profile lookup failed",
   "identity-mismatch": "UUID mismatch · excluded",
   "profile-not-found": "No public profile returned · ban status unknown",
 };
@@ -18,10 +18,13 @@ function reviewNetworkCard(profiles, external) {
       p?.status === "profile-found"
         ? "**UUID matched** · " +
           p.modeCount +
-          " mode(s) · " +
+          " modes · " +
           (p.points ?? "—") +
-          " points"
-        : networkProfileLabel[p?.status] || "Not checked";
+          " points" +
+          (p.overall ? " · #" + p.overall : "") +
+          (p.badgeCount ? " · " + p.badgeCount + " badges" : "")
+        : (networkProfileLabel[p?.status] || "Not checked") +
+          (p?.failure ? " · " + p.failure : "");
     const link =
       p?.identity === "discord-match"
         ? "Linked Discord matches"
@@ -29,9 +32,22 @@ function reviewNetworkCard(profiles, external) {
           ? "Linked Discord differs: `" +
             p.linkedDiscord +
             "` · may be stale; not proof of an alt"
-          : "Linked Discord not published / not checked";
+          : p?.identity === "discord-not-provided"
+            ? "Discord link not published by this profile"
+            : "Discord link: not checked";
+    const access =
+      external.discoveredDiscordGuilds == null
+        ? "Unknown · server discovery failed"
+        : known.size === 0
+          ? "Invite directory unresolved"
+          : connected + " of " + known.size + " known servers connected";
     return {
-      name: network.name,
+      name:
+        (p?.status === "profile-found"
+          ? "🟢 "
+          : p?.status === "unavailable"
+            ? "🟠 "
+            : "⚪ ") + network.name,
       value:
         "[Website](" +
         network.url +
@@ -44,12 +60,10 @@ function reviewNetworkCard(profiles, external) {
         "\n" +
         link +
         "\n**Discord access:** " +
-        connected +
-        "/" +
-        known.size +
-        " resolved mode server(s) installed · " +
+        access +
+        "\n" +
         network.modes.length +
-        " published mode links\n**Ban history:** not provided by this public profile API",
+        " published mode links",
       inline: false,
     };
   });
@@ -57,7 +71,7 @@ function reviewNetworkCard(profiles, external) {
     title: "🔎 Tier Network Coverage",
     color: 0x8b70f5,
     description:
-      "Public identity records are separate from Discord ban evidence.",
+      "Identity, ranks and linked accounts. These public APIs do not supply ban history; use **Evidence** for accessible Discord records.",
     fields,
     footer: {
       text:
@@ -88,14 +102,20 @@ export function reviewPresentation(
       reading = external.messageReading;
     if (reading) {
       embed.fields.push({
-        name: "Moderation-channel Reading",
+        name: "Moderation Messages",
         value:
-          reading.channelsRead +
-          " channel(s) read · " +
-          reading.unavailable +
-          " unavailable\nRecent 20 messages in at most 2 matching channels per accessible network server. " +
-          (reading.partial ? "Partial history; " : "") +
-          "References are not current-ban confirmations.",
+          external.discoveredDiscordGuilds == null
+            ? "Not run · server discovery failed. Retry this check."
+            : !reading.installedNetworkGuilds && !reading.channelsRead
+              ? "Not run · no known network server connected. Partner access is required."
+              : reading.channelsRead +
+                " channels read · " +
+                reading.unavailable +
+                " unavailable · " +
+                reading.references.length +
+                " references\n" +
+                (reading.partial ? "Partial scan. " : "") +
+                "Up to 20 recent messages in 2 moderation channels per connected network server. References can include appeals and unbans.",
         inline: false,
       });
       for (const ref of reading.references.slice(0, 3))
@@ -117,7 +137,14 @@ export function reviewPresentation(
   else {
     const matched = profiles.filter((p) => p.status === "profile-found").length,
       links = profiles.filter((p) => p.identity === "discord-match").length,
-      diff = profiles.filter((p) => p.identity === "different-discord").length;
+      diff = profiles.filter((p) => p.identity === "different-discord").length,
+      unlinked = profiles.filter(
+        (p) => p.identity === "discord-not-provided",
+      ).length,
+      checked = external.sources.filter(
+        (s) =>
+          s.kind === "discord" && ["ban-found", "no-ban"].includes(s.status),
+      ).length;
     embeds = [
       {
         title: "🛡 Account Review",
@@ -148,17 +175,30 @@ export function reviewPresentation(
         fields: [
           {
             name: "External Discord Bans",
-            value: String(external.findings.length),
+            value:
+              external.findings.length +
+              " confirmed · " +
+              (external.discoveredDiscordGuilds == null
+                ? "coverage unknown"
+                : checked + " servers checked"),
             inline: true,
           },
           {
             name: "Other Bot Servers",
-            value: String(external.discoveredDiscordGuilds),
+            value:
+              external.discoveredDiscordGuilds == null
+                ? "Unknown · discovery failed"
+                : String(external.discoveredDiscordGuilds),
             inline: true,
           },
           {
             name: "Tier Profiles",
-            value: matched + "/3 UUID matched",
+            value:
+              matched +
+              "/3 UUID matched" +
+              (profiles.some((p) => p.status === "unavailable")
+                ? " · some lookups failed"
+                : ""),
             inline: true,
           },
           {
@@ -167,7 +207,11 @@ export function reviewPresentation(
               links +
               " match · " +
               diff +
-              " differ · other sources unlinked/unavailable",
+              " differ · " +
+              unlinked +
+              " unpublished · " +
+              (3 - matched) +
+              " not checked",
             inline: false,
           },
         ],

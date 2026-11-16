@@ -10,10 +10,10 @@ const externalText = (value, max = 300) =>
     .slice(0, max);
 export async function externalJSON(request, url, headers = {}, timeout = 5000) {
   const response = await request(url, {
-    headers,
-    redirect: "error",
-    credentials: "omit",
-    signal: AbortSignal.timeout(Math.max(1,Math.min(5000,timeout))),
+    headers: { Accept: "application/json", ...headers },
+    // Workers rejects "error" before sending. Manual also prevents credential forwarding.
+    redirect: "manual",
+    signal: AbortSignal.timeout(Math.max(1, Math.min(5000, timeout))),
   });
   if (Number(response.headers.get("content-length") || 0) > 131072)
     throw Error("Source response too large");
@@ -34,7 +34,29 @@ export async function externalJSON(request, url, headers = {}, timeout = 5000) {
     }
     text += decoder.decode();
   }
-  return { status: response.status, body: text ? JSON.parse(text) : null };
+  let body = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch (error) {
+      if (response.ok) throw error;
+    }
+  }
+  return { status: response.status, body };
+}
+
+export function externalFailure(error) {
+  if (typeof error === "number") {
+    if (error === 429) return "Rate limited · HTTP 429";
+    if (error >= 300 && error < 400) return "Redirect blocked · HTTP " + error;
+    return "HTTP " + error;
+  }
+  if (["TimeoutError", "AbortError"].includes(error?.name))
+    return "Request timed out · retry";
+  if (error instanceof SyntaxError) return "Invalid JSON response";
+  if (error?.message === "Source response too large")
+    return "Response exceeded size limit";
+  return "Connection failed · retry";
 }
 
 export async function externalBanChecks(env, target, account, request = fetch) {
@@ -43,22 +65,30 @@ export async function externalBanChecks(env, target, account, request = fetch) {
   const sources = [],
     findings = [],
     checkedAt = new Date().toISOString();
-  let discovered = 0,
+  let discovered = null,
+    discoveryStatus = "unavailable",
+    discoveryFailure,
     truncated = false;
-  let installedDiscordGuildIds=[];
+  let installedDiscordGuildIds = [];
   try {
     const list = await externalJSON(
       request,
       "https://discord.com/api/v10/users/@me/guilds?limit=100",
       { Authorization: "Bot " + env.DISCORD_TOKEN },
     );
-    if (list.status !== 200 || !Array.isArray(list.body))
+    if (list.status !== 200 || !Array.isArray(list.body)) {
+      discoveryFailure =
+        list.status !== 200
+          ? externalFailure(list.status)
+          : "Unexpected API response";
       throw Error("Guild discovery unavailable");
+    }
     const guilds = list.body.filter(
       (g) => externalSnowflake.test(g.id) && g.id !== env.DISCORD_GUILD_ID,
     );
     discovered = guilds.length;
-    installedDiscordGuildIds=guilds.map(g=>g.id);
+    discoveryStatus = "ok";
+    installedDiscordGuildIds = guilds.map((g) => g.id);
     truncated = list.body.length === 100 || guilds.length > 10;
     let cursor = 0;
     const rows = guilds.slice(0, 10),
@@ -104,20 +134,28 @@ export async function externalBanChecks(env, target, account, request = fetch) {
               } else if (result.status === 404 && result.body?.code === 10026)
                 source.status = "no-ban";
               else if (result.status === 403) source.status = "no-access";
-              else source.status = "unavailable";
-            } catch {
+              else {
+                source.status = "unavailable";
+                source.failure =
+                  result.status === 200
+                    ? "Unexpected API response"
+                    : externalFailure(result.status);
+              }
+            } catch (error) {
               source.status = "unavailable";
+              source.failure = externalFailure(error);
             }
           results[index] = source;
         }
       }),
     );
     sources.push(...results);
-  } catch {
+  } catch (error) {
     sources.push({
       name: "Discord server discovery",
       kind: "discord",
       status: "unavailable",
+      failure: discoveryFailure || externalFailure(error),
       checkedAt,
     });
   }
@@ -152,9 +190,10 @@ export async function externalBanChecks(env, target, account, request = fetch) {
           "UUID-matched public profile. This endpoint does not provide ban history.";
       } else if (result.status === 200) {
         hq.status = "identity-mismatch";
-      }
-    } catch {
+      } else hq.failure = externalFailure(result.status);
+    } catch (error) {
       hq.status = "unavailable";
+      hq.failure = externalFailure(error);
     }
   sources.push(
     hq,
@@ -182,6 +221,7 @@ export async function externalBanChecks(env, target, account, request = fetch) {
     sources,
     findings,
     discoveredDiscordGuilds: discovered,
+    discoveryStatus,
     installedDiscordGuildIds,
     truncated,
     checkedAt,
@@ -222,7 +262,9 @@ export function externalBanEmbed(report) {
           ? "[Public profile](" + s.profileUrl + ") · "
           : s.url
             ? "[Source](" + s.url + ") · "
-            : "") + labels[s.status],
+            : "") +
+        labels[s.status] +
+        (s.failure ? " · " + s.failure : ""),
       inline: false,
     })),
   );
@@ -232,13 +274,20 @@ export function externalBanEmbed(report) {
     description:
       "**" +
       report.findings.length +
-      " external Discord ban(s) returned** · " +
-      report.discoveredDiscordGuilds +
-      " other bot server(s) discovered\n" +
-      (report.discoveredDiscordGuilds === 0
-        ? "The bot is currently installed only in this community. Partner admins must install it and grant ban-read access.\n"
-        : "") +
-      "Minecraft profiles and missing feeds do not establish a clean ban history.",
+      " confirmed external ban(s)**\n" +
+      (report.discoveredDiscordGuilds == null
+        ? "Server discovery failed · Discord ban coverage unknown.\n"
+        : report.discoveredDiscordGuilds === 0
+          ? "No other installed servers returned. Partner admins must install the bot to enable Discord checks.\n"
+          : report.sources.filter(
+              (s) =>
+                s.kind === "discord" &&
+                ["ban-found", "no-ban"].includes(s.status),
+            ).length +
+            "/" +
+            report.discoveredDiscordGuilds +
+            " other servers checked successfully.\n") +
+      "Missing records and unavailable sources do not establish a clean history.",
     fields: [],
     footer: {
       text:

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   externalBanChecks,
   externalBanEmbed,
+  externalJSON,
 } from "../cloud/external-bans.mjs";
 
 const env = { DISCORD_GUILD_ID: "20000", DISCORD_TOKEN: "test-token" };
@@ -11,6 +12,78 @@ const target = "175928847299117063",
     name: "TestPlayer",
     uuid: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   };
+test("external requests run on Workers and block redirects without forwarding bot credentials", async () => {
+  const calls = [];
+  const request = async (url, options) => {
+    if (options.redirect === "error")
+      throw new TypeError("Unsupported redirect mode: error");
+    calls.push({ url, options });
+    return new Response("<html>Redirecting</html>", {
+      status: 302,
+      headers: { Location: "https://other.example" },
+    });
+  };
+  const result = await externalJSON(
+    request,
+    "https://discord.com/api/v10/users/@me/guilds?limit=100",
+    { Authorization: "Bot secret" },
+  );
+  assert.equal(result.status, 302);
+  assert.equal(result.body, null);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.redirect, "manual");
+});
+
+test("failed discovery is unknown, never evidence that the bot is installed in only one server", async () => {
+  const report = await externalBanChecks(
+    env,
+    target,
+    account,
+    async () => new Response("Upstream error", { status: 503 }),
+  );
+  assert.equal(report.discoveryStatus, "unavailable");
+  assert.equal(report.discoveredDiscordGuilds, null);
+  assert.match(report.sources[0].failure, /503/);
+  const embed = externalBanEmbed(report);
+  assert.match(embed.description, /discovery failed/i);
+  assert.doesNotMatch(
+    embed.description,
+    /only in this community|0 other bot server/,
+  );
+  assert.match(embed.fields[0].value, /503/);
+});
+
+test("external JSON distinguishes HTML failures, invalid JSON, timeouts and oversized responses", async () => {
+  assert.equal(
+    (
+      await externalJSON(
+        async () => new Response("Denied", { status: 403 }),
+        "https://source.example",
+      )
+    ).status,
+    403,
+  );
+  await assert.rejects(
+    externalJSON(
+      async () => new Response("<html>Blocked</html>"),
+      "https://source.example",
+    ),
+    SyntaxError,
+  );
+  await assert.rejects(
+    externalJSON(
+      async () => new Response("x".repeat(131073)),
+      "https://source.example",
+    ),
+    /too large/,
+  );
+  const report = await externalBanChecks(env, target, account, async () => {
+    throw new DOMException("private request information", "TimeoutError");
+  });
+  assert.match(report.sources[0].failure, /timed out/i);
+  assert.doesNotMatch(JSON.stringify(report), /private request information/);
+});
+
 test("cross-server checks preserve source evidence and distinguish no ban, no access and API failures", async () => {
   const request = async (url, options) => {
     if (url.endsWith("/users/@me/guilds?limit=100"))
