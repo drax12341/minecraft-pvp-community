@@ -18,6 +18,27 @@ export function referencePlan() {
     roles: staffRoleDefinitions,
   };
 }
+export function securityDeskOverwrites(guild, bot, roleIds) {
+  return [
+    { id: guild, type: 0, allow: "0", deny: String(P.ViewChannel) },
+    ...[...new Set(roleIds)].map((id) => ({
+      id,
+      type: 0,
+      allow: String(
+        P.ViewChannel | P.ReadMessageHistory | P.UseApplicationCommands,
+      ),
+      deny: "0",
+    })),
+    {
+      id: bot,
+      type: 1,
+      allow: String(
+        P.ViewChannel | P.SendMessages | P.ReadMessageHistory | P.EmbedLinks,
+      ),
+      deny: "0",
+    },
+  ];
+}
 export async function applyCommunityReference(env = process.env) {
   const guild = env.DISCORD_GUILD_ID;
   if (guild !== referencePlan().guild || !env.DISCORD_TOKEN)
@@ -204,6 +225,23 @@ export async function applyCommunityReference(env = process.env) {
     const c = bySlug.get(slug);
     if (!c) continue;
     try {
+      if (slug === "security-desk") {
+        const ids = [
+          ...(config.staffToolRoles?.security || []),
+          ...roles
+            .filter((r) =>
+              ["Community Moderator", "Moderator", "Testing Manager"].includes(
+                r.name,
+              ),
+            )
+            .map((r) => r.id),
+        ];
+        await rest.patch(Routes.channel(c.id), {
+          body: {
+            permission_overwrites: securityDeskOverwrites(guild, me.id, ids),
+          },
+        });
+      }
       const marker = "Mace Community · Reference refresh · " + slug;
       const messages = await rest.get(Routes.channelMessages(c.id), {
         query: new URLSearchParams({ limit: "100" }),
@@ -240,6 +278,28 @@ export async function applyCommunityReference(env = process.env) {
         components: components.length ? [{ type: 1, components }] : [],
         allowed_mentions: { parse: [] },
       };
+      if (slug === "security-desk")
+        body.components = [
+          {
+            type: 1,
+            components: [
+              {
+                type: 5,
+                custom_id: "review:choose",
+                placeholder: "Choose a member to review",
+                min_values: 1,
+                max_values: 1,
+              },
+            ],
+          },
+          {
+            type: 1,
+            components: [
+              button("Security Coverage", "review:security"),
+              button("Role Audit", "review:audit"),
+            ],
+          },
+        ];
       const message = old
         ? await rest.patch(Routes.channelMessage(c.id, old.id), { body })
         : await rest.post(Routes.channelMessages(c.id), { body });

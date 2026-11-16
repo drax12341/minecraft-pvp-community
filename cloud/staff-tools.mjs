@@ -1,3 +1,6 @@
+import { readNetworkReferences } from "./network-references.mjs";
+import { tierNetworkChecks } from "./tier-networks.mjs";
+import { reviewPresentation } from "./review-presentation.mjs";
 import { externalBanChecks, externalBanEmbed } from "./external-bans.mjs";
 import { buildAccountReview } from "./account-review.mjs";
 import config from "../config/community.json" with { type: "json" };
@@ -171,14 +174,25 @@ export async function runStaffTool(i, env, store, request = fetch) {
         "SELECT uuid,name FROM accounts WHERE discord=?",
         target,
       );
-      const external = await externalBanChecks(env, target, identity, request);
-      report.embeds.push(externalBanEmbed(external));
-      report.embeds[0].description = report.embeds[0].description.replace(
-        "Local evidence only.",
-        "Local + accessible external sources.",
+      const [external, networks] = await Promise.all([
+        externalBanChecks(env, target, identity, request),
+        tierNetworkChecks(identity, target, request),
+      ]);
+      external.messageReading = await readNetworkReferences(
+        env,
+        target,
+        identity,
+        external.installedDiscordGuildIds,
+        request,
       );
       await audit("account-signal-check", target);
-      return report;
+      return reviewPresentation(
+        report,
+        external,
+        networks,
+        target,
+        get("view") || "overview",
+      );
     }
     case "add-role":
     case "remove-role":

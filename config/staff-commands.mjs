@@ -29,7 +29,7 @@ export const staffCommands = [
     name: "alt-check",
     description:
       "Security: account signals and sourced local / accessible cross-server ban evidence",
-    options: [stUser()],
+    options: [stUser(),{type:3,name:"view",description:"Choose the review detail",choices:[{name:"Overview",value:"overview"},{name:"Full Stats",value:"stats"},{name:"Evidence",value:"evidence"},{name:"Tier Networks",value:"networks"}]}],
   },
   ...["add-role", "remove-role"].map((name) => ({
     name,

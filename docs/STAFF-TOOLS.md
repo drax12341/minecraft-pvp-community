@@ -79,7 +79,8 @@ silently removed or expanded the owner's native role configuration.
 
 ## Expanded account statistics
 
-`/alt-check user` now returns two compact, private cards with 24 fields:
+`/alt-check user` now defaults to a compact Overview. **Full Stats** retains the
+two private cards with 24 fields:
 account age/creation, server tenure/join date, role count, membership screening,
 local ban state, timeout, server boost, linked IGN/verification date, moderation
 counts, active restrictions/cooldowns, and explicitly qualified review signals;
@@ -91,6 +92,8 @@ Test counters exclude revoked results and staff awards. Peak placement includes
 valid reviewed staff placements. Case reasons, appeal text and evidence links
 are not included in the report. A Refresh Report button routes through the same
 security checks; a removed staff role cannot keep refreshing a cached report.
+Overview, Full Stats, Evidence and Networks are available as buttons and through
+the optional slash-command `view` argument.
 
 `/server-info` adds live member/presence/boost/channel/role counts and testing
 activity. `/security status` distinguishes ready native actions from missing
@@ -98,7 +101,7 @@ permissions and reports the current count of other bot servers.
 
 ## External ban checks · researched 16 November 2026
 
-The report now has a third card, **External Ban Evidence**. Discord discovery
+The Evidence view contains **External Ban Evidence**. Discord discovery
 uses the bot's own guild list, checks at most ten other servers with at most
 three concurrent requests, and requests each exact Discord user ID's ban entry.
 Ban Members, View Audit Log or Administrator access is required. A response is
@@ -134,6 +137,50 @@ Validation includes real public-profile probes, inaccessible/malformed sources,
 UUID mismatches, precise Discord error handling, token isolation and report-size
 limits. The current real probe found zero other bot guilds and therefore returned
 zero external Discord bans; no test finding was posted into the community.
+
+## Tier networks and authorized message reading · 16 November 2026
+
+The Networks view checks the three primary services directly:
+
+| Network | Verified public route | Identity rule |
+| --- | --- | --- |
+| MCTiers | `https://mctiers.net/api/v2/profile/{uuid}?badges` | Returned UUID must equal the locally linked Minecraft UUID |
+| PvPTiers | `https://pvptiers.com/api/profile/{uuid_without_dashes}` | Same exact UUID requirement |
+| SubTiers | `https://subtiers.net/api/players/{name}` | Even a same-name result is rejected if its UUID differs |
+
+The profile view shows public mode/points statistics and whether a published
+Discord ID matches, differs, or is absent. Different links may be stale and are
+never labelled proof of an alternate account. Public ranks and achievement
+badges are never inferred to be bans, and are not imported as local placements.
+Live probes succeeded for all three providers; their responses did not expose
+ban history. PvPTiers' current Blacklists route loads a placeholder component.
+
+The committed directory snapshot records 30 published mode links: nine MCTiers,
+nine PvPTiers and twelve SubTiers. Fourteen invite destinations resolved to public
+guild IDs; the rest remain explicitly unresolved. PvPTiers' published invite host
+could not resolve in this environment. This snapshot is not claimed to cover
+every support, staff, recruitment or blacklist server in those ecosystems.
+
+For resolved network guilds **present in the bot's own membership list**, the
+reader inspects up to two visible text/announcement channels whose names identify
+blacklists, ban logs, punishments or restrictions, limited to twenty recent
+messages per channel and a six-second reading budget. It matches exact Discord
+mentions or the exact linked Minecraft UUID; it does not match similar names.
+Matched messages receive a source link, escaped excerpt and match type, labelled
+as a moderation reference, not a current-ban verdict. An unban or appeal post
+therefore remains visible as context without becoming a new ban finding.
+Unavailable text/intents, failed requests, limited history and inaccessible
+channels never become a clean-history result. No other accounts' messages are
+persisted or posted. Private source access is not bypassed with personal tokens.
+
+`community-v4.mjs` installs **🛡┃security-desk** as a private security/moderation
+channel. A native member picker opens an ephemeral review; separate buttons open
+coverage and role audits. Channel access and every component handler enforce the
+existing security roles. Unrelated staff roles are excluded from this new desk.
+
+Primary research: [MCTiers OpenAPI](https://mctiers.net/api/openapi.json),
+[PvPTiers' official mod](https://github.com/PvPTiers/Tiers),
+[PvPTiers](https://pvptiers.com), [SubTiers](https://subtiers.net).
 
 ## Verification
 

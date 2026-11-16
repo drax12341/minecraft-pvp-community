@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile, cp, readdir } from "node:fs/promises";
 await import("./build.mjs");
 const config = JSON.parse(await readFile("config/community.json", "utf8"));
 let worker = `const config = ${JSON.stringify(config)};\n`;
+worker += `const tierNetworkDirectory = ${await readFile("config/tier-network-directory.json", "utf8")};\n`;
 const siteAssets={};
 async function collect(dir,prefix=""){
   for(const entry of await readdir(dir,{withFileTypes:true})){
@@ -16,7 +17,7 @@ async function collect(dir,prefix=""){
 }
 await collect("web");
 worker+=`const siteAssets = ${JSON.stringify(siteAssets)};\n`;
-for (const path of ["config/kit-manifests.mjs","config/competitive-commands.mjs","config/reference-commands.mjs","config/community-roles.mjs","config/command-policy.mjs","config/staff-commands.mjs","config/rubrics.mjs","config/testing-desk.mjs","config/community-desk.mjs","config/phase-checks.mjs","cloud/store.mjs","config/mojang-texture-keys.mjs","cloud/minecraft-profile.mjs","cloud/minecraft-lookup.mjs","cloud/verification.mjs","cloud/notification-maintenance.mjs","cloud/tester-management.mjs","cloud/analytics.mjs","cloud/result-presentation.mjs","cloud/delivery.mjs","cloud/platform-panels.mjs","cloud/loadouts.mjs","cloud/operations-store.mjs","cloud/operations.mjs","cloud/journeys.mjs","cloud/testing-desk.mjs","cloud/queue-panels.mjs","cloud/community-desk.mjs","cloud/competition-config.mjs","cloud/competition.mjs","cloud/setup-wizard.mjs","cloud/profiles.mjs","cloud/public-identity.mjs","cloud/placements.mjs","cloud/support-extensions.mjs","cloud/external-bans.mjs","cloud/account-review.mjs","cloud/staff-tools.mjs","cloud/commands.mjs","cloud/components.mjs","cloud/installation.mjs","cloud/website-auth.mjs","cloud/appearance.mjs","cloud/website-api.mjs","cloud/website-shell.mjs","cloud/worker.mjs"]) {
+for (const path of ["config/kit-manifests.mjs","config/competitive-commands.mjs","config/reference-commands.mjs","config/community-roles.mjs","config/command-policy.mjs","config/staff-commands.mjs","config/rubrics.mjs","config/testing-desk.mjs","config/community-desk.mjs","config/phase-checks.mjs","cloud/store.mjs","config/mojang-texture-keys.mjs","cloud/minecraft-profile.mjs","cloud/minecraft-lookup.mjs","cloud/verification.mjs","cloud/notification-maintenance.mjs","cloud/tester-management.mjs","cloud/analytics.mjs","cloud/result-presentation.mjs","cloud/delivery.mjs","cloud/platform-panels.mjs","cloud/loadouts.mjs","cloud/operations-store.mjs","cloud/operations.mjs","cloud/journeys.mjs","cloud/testing-desk.mjs","cloud/queue-panels.mjs","cloud/community-desk.mjs","cloud/competition-config.mjs","cloud/competition.mjs","cloud/setup-wizard.mjs","cloud/profiles.mjs","cloud/public-identity.mjs","cloud/placements.mjs","cloud/support-extensions.mjs","cloud/external-bans.mjs","cloud/network-references.mjs","cloud/tier-networks.mjs","cloud/review-presentation.mjs","cloud/account-review.mjs","cloud/staff-tools.mjs","cloud/commands.mjs","cloud/components.mjs","cloud/installation.mjs","cloud/website-auth.mjs","cloud/appearance.mjs","cloud/website-api.mjs","cloud/website-shell.mjs","cloud/worker.mjs"]) {
   let source = (await readFile(path, "utf8")).replace(/^\uFEFF/, "");
   source = source.replace(/^import[\s\S]*?;\r?\n/gm, "");
   worker += source + "\n";

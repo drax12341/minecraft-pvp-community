@@ -8,12 +8,12 @@ const externalText = (value, max = 300) =>
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/([\\`*_~<>\[\]])/g, "\\$1")
     .slice(0, max);
-async function externalJSON(request, url, headers = {}) {
+export async function externalJSON(request, url, headers = {}, timeout = 5000) {
   const response = await request(url, {
     headers,
     redirect: "error",
     credentials: "omit",
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(Math.max(1,Math.min(5000,timeout))),
   });
   if (Number(response.headers.get("content-length") || 0) > 131072)
     throw Error("Source response too large");
@@ -45,6 +45,7 @@ export async function externalBanChecks(env, target, account, request = fetch) {
     checkedAt = new Date().toISOString();
   let discovered = 0,
     truncated = false;
+  let installedDiscordGuildIds=[];
   try {
     const list = await externalJSON(
       request,
@@ -57,6 +58,7 @@ export async function externalBanChecks(env, target, account, request = fetch) {
       (g) => externalSnowflake.test(g.id) && g.id !== env.DISCORD_GUILD_ID,
     );
     discovered = guilds.length;
+    installedDiscordGuildIds=guilds.map(g=>g.id);
     truncated = list.body.length === 100 || guilds.length > 10;
     let cursor = 0;
     const rows = guilds.slice(0, 10),
@@ -180,6 +182,7 @@ export async function externalBanChecks(env, target, account, request = fetch) {
     sources,
     findings,
     discoveredDiscordGuilds: discovered,
+    installedDiscordGuildIds,
     truncated,
     checkedAt,
   };

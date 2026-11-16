@@ -103,6 +103,7 @@ export const referenceLayout = [
     aliases: ["🛡 STAFF", "10 · STAFF"],
     private: true,
     channels: [
+      ["🛡┃security-desk"],
       ["💬┃staff-chat", "staff-chat"],
       ["📋┃test-review", "test-review"],
       ["🚨┃moderation-log", "moderation-log"],
@@ -130,6 +131,10 @@ export const referenceLayout = [
 ];
 
 export const referenceGuides = {
+  "security-desk": [
+    "🛡 Security Desk",
+    "**Review the member. Follow the evidence.**\nChoose a member below. Reviews open privately with Overview, Stats, Evidence and Networks views.",
+  ],
   welcome: [
     "👋 Welcome to the Community",
     "**Play. Improve. Earn your tier.**\nVerify your Java IGN, pick your mode and join an open queue.",
