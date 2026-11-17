@@ -104,6 +104,7 @@ test("GitHub Pages entry boots the redesigned home, opens information and preser
   });
   let source = "";
   for (const name of [
+    "community-feed",
     "testing-desk",
     "league",
     "player-identity",
@@ -113,6 +114,7 @@ test("GitHub Pages entry boots the redesigned home, opens information and preser
   ]) {
     let moduleSource = (await readFile("web/" + name + ".js", "utf8"))
       .replace(/^import[\s\S]*?from\s+["'][^"']+["'];?\r?\n/gm, "")
+      .replaceAll("export const", "const")
       .replaceAll("export function", "function")
       .replaceAll("export async function", "async function");
     source +=

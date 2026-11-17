@@ -4,7 +4,7 @@ function run(args, allow = false) {
   if (r.status !== 0 && !allow) throw Error(r.stderr || "Git command failed");
   return r;
 }
-await import("./export-results.mjs");
+await import("./sync-community.mjs");
 run(["add", "--", "data/results.json", "data/testing.json"]);
 const changed = run(
   [

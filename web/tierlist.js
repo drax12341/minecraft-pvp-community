@@ -3,6 +3,7 @@ import {mountLeagueShell,renderLeagueWatchlist,renderLeagueInsights,renderLeague
 import {renderControlRoomHome} from './control-room.js?v=leaderboard-v3';
 import {renderOrbitHome} from './orbit-home.js?v=leaderboard-v3';
 import {renderPlayerIdentity,mountPlayerIdentity} from './player-identity.js?v=identity-v12';
+import {loadCommunityFeeds} from './community-feed.js?v=discord-sync-v1';
 const main = document.querySelector("main"),
   modal = document.querySelector("dialog"),
   body = document.querySelector("#modal-body");
@@ -32,6 +33,7 @@ let config,
   rankPage = 1,
   dataStale = false,
   refreshBusy = false,
+  publicDataSource = "snapshot",
   lastChecked = new Date();
 const storedPlayers = readPreference("savedPlayers", []);
 const savedPlayers = new Set(
@@ -98,6 +100,10 @@ const safeUrl = (s) => {
   } catch {
     return "#";
   }
+};
+const publicEvidenceLink = (result, className = '') => {
+  const url = safeUrl(result.evidence), available = url !== '#';
+  return `<a class="${className}" href="${available ? url : safeUrl(config.invite)}" target="_blank" rel="noopener noreferrer">${available ? 'Match evidence' : 'Review in Discord'}</a>`;
 };
 const toast = (s) => {
   const t = document.querySelector("#toast");
@@ -664,7 +670,7 @@ function profile(p) {
         .filter((r) => r.uuid === p.uuid)
         .map(
           (r) =>
-            `<div class="activity">${art(r.mode)}<strong>${kit(r.mode)?.name}</strong>${chip(r)}<a href="${safeUrl(r.evidence)}" target="_blank" rel="noopener">Evidence ↗</a><small>${esc(new Date(r.created).toLocaleDateString())}</small></div>`,
+            `<div class="activity">${art(r.mode)}<strong>${kit(r.mode)?.name}</strong>${chip(r)}${publicEvidenceLink(r)}<small>${esc(new Date(r.created).toLocaleDateString())}</small></div>`,
         )
         .join("") || '<p class="fine">No public test history available.</p>'
     }`,
@@ -1006,7 +1012,7 @@ function about() {
       )
       .join(
         " ",
-      )}</div><h2 style="margin-top:25px">Testing & appeals</h2><p>Sessions open by mode and region. Account ownership must be verified by staff. A tester cannot claim their own test. Results require evidence. Appeals are private staff records and cannot be reviewed by the original tester. Revoked results remain in the audit trail and are excluded from rankings.</p><p>Do not install unknown files, share passwords or expose personal information for a test. No cheating, boosting, harassment or account sharing.</p></section><section class="panel"><h2>Privacy & freshness</h2><p>The website reads this community’s published ranking and session snapshots from GitHub Pages. Discord has the latest session availability. If refresh fails, the last loaded snapshot is clearly marked. Discord account IDs, practice-post owners and private application or appeal text are never published in these feeds. No sign-in or analytics run on this static website.</p><p>Google Fonts and mc-heads.net serve fonts and avatars and receive normal network requests. Saved players and your motion, cursor and fireworks preferences are stored only in this browser. Testing drafts are saved in this browser so a refresh does not erase them. They are never submitted to the server by this website. Preview players are visibly marked and never become test records.</p><p>Ask staff in Discord for corrections, appeals or deletion. No affiliation with Mojang or Microsoft.</p><a class="button secondary" href="${config.invite}" target="_blank" rel="noopener">Contact staff ↗</a></section></div>`;
+      )}</div><h2 style="margin-top:25px">Testing & appeals</h2><p>Sessions open by mode and region. Account ownership must be verified by staff. A tester cannot claim their own test. Results require evidence. Appeals are private staff records and cannot be reviewed by the original tester. Revoked results remain in the audit trail and are excluded from rankings.</p><p>Do not install unknown files, share passwords or expose personal information for a test. No cheating, boosting, harassment or account sharing.</p></section><section class="panel"><h2>Privacy & freshness</h2><p>The website reads public rankings and testing sessions directly from our Discord bot. It refreshes every minute. A saved snapshot on GitHub Pages is available if the bot cannot be reached. If refresh fails, the last loaded snapshot is clearly marked. Discord account IDs, practice-post owners and private application or appeal text are never published in these feeds. The browser sends no account credentials to the public feed. No sign-in or analytics run on this static website.</p><p>Google Fonts and mc-heads.net serve fonts and avatars and receive normal network requests. Saved players and your motion, cursor and fireworks preferences are stored only in this browser. Testing drafts are saved in this browser so a refresh does not erase them. They are never submitted to the server by this website. Preview players are visibly marked and never become test records.</p><p>Ask staff in Discord for corrections, appeals or deletion. No affiliation with Mojang or Microsoft.</p><a class="button secondary" href="${config.invite}" target="_blank" rel="noopener">Contact staff ↗</a></section></div>`;
 }
 function staff() {
   main.innerHTML =
@@ -1035,13 +1041,14 @@ modal.addEventListener("click", (e) => {
   }
 });
 try {
-  [config, data, testing] = await Promise.all(
-    ["community", "results", "testing"].map(async (p) => {
-      const r = await fetch(`./data/${p}.json`);
-      if (!r.ok) throw Error("Data unavailable");
-      return r.json();
-    }),
-  );
+  const configResponse = await fetch('./data/community.json');
+  if (!configResponse.ok) throw Error('Community configuration unavailable');
+  config = await configResponse.json();
+  const initial = await readSiteFeeds(true);
+  data = initial.data;
+  testing = initial.testing;
+  publicDataSource = initial.source;
+  dataStale = initial.degraded;
   render();
   window.addEventListener("hashchange", () => {
     const update=()=>{modal.close();render();main.focus({preventScroll:true});};
@@ -1054,7 +1061,7 @@ try {
   setInterval(() => {
     if (
       document.visibilityState !== "hidden" &&
-      !modal.open &&
+      !document.querySelector('dialog[open]') &&
       !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)
     )
       refreshPublicData(false);
@@ -1145,10 +1152,10 @@ function decoratePage() {
     status.innerHTML =
       '<span class="availability-dot"></span><span>' +
       (dataStale
-        ? "Refresh failed · showing the last loaded snapshot"
+        ? "Discord sync unavailable · showing the last loaded snapshot"
         : location.hostname === "localhost" || location.hostname === "127.0.0.1"
           ? "Local preview snapshot"
-          : "Community data") +
+          : publicDataSource === 'discord' ? "Discord connected · refreshes every minute" : "Community data") +
       '</span><span class="checked-at">Checked ' +
       esc(
         lastChecked.toLocaleTimeString([], {
@@ -1189,30 +1196,31 @@ function decoratePage() {
     .querySelectorAll("[data-command]")
     .forEach((b) => (b.onclick = () => copyText(b.dataset.command)));
 }
+async function readSiteFeeds(allowSnapshot) {
+  if (document.documentElement.dataset.design === 'orbit-v1')
+    return loadCommunityFeeds({config, allowSnapshot});
+  const [data, testing] = await Promise.all(['results','testing'].map(async name => {
+    const response = await fetch('./data/' + name + '.json', {cache:'no-store',signal:AbortSignal.timeout(10000)});
+    if(!response.ok)throw Error('Unavailable');
+    return response.json();
+  }));
+  if(!Array.isArray(data.players)||!Array.isArray(testing.sessions))throw Error('Invalid feed');
+  return {data,testing,source:'snapshot',degraded:false};
+}
 async function refreshPublicData(manual) {
   if (refreshBusy) return;
   refreshBusy = true;
   decoratePage();
   try {
-    const result = await Promise.all(
-      ["results", "testing"].map(async (name) => {
-        const r = await fetch("./data/" + name + ".json", {
-          cache: "no-store",
-          signal: AbortSignal.timeout(10000),
-        });
-        if (!r.ok) throw Error("Unavailable");
-        return r.json();
-      }),
-    );
-    if (!Array.isArray(result[0].players) || !Array.isArray(result[1].sessions))
-      throw Error("Invalid feed");
-    data = result[0];
-    testing = result[1];
+    const result = await readSiteFeeds(false);
+    data = result.data;
+    testing = result.testing;
+    publicDataSource = result.source;
     dataStale = false;
     lastChecked = new Date();
     if (document.body.dataset.page === "testing")
       main.querySelector("#session-status")?.dispatchEvent(new Event("change"));
-    else if (!main.querySelector("form") && !modal.open) render();
+    else if (!main.querySelector("form") && !document.querySelector('dialog[open]')) render();
     if (manual) toast("Public data refreshed.");
   } catch {
     dataStale = true;
@@ -1264,9 +1272,7 @@ function resultsPage() {
               chip(r) +
               "<time>" +
               esc(new Date(r.created).toLocaleDateString()) +
-              '</time><a class="button secondary" href="' +
-              safeUrl(r.evidence) +
-              '" target="_blank" rel="noopener">Match evidence</a><a class="text-button" href="#rankings?player=' +
+              '</time>' + publicEvidenceLink(r, 'button secondary') + '<a class="text-button" href="#rankings?player=' +
               encodeURIComponent(r.uuid) +
               '">Profile</a></article>',
           )

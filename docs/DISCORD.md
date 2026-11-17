@@ -58,7 +58,7 @@ Run `node --env-file=.env discord/upgrade.mjs` for a read-only plan and add `--a
 
 ## Publishing & privacy
 
-Bot operations write public results/testing JSON to data/. Run `node scripts/publish-results.mjs` to export, validate, commit only those two public files and push to main. The resulting Pages deployment updates the public board and tagger feed. Private SQLite account, queue, audit and appeal records are not exported.
+The GitHub Pages website reads the live Discord bot's public results and testing feeds, refreshing every minute. Run `npm run sync:community` to update the saved fallback, or `node scripts/publish-results.mjs` to sync, commit only those public files and push to main. The Pages build also refreshes its fallback. See `docs/DISCORD-WEBSITE-SYNC.md`. Private accounts, staff actors, evidence and appeal records are not exported by the sync.
 
 No confidential appeal channel is required: appeals are handled through private command replies and protected API records. Ask staff for correction/deletion requests. Back up the SQLite file; a comprehensive self-service deletion UI and ticket attachments are not implemented.
 
