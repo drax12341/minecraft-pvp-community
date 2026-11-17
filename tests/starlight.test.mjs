@@ -129,7 +129,7 @@ test("GitHub Pages entry boots the redesigned home, opens information and preser
   d.querySelector('[data-info-open="counter"]').click();
   assert.equal(d.querySelector(".community-info").open, true);
   d.querySelector(".info-close").click();
-  d.querySelector("#motion-toggle").click();
+  d.querySelector("#performance-toggle").click();
   assert.ok(d.body.classList.contains("calm-view"));
   assert.equal(
     d.querySelector("#motion-toggle").getAttribute("aria-pressed"),

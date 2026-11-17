@@ -37,7 +37,7 @@ function home(players = [], snapshot = {}) {
 }
 test("the new homepage presents truthful empty rankings and queues without fake players or live claims", () => {
   const { dom, d } = home();
-  assert.match(d.querySelector("h1").textContent, /Leave your mark/);
+  assert.match(d.querySelector("h1").textContent, /Overall rankings/);
   assert.equal(d.querySelectorAll("[data-orbit-profile]").length, 0);
   assert.match(
     d.querySelector("#orbit-leaderboard").textContent,
@@ -53,7 +53,7 @@ test("the new homepage presents truthful empty rankings and queues without fake 
   );
   assert.equal(d.querySelector(".orbit-hero-stage"), null);
   assert.equal(d.querySelector("#orbit-explode"), null);
-  assert.equal(d.querySelector("#completed-tests").textContent, "?");
+  assert.equal(d.querySelector("#completed-tests").textContent, "\u2014");
   d.querySelector('[data-info-open="guide"]').click();
   assert.ok(d.querySelector(".community-info").open);
   assert.match(
@@ -84,15 +84,23 @@ test("home search, mode filters, saved controls and profiles operate on actual p
   assert.equal(d.querySelectorAll("[data-orbit-profile]").length, 0);
   dom.window.close();
 });
-test("tier calculator uses configured point values and does not publish simulated placements", () => {
+test("scoring information uses configured values without publishing simulated placements", () => {
   const { dom, d } = home();
-  d.querySelector("#orbit-tier").value = "HT2";
-  d.querySelector("#orbit-tier").dispatchEvent(new dom.window.Event("change"));
-  assert.match(d.querySelector("#orbit-tier-points").textContent, /30/);
-  assert.match(d.querySelector("#orbit-tier-note").textContent, /explorer/i);
+  d.querySelector('[data-info-open="scoring"]').click();
+  assert.ok(d.querySelector(".community-info").open);
+  const values = [...d.querySelectorAll(".info-points>span")];
+  assert.match(
+    values.find((s) => s.querySelector("b").textContent === "HT2").textContent,
+    /30 pts/,
+  );
+  assert.match(
+    d.querySelector(".community-info").textContent,
+    /never change published placements/,
+  );
   assert.equal(d.querySelectorAll("[data-orbit-profile]").length, 0);
   dom.window.close();
 });
+
 test("Pages serves the website directly and browser entrypoints do not depend on GPT hosting", async () => {
   const workflow = await readFile(".github/workflows/pages.yml", "utf8");
   assert.doesNotMatch(

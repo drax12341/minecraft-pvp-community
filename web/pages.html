@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#0b0a12" />
+    <meta name="theme-color" content="#0d1016" />
     <meta
       name="description"
       content="Mace Network: independent Minecraft PvP rankings, published testing sessions, player tools and seven Mace disciplines."
     />
-    <meta name="community-site-build" content="starlight-v2" />
+    <meta name="community-site-build" content="leaderboard-v3" />
     <title>Mace Network · Minecraft PvP Community</title>
     <meta
       property="og:title"
@@ -38,10 +38,10 @@
     <link rel="stylesheet" href="./site.css?v=identity-v12" />
     <link rel="stylesheet" href="./control-room.css?v=identity-v12" />
     <link rel="stylesheet" href="./player-identity.css?v=identity-v12" />
-    <script type="module" src="./tierlist.js?v=starlight-v2"></script>
-    <link rel="stylesheet" href="./orbit.css?v=starlight-v2" />
-    <link rel="stylesheet" href="./starlight.css?v=starlight-v2" />
-    <script type="module" src="./orbit-motion.js?v=starlight-v2"></script>
+    <script type="module" src="./tierlist.js?v=leaderboard-v3"></script>
+    <link rel="stylesheet" href="./orbit.css?v=leaderboard-v3" />
+    <link rel="stylesheet" href="./starlight.css?v=leaderboard-v3" />
+    <script type="module" src="./orbit-motion.js?v=leaderboard-v3"></script>
   </head>
   <body>
     <div class="orbit-world" aria-hidden="true">
@@ -71,9 +71,11 @@
       >
       <aside class="league-rail" id="league-rail">
         <nav aria-label="Main navigation">
-          <a href="#home">Home</a><a href="#rankings">Rankings</a
-          ><a href="#tagger">TierTagger</a><a href="#testing">Queues</a
-          ><a href="#insights">Analytics</a>
+          <a href="#home">Rankings</a><a href="#kits">Kits &amp; rules</a
+          ><a href="#test-desk">Testers</a><a href="#community">Community</a
+          ><a href="#high-tiers">Hall of fame</a
+          ><a href="#tagger">TierTagger <small class="nav-mod">Mod</small></a
+          ><a href="#results">Results</a>
           <details class="resource-menu">
             <summary>More <span aria-hidden="true">⌄</span></summary>
             <nav aria-label="Community resources">
@@ -92,6 +94,14 @@
         </nav>
       </aside>
       <div class="header-actions">
+        <a
+          class="header-test-total"
+          href="#home?info=counter"
+          aria-label="Completed community tests, click for information"
+          ><i class="live-dot" aria-hidden="true"></i
+          ><span>Tests completed</span
+          ><strong id="header-test-total">&mdash;</strong></a
+        >
         <details class="effects-menu">
           <summary aria-label="Visual settings">✧ <span>Visuals</span></summary>
           <div class="effects-panel">

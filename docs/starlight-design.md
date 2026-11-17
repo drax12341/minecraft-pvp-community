@@ -1,37 +1,54 @@
-﻿# Celestial homepage refresh
+# Leaderboard homepage
 
-The public entry remains `web/pages.html` → `dist/index.html`, hosted at
-https://drax12341.github.io/minecraft-pvp-community/. No hosting changes.
+Public site: https://drax12341.github.io/minecraft-pvp-community/
+Entry: `web/pages.html`, built to `dist/index.html` with `npm run build`.
 
-Reference study:
-- https://tiery.pl/: test total, recent/high-tier feeds, tier navigation, information controls and performance preference.
-- https://www.mcpvp.com/tiers: compact mode navigation and searchable rankings.
-- https://tatnatyt.github.io/eclipse-website/: source inspection of eclipse halo, starfield, shooting stars, cursor ring/glow and click dust. Original effects implemented here; no reference scripts or assets imported.
+The owner's screenshots are the layout reference: compact navigation, top test
+counter, left test-activity rail, a slim circuit strip, original pixel-art mode
+tabs, a community banner and wide podium/player rows. The previous landing-page
+hero and eclipse illustration are removed. The board opens immediately at the
+root URL. Search, region, saved-player filters and 25-player pagination all work
+on published records. Search retains a player's position within the selected
+mode and region. Mode/region changes are reflected in a shareable homepage URL.
 
-Design: deep violet background (#0b0a12), layered panels (#13111e), lilac accent
-(#bba5ff), white text (#f0edf9), muted text (#aaa4bd). Existing Manrope and Space
-Grotesk fonts stay. A centered eclipse replaces the large Mace illustration;
-results and modes follow immediately below the hero. Native information dialogs
-explain testing, scoring and the counter. Existing player tools remain available.
+Original PNGs under `web/assets/modes/` are unchanged. The first seven tabs match
+the owner's screenshot order: Overall, Rod, OG, LT, Rocket, HT, Spear. The existing
+base Mace discipline remains accessible as the final tab. Images use pixelated
+rendering, full opacity and no recoloring. Podium rows use actual UUID skin
+renders, with neutral local placeholders on image errors. Per-mode tier badges
+show mode icons, tier labels, and keyboard-accessible tooltips.
 
-Data flow: server/cloud Store.rankings → published results snapshot → relative
-`./data/results.json` fetch → homepage. `completedTests` counts all non-revoked
-tests before the 100-item recent-feed cap. Repeat tests count individually;
-cloud adjustments/resets do not count. Missing totals display a dash. The empty
-checked-in snapshot explicitly reports zero. Totals update with published
-snapshots, not live Discord activity. No player placements are generated.
+Palette: charcoal #0d1016, surface #12151c, red #f04c68, gold #e9bf60,
+silver #bfcddd, bronze #dc9564. Existing Manrope and Space Grotesk fonts remain.
+Only the community's own Discord/practice links are used; no reference-site
+sponsors, public rankings or branding are imported.
 
-Motion: one capped-DPR canvas, 30fps, at most 104 burst particles; mobile uses
-fewer stars. Reduced motion stops the loop and renders a static sky. Hidden tabs
-cancel frames. The cursor only appears for fine pointers; the native pointer
-remains usable. Cursor/fireworks preferences use local storage; the existing
-calm preference controls all motion. No dependencies or external services added.
+Data: server/cloud Store.rankings -> published results.json -> relative browser
+fetch -> leaderboard. Total tests count repeat tests before the 100-result feed
+cap. Revoked tests and cloud staff adjustments are excluded. Missing totals show
+a dash; the empty initial snapshot reports zero. Demo players, malformed UUIDs,
+unknown disciplines and invalid ranks cannot become rows on this board. No
+fixture records are committed or published. Current production records are empty.
 
-Validation: automated Pages-entry boot, filters, dialogs, escaping, repeat-test
-counts above 100, revoked/adjustment exclusions, preference persistence and
-reduced-motion/hidden-tab cancellation. Full suite and production build pass;
-npm audit reports zero known advisories. Browser host unavailable, so rendered
-visuals, keyboard focus behavior and mobile layouts still need browser QA.
-Graphify runtime unavailable (no Python/Graphify installed); relationships above
-were traced directly. OmniRoute setup was reviewed; an AI gateway is not needed
-for this static website refresh.
+Effects: one bounded canvas for stars, shooting stars and small bursts. The
+prominent performance toggle reuses the existing persisted calm preference.
+Reduced motion/hidden tabs stop animation; cursor/fireworks have their own
+preferences. The native cursor remains usable. Test activity uses native modal
+drawers with Escape/backdrop closing. Information dialogs explain testing,
+scoring and what the test total means.
+
+Verification: full Node suite, production build and dependency audit. A temporary
+Playwright Core install in ignored `.runtime/browser-qa` drives an isolated
+headless Chrome process against localhost; it is not a project dependency.
+Rendered screenshots reviewed for the empty production state and populated test
+fixtures. Layout checked at 320, 360, 390, 480, 650, 768, 900, 1024, 1280, 1440
+and 1920 pixels: no horizontal document overflow, no page errors, icons keep
+filter:none. Real-browser checks cover search, pagination, drawer Escape, native
+information dialogs and the slash shortcut. Fixture responses are test-process
+only and never reach the published data files.
+
+References: https://tiery.pl/, https://www.mcpvp.com/tiers and
+https://tatnatyt.github.io/eclipse-website/, plus the owner's two screenshots.
+Graphify runtime remains unavailable; relationships were traced directly.
+OmniRoute is not needed for this static website. GitHub Pages is the only public
+website host. Existing Discord infrastructure is unchanged.

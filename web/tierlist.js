@@ -1,7 +1,7 @@
-import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=starlight-v2';
+import { renderHighTiers,renderTestDesk,renderCommandLibrary } from './testing-desk.js?v=leaderboard-v3';
 import {mountLeagueShell,renderLeagueWatchlist,renderLeagueInsights,renderLeaguePlanner} from './league.js?v=identity-v12';
-import {renderControlRoomHome} from './control-room.js?v=starlight-v2';
-import {renderOrbitHome} from './orbit-home.js?v=starlight-v2';
+import {renderControlRoomHome} from './control-room.js?v=leaderboard-v3';
+import {renderOrbitHome} from './orbit-home.js?v=leaderboard-v3';
 import {renderPlayerIdentity,mountPlayerIdentity} from './player-identity.js?v=identity-v12';
 const main = document.querySelector("main"),
   modal = document.querySelector("dialog"),
@@ -165,7 +165,7 @@ function render() {
   if (route === "rankings") readRankingScope();
   document.body.dataset.page = route;
   const deskTitles={'high-tiers':'HT3+ roster','test-desk':'Testing desk',commands:'Testing commands'};
-  document.title = `${{ home: "The arena", rankings: "Rankings", testing: "Testing center", kits: "Kits & rules", tagger: "Tier tagger", sponsors: "Support us", about: "Rules & privacy", staff: "Staff console", results: "Results", community: "Community", watchlist: "Saved players", insights: "Community insights", planner: "Tier explorer" }[route] || "Rankings"} · Minecraft PvP Tierlist`;
+  document.title = `${{ home: "Community rankings", rankings: "Rankings", testing: "Testing center", kits: "Kits & rules", tagger: "Tier tagger", sponsors: "Support us", about: "Rules & privacy", staff: "Staff console", results: "Results", community: "Community", watchlist: "Saved players", insights: "Community insights", planner: "Tier explorer" }[route] || "Rankings"} · Minecraft PvP Tierlist`;
   (
     ({
       home,
@@ -1130,9 +1130,13 @@ function commandRow(command, description) {
   );
 }
 function decoratePage() {
+ const headerTotal=document.querySelector('#header-test-total');
+ if(headerTotal)headerTotal.textContent=Number.isSafeInteger(data.completedTests)&&data.completedTests>=0?data.completedTests.toLocaleString():'\u2014';
   const refresh=document.querySelector('#header-refresh');
   if(refresh){refresh.disabled=refreshBusy;refresh.classList.toggle('refreshing',refreshBusy);}
   document.body.classList.toggle("calm-view", readPreference("calm", false));
+  const performanceButton=document.querySelector('#performance-toggle');
+  if(performanceButton)performanceButton.setAttribute('aria-pressed',String(readPreference('calm',false)));
   const motion=document.querySelector('#motion-toggle');
   if(motion){motion.setAttribute('aria-pressed',String(readPreference('calm',false)));motion.textContent=readPreference('calm',false)?'Motion reduced':'Motion on';}
   const status = document.querySelector("#data-status");
