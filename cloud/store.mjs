@@ -518,6 +518,7 @@ export class CloudStore {
     return {
       updatedAt: new Date().toISOString(),
       unrankedPlayers:[...players.values()].filter(p=>!Object.keys(p.rankings).length),
+      completedTests: rows.filter(r => r.record_type === 'test').length,
       players: [...players.values()].filter(p=>Object.keys(p.rankings).length).sort(
         (a, b) => b.points - a.points || a.uuid.localeCompare(b.uuid),
       ),

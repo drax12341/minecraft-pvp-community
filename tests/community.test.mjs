@@ -104,3 +104,16 @@ test("HTTP guards reject unauthorized writes, invalid tiers and traversal", asyn
   assert.equal((await fetch(base + "/%2e%2e%5cpom.xml")).status, 403);
   assert.equal((await fetch(base + "/%2e%2e%2fpom.xml")).status, 403);
 });
+
+test('local public snapshot counts repeat tests without the recent-feed cap and removes revoked tests', () => {
+  const store=new Store(':memory:');
+  try {
+    const insert=store.db.prepare('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created) VALUES(?,?,?,?,?,?,?,?,?,?)');
+    for(let i=0;i<103;i++) insert.run('total-'+i,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','RepeatPlayer','EU','mace',3,0,'20000','https://example.com','2026-11-17T12:00:00Z');
+    store.db.prepare('INSERT INTO revoked VALUES(?,?,?,?)').run('total-0','90000','Private reason','2026-11-17T12:00:00Z');
+    const snapshot=store.rankings(points);
+    assert.equal(snapshot.completedTests,102);
+    assert.equal(snapshot.recent.length,100);
+    assert.equal(snapshot.players.length,1);
+  } finally {store.close();}
+});

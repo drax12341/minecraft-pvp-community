@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#090e15" />
+    <meta name="theme-color" content="#0b0a12" />
     <meta
       name="description"
       content="Mace Network: independent Minecraft PvP rankings, published testing sessions, player tools and seven Mace disciplines."
     />
-    <meta name="community-site-build" content="orbit-v1" />
+    <meta name="community-site-build" content="starlight-v2" />
     <title>Mace Network · Minecraft PvP Community</title>
     <meta
       property="og:title"
@@ -38,9 +38,10 @@
     <link rel="stylesheet" href="./site.css?v=identity-v12" />
     <link rel="stylesheet" href="./control-room.css?v=identity-v12" />
     <link rel="stylesheet" href="./player-identity.css?v=identity-v12" />
-    <script type="module" src="./tierlist.js?v=orbit-v1"></script>
-    <link rel="stylesheet" href="./orbit.css?v=orbit-v1" />
-    <script type="module" src="./orbit-motion.js?v=orbit-v1"></script>
+    <script type="module" src="./tierlist.js?v=starlight-v2"></script>
+    <link rel="stylesheet" href="./orbit.css?v=starlight-v2" />
+    <link rel="stylesheet" href="./starlight.css?v=starlight-v2" />
+    <script type="module" src="./orbit-motion.js?v=starlight-v2"></script>
   </head>
   <body>
     <div class="orbit-world" aria-hidden="true">
@@ -91,6 +92,28 @@
         </nav>
       </aside>
       <div class="header-actions">
+        <details class="effects-menu">
+          <summary aria-label="Visual settings">✧ <span>Visuals</span></summary>
+          <div class="effects-panel">
+            <strong>Make it your space</strong>
+            <p>Choose the effects you enjoy.</p>
+            <button
+              id="motion-toggle"
+              class="motion-toggle"
+              aria-pressed="false"
+              aria-label="Reduce animation"
+            >
+              Motion on
+            </button>
+            <button id="cursor-toggle" aria-pressed="true">
+              Cursor glow <span>On</span>
+            </button>
+            <button id="fireworks-toggle" aria-pressed="true">
+              Fireworks <span>On</span>
+            </button>
+            <small>Reduced motion always takes priority.</small>
+          </div>
+        </details>
         <button
           id="global-kit-search"
           class="global-kit-search"
@@ -125,13 +148,6 @@
           >
             <path d="M20 10a8 8 0 1 0-2 8M20 3v7h-7" />
           </svg></button
-        ><button
-          id="motion-toggle"
-          class="motion-toggle"
-          aria-pressed="false"
-          aria-label="Reduce animation"
-        >
-          Motion on</button
         ><a
           class="cr-discord-button"
           href="https://discord.gg/a36rg6BxuX"

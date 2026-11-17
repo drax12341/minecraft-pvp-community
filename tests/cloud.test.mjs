@@ -1596,3 +1596,17 @@ test('closed queue interactions deliver Components V2 privately without leaking 
   assert.ok(menu.options.every(o=>typeof o.label==='string'&&o.label.length>0));assert.ok(menu.options.some(o=>o.value==='tester-report'));
  }finally{sql.close();}
 });
+
+test('published total counts every repeated test beyond the 100-result feed and excludes revoked or adjustment records', async () => {
+  const {sql,store}=await database();
+  try {
+    const stamp='2026-11-17T12:00:00Z';
+    for(let i=0;i<106;i++) await store.statement('INSERT INTO results(id,uuid,name,region,mode,tier,pos,tester,evidence,created,record_type) VALUES(?,?,?,?,?,?,?,?,?,?,?)','count-'+i,'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','RepeatPlayer','EU','mace',3,0,'50001','Private evidence',stamp,i===105?'adjustment':'test').run();
+    await store.statement('INSERT INTO revoked VALUES(?,?,?,?)','count-0','30000','Private reason',stamp).run();
+    const snapshot=await store.rankings(config.points);
+    assert.equal(snapshot.completedTests,104);
+    assert.equal(snapshot.recent.length,100);
+    assert.equal(snapshot.players.length,1);
+    assert.doesNotMatch(JSON.stringify(snapshot), /Private reason|50001|30000/);
+  } finally {sql.close();}
+});

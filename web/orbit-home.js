@@ -2,7 +2,7 @@ import {
   controlRoomSnapshot,
   selectControlPlayers,
   crPoints,
-} from "./control-room.js?v=orbit-v1";
+} from "./control-room.js?v=starlight-v2";
 
 const html = (value) =>
   String(value ?? "").replace(
@@ -34,7 +34,7 @@ export function renderOrbitHome({
 }) {
   const doc = main.ownerDocument,
     win = doc.defaultView;
-  doc.body.dataset.exploded = "false";
+
   const stats = controlRoomSnapshot(data, testing, config);
   const scope = { mode: "overall", region: "all", query: "", sort: "points" };
   const date = Number.isFinite(Date.parse(data.updatedAt))
@@ -46,19 +46,16 @@ export function renderOrbitHome({
     : "Awaiting first publication";
   main.innerHTML = `
     <section class="orbit-hero" aria-labelledby="orbit-heading">
+      <div class="celestial-eclipse" aria-hidden="true"><i></i><span></span></div>
       <div class="orbit-hero-copy">
-        <p class="orbit-intro"><span class="orbit-status-dot"></span> Independent Minecraft PvP</p>
-        <h1 id="orbit-heading"><span>Drop in.</span><span>Stand out.</span></h1>
-        <p class="orbit-lede">One community. Seven ways to master the Mace.<br>Find your competition. Earn your place.</p>
-        <div class="orbit-actions"><a class="button" href="#rankings">Explore rankings ${arrow}</a><a class="orbit-link" href="#test-desk">Get tested ${arrow}</a></div>
-        <div class="orbit-hero-note"><span class="orbit-mini-mace">${icon("mace")}</span><p>Every placement earned.<br><strong>Every result, our own.</strong></p></div>
+        <p class="orbit-intro"><span class="orbit-status-dot"></span> Your community. Your competition.</p>
+        <h1 id="orbit-heading">Leave your mark.</h1>
+        <p class="orbit-lede">Seven disciplines. One place to prove yourself.<br>Discover the players shaping Mace PvP.</p>
+        <div class="orbit-actions"><a class="button" href="#rankings">Explore rankings ${arrow}</a><button class="orbit-link" data-info-open="guide">How to get tested <span aria-hidden="true">?</span></button></div>
+        <button class="test-counter" data-info-open="counter" aria-label="About the completed test count"><span class="counter-spark" aria-hidden="true">?</span><span>We've completed <strong id="completed-tests">${Number.isSafeInteger(data.completedTests) && data.completedTests >= 0 ? data.completedTests.toLocaleString() : "?"}</strong> tests</span><span class="counter-info" aria-hidden="true">i</span></button>
+        <p class="counter-caption">Every test counts. Every comeback, too.</p>
       </div>
-      <div class="orbit-hero-stage" aria-label="Interactive Mace illustration">
-        <span class="orbit-scene-caption">The Mace / built to make an impact</span>
-        <div class="orbit-scene-label"><span class="orbit-crosshair" aria-hidden="true">+</span><span>Heavy core<br><strong>One perfect hit.</strong></span></div>
-        <button class="orbit-scene-control" id="orbit-explode" aria-pressed="false">Break it apart <span aria-hidden="true">↗</span></button>
-      </div>
-      <a class="orbit-scroll" href="#home?section=disciplines" data-orbit-scroll="orbit-disciplines"><span>Find your discipline</span><span aria-hidden="true">↓</span></a>
+      <a class="orbit-scroll" href="#home?section=disciplines" data-orbit-scroll="orbit-disciplines"><span>Find your discipline</span><span aria-hidden="true">?</span></a>
     </section>
     <div class="orbit-proof" aria-label="Community snapshot">
       <div><strong data-orbit-count="${stats.players}">${stats.players}</strong><span>Ranked players</span></div>
@@ -66,12 +63,17 @@ export function renderOrbitHome({
       <div><strong>${config.modes.length}</strong><span>Mace disciplines</span></div>
       <div class="orbit-proof-note"><span class="orbit-status-dot"></span><span>Published community data<small>${html(date)}</small></span></div>
     </div>
+    <section class="orbit-section test-pulse" aria-labelledby="pulse-heading">
+      <div class="pulse-heading"><div><p class="orbit-section-note">The latest from the arena</p><h2 id="pulse-heading">Every fight leaves a story.</h2></div><button class="info-button" data-info-open="scoring" aria-label="How tier scoring works">i</button></div>
+      <div class="pulse-tabs" role="group" aria-label="Result feed"><button data-pulse="recent" aria-pressed="true">Recent tests</button><button data-pulse="high" aria-pressed="false">High-tier results <span>HT3+</span></button><a href="#results">All results ${arrow}</a></div>
+      <div id="test-pulse-feed" aria-live="polite"></div>
+    </section>
     <section class="orbit-section" id="orbit-disciplines" aria-labelledby="disciplines-heading">
-      <div class="orbit-section-head"><div><p class="orbit-section-note">Pick your playstyle</p><h2 id="disciplines-heading">Same weapon.<br>Different game.</h2></div><p>From the first drop to the last rocket.<br>Every discipline has its own board.</p></div>
+      <div class="orbit-section-head"><div><p class="orbit-section-note">Pick your playstyle</p><h2 id="disciplines-heading">Find your edge.</h2></div><p>From the first drop to the last rocket.<br>Every discipline has its own board.</p></div>
       <div class="orbit-disciplines">${config.modes.map((m, n) => `<button class="orbit-discipline" data-orbit-open="${html(m.id)}" data-orbit-color="${html(m.color)}" style="--discipline:${html(m.color)}"><span class="orbit-discipline-icon">${icon(m.id)}</span><span><small>${n === 0 ? "The original" : "Mace discipline"}</small><strong>${html(m.name)}</strong></span><span class="orbit-discipline-arrow" aria-hidden="true">↗</span></button>`).join("")}</div>
     </section>
     <section class="orbit-section orbit-board-section" aria-labelledby="board-heading">
-      <div class="orbit-section-head"><div><p class="orbit-section-note">The community board</p><h2 id="board-heading">A place worth earning.</h2></div><a class="orbit-link" href="#rankings">Full tier board ${arrow}</a></div>
+      <div class="orbit-section-head"><div><p class="orbit-section-note">The community board</p><h2 id="board-heading">The community tierlist.</h2></div><a class="orbit-link" href="#rankings">Full tier board ${arrow}</a></div>
       <div class="orbit-mode-tabs" role="group" aria-label="Filter leaderboard by discipline"><button data-orbit-mode="overall" aria-pressed="true">${icon("overall")}Overall</button>${config.modes.map((m) => `<button data-orbit-mode="${html(m.id)}" aria-pressed="false">${icon(m.id)}${html(m.name)}</button>`).join("")}</div>
       <div class="orbit-board-layout"><div class="orbit-board">
         <div class="orbit-board-controls"><label class="orbit-search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></svg><input id="orbit-player-search" type="search" placeholder="Find a player…" aria-label="Search leaderboard" maxlength="64"></label><label class="orbit-region"><span class="sr-only">Region</span><select id="orbit-region"><option value="all">All regions</option>${["EU", "NA", "AS", "AU", "OC", "SA", "ME", "AF"].map((r) => `<option>${r}</option>`).join("")}</select></label></div>
@@ -95,6 +97,125 @@ export function renderOrbitHome({
       <article class="orbit-tagger-tool" id="orbit-tagger"><div class="orbit-nametag-demo" aria-label="Example TierTagger nametag"><span>Example nametag</span><strong><b>HT3</b> YourName</strong><div class="orbit-pixel-head" aria-hidden="true"><i></i><i></i></div></div><div><p class="orbit-section-note">Take your tier with you</p><h2>Your game.<br>Your signature.</h2><p>Show your community placement in Minecraft with TierTagger.</p><a class="orbit-link" href="#tagger">Explore TierTagger ${arrow}</a></div></article>
     </section>
     <section class="orbit-final orbit-section"><p class="orbit-section-note">The board starts with a fight.</p><h2>Make the next one count.</h2><a class="button" href="${html(config.invite)}" target="_blank" rel="noopener noreferrer">Join the community ${arrow}</a><span aria-hidden="true" class="orbit-final-word">MACE</span></section>`;
+
+  const dialog = doc.createElement("dialog");
+  dialog.className = "community-info";
+  dialog.setAttribute("aria-labelledby", "community-info-title");
+  main.append(dialog);
+  const panels = {
+    counter: [
+      "Every test counts.",
+      "<p>This total counts completed, published community tests, including repeat tests by the same player. Revoked results are excluded. Staff adjustments and tier previews do not count.</p><p>The counter updates when a new snapshot is published and refreshed. A dash means the current snapshot does not include a total yet.</p>",
+    ],
+    guide: [
+      "Your next placement starts here.",
+      '<ol><li><strong>Join the community.</strong><p>Open Discord and follow the account verification instructions.</p></li><li><strong>Choose your discipline.</strong><p>Pick a mode and region, then join an available testing session.</p></li><li><strong>Play. Learn. Climb.</strong><p>A qualified tester reviews your match evidence. Published results appear on your profile.</p></li></ol><a class="button" href="#test-desk" data-info-route>Open the testing desk ?</a>',
+    ],
+    scoring: [
+      "Earn your place.",
+      '<p>Points come from your published placements. The board totals active placements; each mode has its own tier ranking.</p><div class="info-points">' +
+        Object.entries(config.points)
+          .map(
+            ([rank, points]) =>
+              "<span><b>" + html(rank) + "</b>" + html(points) + " pts</span>",
+          )
+          .join("") +
+        '</div><p>Tier explorers are previews and never change a player?s real placement.</p><a class="orbit-link" href="#kits" data-info-route>Read kits & rules ?</a>',
+    ],
+  };
+  main.querySelectorAll("[data-info-open]").forEach((button) => {
+    button.onclick = () => {
+      const [title, content] = panels[button.dataset.infoOpen];
+      dialog.innerHTML =
+        '<button class="info-close" aria-label="Close information">?</button><span class="info-orbit" aria-hidden="true">?</span><h2 id="community-info-title">' +
+        title +
+        "</h2>" +
+        content;
+      dialog.querySelector(".info-close").onclick = () => dialog.close();
+      dialog
+        .querySelectorAll("[data-info-route]")
+        .forEach((link) => (link.onclick = () => dialog.close()));
+      dialog.showModal();
+    };
+  });
+  dialog.onclick = (event) => {
+    if (event.target === dialog) {
+      const box = dialog.getBoundingClientRect();
+      if (
+        event.clientX < box.left ||
+        event.clientX > box.right ||
+        event.clientY < box.top ||
+        event.clientY > box.bottom
+      )
+        dialog.close();
+    }
+  };
+  let pulseScope = "recent";
+  function drawPulse() {
+    const recent = [...(data.recent || [])]
+      .filter(
+        (r) =>
+          r.tier >= 1 &&
+          r.tier <= 5 &&
+          (pulseScope !== "high" ||
+            r.tier < 3 ||
+            (r.tier === 3 && r.pos === 0)),
+      )
+      .sort(
+        (a, b) => (Date.parse(b.created) || 0) - (Date.parse(a.created) || 0),
+      )
+      .slice(0, 5);
+    main.querySelector("#test-pulse-feed").innerHTML = recent.length
+      ? recent
+          .map(
+            (r) =>
+              '<a class="pulse-result" href="#rankings?player=' +
+              encodeURIComponent(r.uuid) +
+              '">' +
+              avatar(r) +
+              "<span><strong>" +
+              html(r.name) +
+              "</strong><small>" +
+              html(config.modes.find((m) => m.id === r.mode)?.name || r.mode) +
+              " ? " +
+              html(r.region) +
+              '</small></span><b class="orbit-tier-badge" data-tier="' +
+              Number(r.tier) +
+              '">' +
+              html(tier(r)) +
+              "</b><time>" +
+              html(
+                Number.isFinite(Date.parse(r.created))
+                  ? new Date(r.created).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "short",
+                    })
+                  : "Published",
+              ) +
+              '</time><span aria-hidden="true">?</span></a>',
+          )
+          .join("")
+      : '<div class="pulse-empty"><span aria-hidden="true">?</span><div><strong>' +
+        (pulseScope === "high"
+          ? "The next breakthrough belongs here."
+          : "A new chapter is about to begin.") +
+        "</strong><p>" +
+        (pulseScope === "high"
+          ? "Published HT3 and higher results will appear here."
+          : "Completed community tests will appear here. Ready to be first?") +
+        '</p></div><a href="#testing">Find a session ?</a></div>';
+  }
+  main.querySelectorAll("[data-pulse]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        pulseScope = button.dataset.pulse;
+        main
+          .querySelectorAll("[data-pulse]")
+          .forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+        drawPulse();
+      }),
+  );
+  drawPulse();
 
   function draw() {
     const rows = selectControlPlayers(data.players, config, scope, saved);
@@ -185,24 +306,11 @@ export function renderOrbitHome({
       `<strong>${Number(config.points[main.querySelector("#orbit-tier").value]) || 0}</strong><span>points</span>`;
   };
   main.querySelector("#orbit-tier").onchange = updateTier;
-  main.querySelector("#orbit-explode").onclick = (event) => {
-    const button = event.currentTarget,
-      expanded = button.getAttribute("aria-pressed") !== "true";
-    button.setAttribute("aria-pressed", String(expanded));
-    button.innerHTML =
-      (expanded ? "Rebuild the Mace" : "Break it apart") +
-      ' <span aria-hidden="true">↗</span>';
-    doc.body.dataset.exploded = String(expanded);
-  };
   main.querySelector("[data-orbit-scroll]").onclick = (event) => {
     event.preventDefault();
-    main
-      .querySelector("#orbit-disciplines")
-      .scrollIntoView?.({
-        behavior: doc.body.classList.contains("calm-view")
-          ? "instant"
-          : "smooth",
-      });
+    main.querySelector("#orbit-disciplines").scrollIntoView?.({
+      behavior: doc.body.classList.contains("calm-view") ? "instant" : "smooth",
+    });
   };
   draw();
   updateTier();

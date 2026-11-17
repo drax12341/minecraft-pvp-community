@@ -193,6 +193,7 @@ export class Store {
       );
     return {
       updatedAt: new Date().toISOString(),
+      completedTests: rows.length,
       players: [...players.values()].sort(
         (a, b) => b.points - a.points || a.uuid.localeCompare(b.uuid),
       ),
