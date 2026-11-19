@@ -29,7 +29,7 @@ final class ArenaVisuals {
                         id,
                         stat.equals("elo")
                             ? "rankedGames"
-                            : stat.equals("deaths") ? "deaths" : "games")
+                            : Set.of("deaths", "kills").contains(stat) ? stat : "games")
                     > 0)
         .sorted(
             Comparator.<UUID>comparingInt(
@@ -43,7 +43,7 @@ final class ArenaVisuals {
 
   List<String> lines(String stat) {
     List<String> text = new ArrayList<>();
-    text.add("§d§lCOMMUNITY §f§l" + stat.toUpperCase(Locale.ROOT));
+    text.add("§e§lCOMMUNITY §f§l" + stat.toUpperCase(Locale.ROOT));
     int n = 1;
     for (UUID id : leaders(stat))
       text.add(
@@ -51,130 +51,61 @@ final class ArenaVisuals {
               + (n++)
               + ". §f"
               + p.progression.name(id)
-              + " §d"
+              + " §e"
               + (stat.equals("elo") ? p.progression.elo(id) : p.progression.number(id, stat)));
     if (text.size() == 1) text.add("§7No completed matches yet");
     return text;
   }
 
   void leaderboard(Player player, String stat) {
-    if (!List.of("elo", "wins", "deaths", "streak", "bestStreak").contains(stat)) {
-      p.tell(player, "/leaderboard elo|wins|deaths|streak|bestStreak");
+    if (!List.of("elo", "wins", "kills", "deaths", "streak", "bestStreak", "games")
+        .contains(stat)) {
+      p.tell(player, "/leaderboard elo|wins|kills|deaths|streak|bestStreak|games");
       return;
     }
     for (String line : lines(stat)) player.sendMessage(line);
   }
 
   void refreshHolograms() {
-    for (UUID id : holograms.values()) {
-      Entity entity = Bukkit.getEntity(id);
-      if (entity != null) entity.remove();
-    }
-    holograms.clear();
     var section = p.data.getConfigurationSection("holograms");
-    if (section == null) return;
-    for (String id : section.getKeys(false)) {
+    Set<String> live = section == null ? Set.of() : section.getKeys(false);
+    for (String id : new HashSet<>(holograms.keySet()))
+      if (!live.contains(id)) {
+        Entity entity = Bukkit.getEntity(holograms.remove(id));
+        if (entity != null) entity.remove();
+      }
+    for (String id : live) {
       Location l = p.data.getLocation("holograms." + id + ".location");
       if (l == null) continue;
-      l.getChunk().load();
-      // Remove only displays tagged by this plugin, including survivors of an unclean restart.
-      for (Entity entity : l.getChunk().getEntities())
-        if (entity.getScoreboardTags().contains("communityarena-holo-" + id)) entity.remove();
-      TextDisplay display = l.getWorld().spawn(l, TextDisplay.class);
-      display.setPersistent(false);
-      display.addScoreboardTag("communityarena-holo-" + id);
-      display.setBillboard(Display.Billboard.CENTER);
-      display.setSeeThrough(false);
-      display.setShadowed(true);
-      display.setLineWidth(350);
+      TextDisplay display =
+          holograms.containsKey(id) && Bukkit.getEntity(holograms.get(id)) instanceof TextDisplay d
+              ? d
+              : null;
+      if (display == null) {
+        l.getChunk().load();
+        for (Entity entity : l.getChunk().getEntities())
+          if (entity.getScoreboardTags().contains("communityarena-holo-" + id)) entity.remove();
+        display = l.getWorld().spawn(l, TextDisplay.class);
+        display.setPersistent(false);
+        display.addScoreboardTag("communityarena-holo-" + id);
+        display.setBillboard(Display.Billboard.CENTER);
+        display.setSeeThrough(false);
+        display.setShadowed(true);
+        display.setLineWidth(350);
+        holograms.put(id, display.getUniqueId());
+      } else if (!display.getLocation().equals(l)) display.teleport(l);
       display.text(
-          net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection()
-              .deserialize(
-                  String.join("\n", lines(p.data.getString("holograms." + id + ".stat", "elo")))));
-      holograms.put(id, display.getUniqueId());
+          PracticePresentation.ui(
+              String.join("\n", lines(p.data.getString("holograms." + id + ".stat", "elo")))));
     }
   }
 
   void board(Player player) {
-    UUID id = player.getUniqueId();
-    var match = p.matches.get(id);
-    if (match == null) match = p.social.spectators.get(id);
-    String status =
-        match != null
-            ? (match.ranked ? "Ranked " : "Duel ") + match.kit
-            : p.ffa.contains(id) ? "Sword FFA" : "Practice lobby";
-    if (p.flag(player, "scoreboard", true)) {
-      Scoreboard board =
-          boards.computeIfAbsent(
-              id,
-              k -> {
-                Scoreboard b = Bukkit.getScoreboardManager().getNewScoreboard();
-                Objective o =
-                    b.registerNewObjective("arena", Criteria.DUMMY, p.text("COMMUNITY PVP"));
-                o.setDisplaySlot(DisplaySlot.SIDEBAR);
-                return b;
-              });
-      for (String entry : board.getEntries()) board.resetScores(entry);
-      List<String> rows =
-          new ArrayList<>(
-              List.of(
-                  "§8??????????????????",
-                  "§f" + status,
-                  "§7Rank: §d" + p.progression.rank(id),
-                  "§7Elo: §f" + p.progression.elo(id),
-                  "§7Wins: §f" + p.progression.number(id, "wins"),
-                  "§7Deaths: §f" + p.progression.number(id, "deaths"),
-                  "§7Streak: §f" + p.progression.number(id, "streak")));
-      if (match != null) {
-        UUID opponent = match.a.equals(id) ? match.b : match.a;
-        Player other = Bukkit.getPlayer(opponent);
-        rows.add("§7Opponent: §f" + p.progression.name(opponent));
-        rows.add(
-            "§7Ping: §f" + player.getPing() + " / " + (other == null ? 0 : other.getPing()) + "ms");
-        rows.add("§7Score: §d" + match.sa + " : " + match.sb);
-        rows.add("§7Time: §f" + (System.currentTimeMillis() - match.started) / 1000 + "s");
-        rows.add(
-            "§7Spectators: §f"
-                + Collections.frequency(new ArrayList<>(p.social.spectators.values()), match));
-      } else {
-        rows.add("§7Queue: §f" + p.queues.size());
-        rows.add("§7Ping: §f" + player.getPing() + "ms");
-      }
-      rows.add("§8/duel /ranked /quests");
-      int i = rows.size();
-      for (String row : rows) board.getObjective("arena").getScore(row).setScore(i--);
-      player.setScoreboard(board);
-    } else player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
-    String versus =
-        match == null
-            ? "Choose a kit • /ranked • /duel"
-            : p.progression.name(match.a)
-                + " vs "
-                + p.progression.name(match.b)
-                + " • Spectators "
-                + Collections.frequency(new ArrayList<>(p.social.spectators.values()), match);
-    player.sendPlayerListHeaderAndFooter(
-        p.text("COMMUNITY PVP\n" + versus),
-        Component.text(
-            "Your ping "
-                + player.getPing()
-                + "ms • "
-                + p.progression.rank(id)
-                + " • "
-                + p.progression.elo(id)
-                + " Elo",
-            NamedTextColor.GRAY));
-    player.playerListName(
-        Component.text(
-            p.data.getString("players." + id + ".title", "")
-                + " "
-                + player.getName()
-                + " | "
-                + player.getPing()
-                + "ms"));
+    if (p.presentation != null) p.presentation.board(player);
   }
 
   void victory(Player player) {
+    if (!p.flag(player, "victory", true)) return;
     player.showTitle(
         net.kyori.adventure.title.Title.title(
             Component.text("VICTORY", NamedTextColor.GOLD),

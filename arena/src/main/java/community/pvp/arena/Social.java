@@ -57,6 +57,7 @@ final class Social implements Listener {
       if (fighter != null) fighter.hidePlayer(p, viewer);
     }
     p.tell(viewer, "Spectating " + target.getName() + " | /leave to return.");
+    p.presentation.tick();
   }
 
   void leave(Player player) {

@@ -13,8 +13,11 @@ class ArenaTest {
 
   @BeforeEach
   void start() {
-    server = MockBukkit.mock();
+    server = MockBukkit.mock(new PracticeServerMock());
     p = MockBukkit.load(CommunityArena.class);
+    p.worldSaver = w -> {};
+    p.getConfig().set("presentation.nametags", false);
+    p.getConfig().set("presentation.hide-score-numbers", false);
     p.ready = true;
   }
 
@@ -89,7 +92,7 @@ class ArenaTest {
         .getInventory()
         .setItem(0, new org.bukkit.inventory.ItemStack(org.bukkit.Material.DIAMOND, 17));
     p.enter(player);
-    assertEquals(org.bukkit.Material.IRON_SWORD, player.getInventory().getItem(0).getType());
+    assertEquals(org.bukkit.Material.CLOCK, player.getInventory().getItem(0).getType());
     p.restore(player);
     assertEquals(org.bukkit.Material.DIAMOND, player.getInventory().getItem(0).getType());
     assertEquals(17, player.getInventory().getItem(0).getAmount());
@@ -131,7 +134,7 @@ class ArenaTest {
     var m = p.new Match(a, b, "sword", 1, 1);
     m.ranked = true;
     p.progression.result(m, a.getUniqueId());
-    assertFalse(p.progression.eligible(a.getUniqueId(), b.getUniqueId()));
+    assertFalse(p.progression.eligible(a.getUniqueId(), b.getUniqueId(), "sword"));
   }
 
   @Test
@@ -219,9 +222,9 @@ class ArenaTest {
 
   @Test
   void generatedLobbyHasThreeRealLeaderboardDefinitions() {
-    ArenaDecor.build(p);
+    GroveLobby.decorate(p);
     assertTrue(p.ready);
-    assertTrue(p.data.getBoolean("built-v2"));
+    assertEquals(org.bukkit.Material.WATER, p.grove.getBlockAt(22, 64, -12).getType());
     assertEquals(3, p.data.getConfigurationSection("holograms").getKeys(false).size());
   }
 

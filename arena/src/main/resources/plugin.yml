@@ -1,7 +1,8 @@
 name: CommunityArena
-version: 2.0.0
+version: 3.0.0
 main: community.pvp.arena.CommunityArena
 api-version: '1.21.11'
+softdepend: [Multiverse-Core]
 description: Original practice arenas, fair queues, private duels and supervised test sets.
 commands:
   linkdiscord:
@@ -22,6 +23,10 @@ commands:
     description: View your own practice statistics
   settings:
     description: Toggle scoreboard, duel invitations, spectators and hit sounds
+  layout:
+    description: Arrange a kit inventory without changing its items
+  profile:
+    description: View your practice profile and kit ratings
   ranked:
     description: Queue for ranked Elo duels
   spec:

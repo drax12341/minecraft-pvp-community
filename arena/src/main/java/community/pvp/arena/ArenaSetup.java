@@ -19,7 +19,11 @@ final class ArenaSetup implements Listener {
   }
 
   Location spawn() {
-    return p.data.getLocation("setup.spawn", p.loc(0, 0, 0, 180));
+    return p.data.getLocation(
+        "setup.spawn",
+        p.data.getLocation(
+            "grove.spawn",
+            p.grove == null ? p.loc(0, 0, 0, 180) : new Location(p.grove, 0.5, 65, 8.5, 180, 0)));
   }
 
   boolean validRegion(Location a, Location b) {
@@ -38,15 +42,22 @@ final class ArenaSetup implements Listener {
   }
 
   Location duelSpawn(int arena, boolean first) {
-    return p.data.getLocation(
-        "setup.arenas." + arena + "." + (first ? "a" : "b"),
-        p.loc(arena, first ? -18 : 18, 0, first ? -90 : 90));
+    Location fallback = p.loc(arena, first ? -18 : 18, 0, first ? -90 : 90);
+    Location saved = p.data.getLocation("setup.arenas." + arena + "." + (first ? "a" : "b"));
+    if (saved == null
+        || !saved.getWorld().equals(p.world)
+        || Math.abs(saved.getX() - arena * 160) > 30
+        || Math.abs(saved.getZ()) > 30
+        || saved.getY() < 65
+        || saved.getY() > 73) return fallback;
+    return saved;
   }
 
   boolean contains(Location l) {
     Location a = p.data.getLocation("setup.corner1"), b = p.data.getLocation("setup.corner2");
     if (a == null || b == null)
-      return l.getWorld().equals(p.world) && Math.abs(l.getX()) <= 33 && Math.abs(l.getZ()) <= 33;
+      return (l.getWorld().equals(p.grove) && Math.abs(l.getX()) <= 49 && Math.abs(l.getZ()) <= 49)
+          || (l.getWorld().equals(p.world) && Math.abs(l.getX()) <= 33 && Math.abs(l.getZ()) <= 33);
     return l.getWorld().equals(a.getWorld())
         && l.getX() >= Math.min(a.getX(), b.getX())
         && l.getX() <= Math.max(a.getX(), b.getX()) + 1
@@ -72,6 +83,33 @@ final class ArenaSetup implements Listener {
     }
     Location here = player.getLocation();
     switch (args[0].toLowerCase(Locale.ROOT)) {
+      case "usegrove" -> {
+        p.data.set("setup.corner1", new Location(p.grove, -49, 0, -49));
+        p.data.set("setup.corner2", new Location(p.grove, 49, 0, 49));
+        p.data.set(
+            "setup.spawn", p.data.getLocation("grove.spawn", new Location(p.grove, 0.5, 65, 8.5)));
+      }
+      case "recover" -> {
+        if (args.length != 2 || !args[1].matches("[1-4]")) {
+          p.tell(player, "/pvpadmin recover <1..4>");
+          return;
+        }
+        int index = Integer.parseInt(args[1]);
+        if (p.matches.values().stream().anyMatch(m -> m.arena == index)) {
+          p.tell(player, "Wait until the arena has no active or finishing match.");
+          return;
+        }
+        try {
+          p.terrain.clearEntities(index);
+          p.terrain.reset(index);
+          p.occupied.remove(index);
+          p.tell(player, "Arena recovered and available.");
+        } catch (Exception ex) {
+          p.tell(player, "Recovery failed; journal retained. Check server logs.");
+          p.getLogger().severe(ex.getMessage());
+        }
+        return;
+      }
       case "setspawn" -> {
         if (!contains(here)) {
           p.tell(player, "Set lobby boundaries here first.");

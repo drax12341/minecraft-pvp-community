@@ -25,4 +25,13 @@ final class Rating {
     if (elo < 2000) return "Obsidian";
     return "Netherite";
   }
+
+  static String division(int elo) {
+    int[] starts = {0, 800, 1000, 1200, 1450, 1700, 2000};
+    int index = 0;
+    for (int i = 0; i < starts.length; i++) if (elo >= starts[i]) index = i;
+    int end = index + 1 < starts.length ? starts[index + 1] : 2300;
+    int part = Math.min(2, Math.max(0, (elo - starts[index]) * 3 / (end - starts[index])));
+    return rank(elo) + " " + new String[] {"I", "II", "III"}[part];
+  }
 }

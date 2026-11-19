@@ -27,6 +27,14 @@ final class Progression {
     return plugin.data.getInt(key(id) + "elo", 600);
   }
 
+  int elo(UUID id, String kit) {
+    return plugin.data.getInt(key(id) + "kits." + kit + ".elo", 600);
+  }
+
+  int kitNumber(UUID id, String kit, String field) {
+    return plugin.data.getInt(key(id) + "kits." + kit + "." + field);
+  }
+
   void add(UUID id, String field, int count) {
     plugin.data.set(key(id) + field, number(id, field) + count);
   }
@@ -69,12 +77,23 @@ final class Progression {
       plugin.data.set(
           key(id) + "bestStreak", Math.max(number(id, "bestStreak"), number(id, "streak")));
     }
+    for (UUID id : List.of(m.a, m.b)) {
+      String base = key(id) + "kits." + m.kit + ".";
+      String stat = id.equals(winner) ? "wins" : "losses";
+      plugin.data.set(base + stat, kitNumber(id, m.kit, stat) + 1);
+      plugin.data.set(base + "streak", id.equals(winner) ? kitNumber(id, m.kit, "streak") + 1 : 0);
+    }
     if (m.ranked) {
+      int kitDelta = Rating.transfer(elo(winner, m.kit), elo(loser, m.kit));
+      plugin.data.set(key(winner) + "kits." + m.kit + ".elo", elo(winner, m.kit) + kitDelta);
+      plugin.data.set(key(loser) + "kits." + m.kit + ".elo", elo(loser, m.kit) - kitDelta);
+      m.ratingDelta.put(winner, kitDelta);
+      m.ratingDelta.put(loser, -kitDelta);
       int change = Rating.transfer(elo(winner), elo(loser));
       plugin.data.set(key(winner) + "elo", elo(winner) + change);
       plugin.data.set(key(loser) + "elo", elo(loser) - change);
       for (UUID id : List.of(winner, loser)) add(id, "rankedGames", 1);
-      lastPair.put(pair(winner, loser), System.currentTimeMillis());
+      lastPair.put(m.kit + ":" + pair(winner, loser), System.currentTimeMillis());
       refresh();
     }
   }
@@ -83,8 +102,8 @@ final class Progression {
     return a.compareTo(b) < 0 ? a + ":" + b : b + ":" + a;
   }
 
-  boolean eligible(UUID a, UUID b) {
-    return System.currentTimeMillis() - lastPair.getOrDefault(pair(a, b), 0L) > 120000;
+  boolean eligible(UUID a, UUID b, String kit) {
+    return System.currentTimeMillis() - lastPair.getOrDefault(kit + ":" + pair(a, b), 0L) > 120000;
   }
 
   void queue(Player p, String kit) {
@@ -117,16 +136,17 @@ final class Progression {
       for (UUID a : ids) {
         if (!plugin.queues.containsKey(a)) continue;
         for (UUID b : ids) {
-          if (a.equals(b) || !plugin.queues.containsKey(b) || !eligible(a, b)) continue;
+          if (a.equals(b) || !plugin.queues.containsKey(b) || !eligible(a, b, kit)) continue;
           long age =
               (System.currentTimeMillis()
                       - Math.min(
                           queuedAt.getOrDefault(a, System.currentTimeMillis()),
                           queuedAt.getOrDefault(b, System.currentTimeMillis())))
                   / 1000;
-          if (Math.abs(elo(a) - elo(b)) > Rating.window(age)) continue;
+          if (Math.abs(elo(a, kit) - elo(b, kit)) > Rating.window(age)) continue;
           if (plugin.occupied.size() >= 4) return;
-          plugin.start(Bukkit.getPlayer(a), Bukkit.getPlayer(b), kit, 1, true);
+          plugin.start(
+              Bukkit.getPlayer(a), Bukkit.getPlayer(b), kit, plugin.rankedRounds(kit), true);
           break;
         }
       }

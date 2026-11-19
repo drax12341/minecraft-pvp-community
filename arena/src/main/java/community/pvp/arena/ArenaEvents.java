@@ -122,7 +122,21 @@ final class ArenaEvents implements Listener {
           attacker.playSound(attacker.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.35f, 1.4f);
       }
     }
+    if (m != null
+        && m.kit.equals("boxing")
+        && e instanceof EntityDamageByEntityEvent hit
+        && hit.getDamager() instanceof Player attacker) {
+      e.setDamage(0.01);
+      int hits = m.hits.merge(attacker.getUniqueId(), 1, Integer::sum);
+      if (hits >= 100) arena.lost(p, "100 hits");
+      return;
+    }
     if (e.getFinalDamage() >= p.getHealth()) {
+      if (e.getCause() != EntityDamageEvent.DamageCause.VOID
+          && e.getCause() != EntityDamageEvent.DamageCause.SUICIDE
+          && (p.getInventory().getItemInMainHand().getType() == Material.TOTEM_OF_UNDYING
+              || p.getInventory().getItemInOffHand().getType() == Material.TOTEM_OF_UNDYING))
+        return;
       e.setCancelled(true);
       if (m != null) arena.lost(p, "Knockout");
       else {
@@ -167,12 +181,8 @@ final class ArenaEvents implements Listener {
   @EventHandler
   public void click(InventoryClickEvent e) {
     if (!(e.getWhoClicked() instanceof Player p)) return;
-    String name =
-        net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-            .serialize(e.getView().title());
-    if (!name.equals("Practice • choose your kit")
-        && !name.equals("Ranked • choose your kit")
-        && !name.equals("Your arena settings")) {
+    if (arena.layouts.editing(p, e.getView().getTopInventory())) return;
+    if (!(e.getView().getTopInventory().getHolder() instanceof ArenaMenu)) {
       if (arena.managed(p) && !arena.busy(p) && !arena.ffa.contains(p.getUniqueId()))
         e.setCancelled(true);
       return;
@@ -180,6 +190,18 @@ final class ArenaEvents implements Listener {
     e.setCancelled(true);
     if (e.getRawSlot() < 0 || e.getRawSlot() >= e.getView().getTopInventory().getSize()) return;
     ItemStack s = e.getCurrentItem();
+    if (s != null && s.hasItemMeta() && e.isRightClick()) {
+      String action =
+          s.getItemMeta()
+              .getPersistentDataContainer()
+              .get(arena.menuKey, PersistentDataType.STRING);
+      if (action != null && action.startsWith("kit:")) {
+        String[] pieces = action.split(":");
+        if (pieces.length == 3)
+          arena.getServer().getScheduler().runTask(arena, () -> arena.layouts.open(p, pieces[2]));
+        return;
+      }
+    }
     if (s != null && s.hasItemMeta())
       arena
           .getServer()
@@ -229,15 +251,19 @@ final class ArenaEvents implements Listener {
 
   @EventHandler
   public void hunger(FoodLevelChangeEvent e) {
-    if (e.getEntity() instanceof Player p && arena.managed(p)) {
-      e.setCancelled(true);
-      p.setFoodLevel(20);
+    if (e.getEntity() instanceof Player player && arena.managed(player)) {
+      var match = arena.matches.get(player.getUniqueId());
+      if (match == null || Set.of("sword", "axe", "bow", "boxing").contains(match.kit)) {
+        e.setCancelled(true);
+        player.setFoodLevel(20);
+      }
     }
   }
 
   @EventHandler
   public void breakBlock(BlockBreakEvent e) {
     if (e.getBlock().getWorld().equals(arena.world)
+        && arena.terrain.editable(e.getPlayer(), e.getBlock()) == null
         && !(e.getPlayer().isOp() && arena.setup.builders.contains(e.getPlayer().getUniqueId())))
       e.setCancelled(true);
   }
@@ -245,13 +271,15 @@ final class ArenaEvents implements Listener {
   @EventHandler
   public void placeBlock(BlockPlaceEvent e) {
     if (e.getBlock().getWorld().equals(arena.world)
+        && arena.terrain.editable(e.getPlayer(), e.getBlock()) == null
         && !(e.getPlayer().isOp() && arena.setup.builders.contains(e.getPlayer().getUniqueId())))
       e.setCancelled(true);
   }
 
   @EventHandler
   public void explode(EntityExplodeEvent e) {
-    if (e.getLocation().getWorld().equals(arena.world)) e.blockList().clear();
+    if (e.getLocation().getWorld().equals(arena.world) && arena.terrain.index(e.getLocation()) == 0)
+      e.blockList().clear();
   }
 
   @EventHandler
