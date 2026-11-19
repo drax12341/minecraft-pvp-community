@@ -1,5 +1,5 @@
 name: CommunityArena
-version: 1.0.0
+version: 2.0.0
 main: community.pvp.arena.CommunityArena
 api-version: '1.21.11'
 description: Original practice arenas, fair queues, private duels and supervised test sets.
@@ -21,10 +21,31 @@ commands:
   stats:
     description: View your own practice statistics
   settings:
-    description: Toggle scoreboard, duel invitations and hit sounds
+    description: Toggle scoreboard, duel invitations, spectators and hit sounds
+  ranked:
+    description: Queue for ranked Elo duels
+  spec:
+    aliases: [spectate]
+    description: Spectate an active duel
+  friends:
+    description: Friend requests and list
+  quests:
+    description: Daily quests for cosmetic cases
+  cases:
+    description: Open a cosmetic reward case
+  cosmetics:
+    description: Select an unlocked effect or title
+  leaderboard:
+    aliases: [lb, top]
+    description: Elo, wins, deaths and streak leaderboards
+  pvpadmin:
+    permission: communityarena.admin
+    description: Operator lobby and hologram setup
   testmatch:
     description: Staff supervised first-to-ten set; /testmatch player1 player2 kit
     permission: communityarena.tester
 permissions:
+  communityarena.admin:
+    default: op
   communityarena.tester:
     default: op

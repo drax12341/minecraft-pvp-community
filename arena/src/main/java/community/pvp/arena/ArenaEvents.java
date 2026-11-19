@@ -1,0 +1,286 @@
+package community.pvp.arena;
+
+import java.util.*;
+import org.bukkit.*;
+import org.bukkit.command.*;
+import org.bukkit.entity.*;
+import org.bukkit.event.*;
+import org.bukkit.event.block.*;
+import org.bukkit.event.entity.*;
+import org.bukkit.event.inventory.*;
+import org.bukkit.event.player.*;
+import org.bukkit.inventory.*;
+import org.bukkit.inventory.meta.*;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.*;
+import org.bukkit.scoreboard.*;
+
+final class ArenaEvents implements Listener {
+  final CommunityArena arena;
+
+  ArenaEvents(CommunityArena arena) {
+    this.arena = arena;
+  }
+
+  @EventHandler
+  public void join(PlayerJoinEvent e) {
+    Player p = e.getPlayer();
+    if (arena.data.contains("backups." + p.getUniqueId())) arena.restore(p);
+    arena.progression.remember(p);
+    arena
+        .getServer()
+        .getScheduler()
+        .runTaskLater(
+            arena,
+            () -> {
+              if (p.isOnline()) {
+                arena.tell(
+                    p,
+                    "Welcome! /arena opens practice duels, kits and FFA. /duel challenges a"
+                        + " friend.");
+                if (arena.ready
+                    && !arena.managed(p)
+                    && arena.getConfig().getBoolean("join-lobby", true)) arena.enter(p);
+              }
+            },
+            40);
+  }
+
+  @EventHandler
+  public void quit(PlayerQuitEvent e) {
+    Player p = e.getPlayer();
+    CommunityArena.Match m = arena.matches.get(p.getUniqueId());
+    if (m != null) arena.finish(m, m.other(p.getUniqueId()), "Opponent disconnected");
+    if (arena.managed(p)) arena.restore(p);
+    arena.matches.remove(p.getUniqueId());
+    arena.commandTimes.remove(p.getUniqueId());
+    arena.progression.queuedAt.remove(p.getUniqueId());
+    arena.invites.remove(p.getUniqueId());
+    arena.invites.values().removeIf(i -> i.sender().equals(p.getUniqueId()));
+  }
+
+  @EventHandler
+  public void move(PlayerMoveEvent e) {
+    Player p = e.getPlayer();
+    if (!arena.managed(p)) return;
+    if (arena.social.spectators.containsKey(p.getUniqueId())) {
+      CommunityArena.Match watched = arena.social.spectators.get(p.getUniqueId());
+      if (!p.getWorld().equals(arena.world)
+          || p.getLocation().distanceSquared(arena.loc(watched.arena, 0, 0, 0)) > 50 * 50)
+        e.setTo(arena.loc(watched.arena, 0, 0, 0).add(0, 5, 0));
+      return;
+    }
+    if (!arena.matches.containsKey(p.getUniqueId()) && !arena.ffa.contains(p.getUniqueId())) {
+      if (!arena.setup.contains(e.getTo()) || e.getTo().getY() < arena.setup.spawn().getY() - 20)
+        p.teleport(arena.setup.spawn());
+      return;
+    }
+    if (arena.frozen.contains(p.getUniqueId()) && e.hasChangedPosition()) {
+      e.setTo(e.getFrom());
+      return;
+    }
+    CommunityArena.Match active = arena.matches.get(p.getUniqueId());
+    int section = active != null ? active.arena : arena.ffa.contains(p.getUniqueId()) ? 5 : 0;
+    int radius = section == 5 ? 39 : 31;
+    boolean outside =
+        Math.abs(p.getLocation().getX() - section * 160) > radius
+            || Math.abs(p.getLocation().getZ()) > radius;
+    if (p.getLocation().getY() < 50 || outside) {
+      if (arena.matches.containsKey(p.getUniqueId())) arena.lost(p, "Out of bounds");
+      else if (arena.ffa.contains(p.getUniqueId())) arena.joinFfa(p);
+      else arena.lobby(p);
+    }
+  }
+
+  @EventHandler(priority = EventPriority.HIGHEST)
+  public void damage(EntityDamageEvent e) {
+    if (e.isCancelled()) return;
+    if (!(e.getEntity() instanceof Player p) || !arena.managed(p)) return;
+    CommunityArena.Match m = arena.matches.get(p.getUniqueId());
+    if (arena.social.spectators.containsKey(p.getUniqueId())) {
+      e.setCancelled(true);
+      return;
+    }
+    if (m == null && !arena.ffa.contains(p.getUniqueId()) || m != null && m.paused) {
+      e.setCancelled(true);
+      return;
+    }
+    if (e instanceof EntityDamageByEntityEvent hit) {
+      Entity src = hit.getDamager();
+      Player attacker =
+          src instanceof Player a
+              ? a
+              : src instanceof Projectile proj && proj.getShooter() instanceof Player a ? a : null;
+      if (attacker != null) {
+        if (arena.social.spectators.containsKey(attacker.getUniqueId())
+            || m != null && !attacker.getUniqueId().equals(m.other(p.getUniqueId()))
+            || m == null && !arena.ffa.contains(attacker.getUniqueId())) {
+          e.setCancelled(true);
+          return;
+        }
+        if (arena.flag(attacker, "hitsounds", true))
+          attacker.playSound(attacker.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.35f, 1.4f);
+      }
+    }
+    if (e.getFinalDamage() >= p.getHealth()) {
+      e.setCancelled(true);
+      if (m != null) arena.lost(p, "Knockout");
+      else {
+        arena.progression.add(p.getUniqueId(), "deaths", 1);
+        Player killer =
+            e instanceof EntityDamageByEntityEvent hit
+                ? (hit.getDamager() instanceof Player a
+                    ? a
+                    : hit.getDamager() instanceof Projectile pr
+                            && pr.getShooter() instanceof Player a
+                        ? a
+                        : null)
+                : null;
+        if (killer != null) {
+          arena.progression.add(killer.getUniqueId(), "kills", 1);
+          arena.tell(killer, "Eliminated " + p.getName());
+        }
+        arena.joinFfa(p);
+      }
+    }
+  }
+
+  @EventHandler
+  public void death(PlayerDeathEvent e) {
+    Player p = e.getEntity();
+    if (!arena.managed(p)) return;
+    e.getDrops().clear();
+    e.setKeepInventory(true);
+    e.setDroppedExp(0);
+    CommunityArena.Match m = arena.matches.get(p.getUniqueId());
+    if (m != null) arena.finish(m, m.other(p.getUniqueId()), "Death");
+    arena
+        .getServer()
+        .getScheduler()
+        .runTask(
+            arena,
+            () -> {
+              if (p.isOnline()) p.spigot().respawn();
+            });
+  }
+
+  @EventHandler
+  public void click(InventoryClickEvent e) {
+    if (!(e.getWhoClicked() instanceof Player p)) return;
+    String name =
+        net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
+            .serialize(e.getView().title());
+    if (!name.equals("Practice • choose your kit")
+        && !name.equals("Ranked • choose your kit")
+        && !name.equals("Your arena settings")) {
+      if (arena.managed(p) && !arena.busy(p) && !arena.ffa.contains(p.getUniqueId()))
+        e.setCancelled(true);
+      return;
+    }
+    e.setCancelled(true);
+    if (e.getRawSlot() < 0 || e.getRawSlot() >= e.getView().getTopInventory().getSize()) return;
+    ItemStack s = e.getCurrentItem();
+    if (s != null && s.hasItemMeta())
+      arena
+          .getServer()
+          .getScheduler()
+          .runTask(
+              arena,
+              () ->
+                  arena.action(
+                      p,
+                      s.getItemMeta()
+                          .getPersistentDataContainer()
+                          .get(arena.menuKey, PersistentDataType.STRING)));
+  }
+
+  @EventHandler
+  public void drag(InventoryDragEvent e) {
+    if (e.getView().getTopInventory().getHolder() instanceof ArenaMenu
+        || e.getWhoClicked() instanceof Player p
+            && arena.managed(p)
+            && !arena.matches.containsKey(p.getUniqueId())) e.setCancelled(true);
+  }
+
+  @EventHandler
+  public void interact(PlayerInteractEvent e) {
+    Player p = e.getPlayer();
+    if (!arena.managed(p) || e.getItem() == null || !e.getAction().isRightClick()) return;
+    ItemMeta meta = e.getItem().getItemMeta();
+    String a =
+        meta == null
+            ? null
+            : meta.getPersistentDataContainer().get(arena.menuKey, PersistentDataType.STRING);
+    if (a != null) {
+      e.setCancelled(true);
+      arena.action(p, a);
+    }
+  }
+
+  @EventHandler
+  public void drop(PlayerDropItemEvent e) {
+    if (arena.managed(e.getPlayer())) e.setCancelled(true);
+  }
+
+  @EventHandler
+  public void pickup(EntityPickupItemEvent e) {
+    if (e.getEntity() instanceof Player p && arena.managed(p)) e.setCancelled(true);
+  }
+
+  @EventHandler
+  public void hunger(FoodLevelChangeEvent e) {
+    if (e.getEntity() instanceof Player p && arena.managed(p)) {
+      e.setCancelled(true);
+      p.setFoodLevel(20);
+    }
+  }
+
+  @EventHandler
+  public void breakBlock(BlockBreakEvent e) {
+    if (e.getBlock().getWorld().equals(arena.world)
+        && !(e.getPlayer().isOp() && arena.setup.builders.contains(e.getPlayer().getUniqueId())))
+      e.setCancelled(true);
+  }
+
+  @EventHandler
+  public void placeBlock(BlockPlaceEvent e) {
+    if (e.getBlock().getWorld().equals(arena.world)
+        && !(e.getPlayer().isOp() && arena.setup.builders.contains(e.getPlayer().getUniqueId())))
+      e.setCancelled(true);
+  }
+
+  @EventHandler
+  public void explode(EntityExplodeEvent e) {
+    if (e.getLocation().getWorld().equals(arena.world)) e.blockList().clear();
+  }
+
+  @EventHandler
+  public void explode(BlockExplodeEvent e) {
+    if (e.getBlock().getWorld().equals(arena.world)) e.blockList().clear();
+  }
+
+  @EventHandler
+  public void swap(PlayerSwapHandItemsEvent e) {
+    if (arena.managed(e.getPlayer())
+        && !arena.matches.containsKey(e.getPlayer().getUniqueId())
+        && !arena.ffa.contains(e.getPlayer().getUniqueId())) e.setCancelled(true);
+  }
+
+  @EventHandler
+  public void respawn(PlayerRespawnEvent e) {
+    if (arena.managed(e.getPlayer())) {
+      e.setRespawnLocation(arena.setup.spawn());
+      arena.getServer().getScheduler().runTask(arena, () -> arena.lobby(e.getPlayer()));
+    }
+  }
+
+  @EventHandler
+  public void commandGuard(PlayerCommandPreprocessEvent e) {
+    if (!arena.busy(e.getPlayer())) return;
+    String root = e.getMessage().split(" ")[0].toLowerCase(Locale.ROOT);
+    if (!List.of("/leave", "/stats", "/msg", "/tell", "/w").contains(root)) {
+      e.setCancelled(true);
+      arena.tell(e.getPlayer(), "Use /leave to end your current session first.");
+    }
+  }
+}
