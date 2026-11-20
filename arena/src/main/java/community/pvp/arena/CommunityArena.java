@@ -482,7 +482,7 @@ public class CommunityArena extends JavaPlugin {
     if (motion != null) motion.leave(p);
     p.resetPlayerTime();
     if (presentation != null) presentation.restore(p);
-    social.leave(p);
+    social.spectators.remove(p.getUniqueId());
     visuals.boards.remove(p.getUniqueId());
     p.playerListName(null);
     p.sendPlayerListHeaderAndFooter(Component.empty(), Component.empty());

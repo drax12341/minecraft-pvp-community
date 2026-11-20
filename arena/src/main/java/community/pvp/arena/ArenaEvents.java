@@ -59,20 +59,21 @@ final class ArenaEvents implements Listener {
     arena.invites.values().removeIf(i -> i.sender().equals(p.getUniqueId()));
   }
 
-  @EventHandler
+  @EventHandler(ignoreCancelled = true)
   public void move(PlayerMoveEvent e) {
     Player p = e.getPlayer();
-    if (!arena.managed(p)) return;
+    Location to = e.getTo();
+    if (!arena.managed(p) || to == null || !e.hasChangedPosition()) return;
     if (arena.social.spectators.containsKey(p.getUniqueId())) {
       CommunityArena.Match watched = arena.social.spectators.get(p.getUniqueId());
-      if (!p.getWorld().equals(arena.world)
-          || p.getLocation().distanceSquared(arena.loc(watched.arena, 0, 0, 0)) > 50 * 50)
+      if (!to.getWorld().equals(arena.world)
+          || to.distanceSquared(arena.loc(watched.arena, 0, 0, 0)) > 50 * 50)
         e.setTo(arena.loc(watched.arena, 0, 0, 0).add(0, 5, 0));
       return;
     }
     if (!arena.matches.containsKey(p.getUniqueId()) && !arena.ffa.contains(p.getUniqueId())) {
-      if (!arena.setup.contains(e.getTo()) || e.getTo().getY() < arena.setup.spawn().getY() - 20)
-        p.teleport(arena.setup.spawn());
+      if (!arena.setup.contains(to) || to.getY() < arena.setup.spawn().getY() - 20)
+        e.setTo(arena.setup.spawn());
       return;
     }
     if (arena.frozen.contains(p.getUniqueId()) && e.hasChangedPosition()) {
@@ -83,9 +84,11 @@ final class ArenaEvents implements Listener {
     int section = active != null ? active.arena : arena.ffa.contains(p.getUniqueId()) ? 5 : 0;
     int radius = section == 5 ? 39 : 31;
     boolean outside =
-        Math.abs(p.getLocation().getX() - section * 160) > radius
-            || Math.abs(p.getLocation().getZ()) > radius;
-    if (p.getLocation().getY() < 50 || outside) {
+        !to.getWorld().equals(arena.world)
+            || Math.abs(to.getX() - section * 160) > radius
+            || Math.abs(to.getZ()) > radius;
+    if (to.getY() < 50 || outside) {
+      e.setTo(e.getFrom());
       if (arena.matches.containsKey(p.getUniqueId())) arena.lost(p, "Out of bounds");
       else if (arena.ffa.contains(p.getUniqueId())) arena.joinFfa(p);
       else arena.lobby(p);

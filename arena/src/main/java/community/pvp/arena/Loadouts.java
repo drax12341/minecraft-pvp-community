@@ -34,8 +34,55 @@ final class Loadouts {
       case "pot" -> Material.SPLASH_POTION;
       case "bow" -> Material.BOW;
       case "boxing" -> Material.LEATHER_CHESTPLATE;
-      default -> k.startsWith("mace") ? Material.MACE : Material.DIAMOND_SWORD;
+      case "diasmp" -> Material.DIAMOND_CHESTPLATE;
+      case "mace" -> Material.MACE;
+      case "mace_breach" -> Material.ANVIL;
+      case "mace_density" -> Material.HEAVY_CORE;
+      case "mace_spear" -> {
+        Material spear = Material.matchMaterial("DIAMOND_SPEAR");
+        yield spear == null ? Material.TRIDENT : spear;
+      }
+      case "custom" -> Material.PURPLE_SHULKER_BOX;
+      default -> Material.DIAMOND_SWORD;
     };
+  }
+
+  static String style(String kit) {
+    return switch (kit) {
+      case "sword" -> "Precision | Sword fundamentals";
+      case "axe" -> "Shieldbreak | Axe and crossbow";
+      case "crystal" -> "Detonate | Crystals and anchors";
+      case "uhc" -> "Survival | Buckets, webs and healing";
+      case "smp" -> "Endurance | Netherite survival";
+      case "diasmp" -> "Classic | Diamond survival";
+      case "pot" -> "Refill | Diamond potion combat";
+      case "nethop" -> "Overdrive | Netherite potion combat";
+      case "bow" -> "Deadeye | Ranged precision";
+      case "boxing" -> "Combo | Speed and 100 hits";
+      case "mace" -> "Impact | Mace fundamentals";
+      case "mace_breach" -> "Breach | Armor pressure";
+      case "mace_density" -> "Density | Heavy aerial strikes";
+      case "mace_spear" -> "Reach | Mace and spear";
+      default -> "Custom | Your saved equipment";
+    };
+  }
+
+  static ItemStack menuIcon(
+      CommunityArena p, String kit, String name, String action, String... lore) {
+    List<String> lines = new ArrayList<>();
+    lines.add(style(kit));
+    lines.add("");
+    lines.addAll(Arrays.asList(lore));
+    ItemStack item = p.item(icon(kit), name, action, lines.toArray(new String[0]));
+    ItemMeta meta = item.getItemMeta();
+    if (meta instanceof PotionMeta potion) {
+      potion.setBasePotionType(PotionType.STRONG_HEALING);
+      potion.setColor(Color.fromRGB(239, 71, 111));
+    }
+    if (meta instanceof LeatherArmorMeta armor) armor.setColor(Color.fromRGB(220, 48, 65));
+    meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
+    item.setItemMeta(meta);
+    return item;
   }
 
   static boolean building(String kit) {

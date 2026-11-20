@@ -15,6 +15,7 @@ import org.bukkit.scoreboard.*;
 final class PracticePresentation implements Listener {
   final CommunityArena p;
   final Map<UUID, UUID> tags = new HashMap<>();
+  final Map<UUID, Map<UUID, Boolean>> playerVisibility = new HashMap<>();
 
   record Identity(String name, String division, String room, boolean chat) {}
 
@@ -81,6 +82,19 @@ final class PracticePresentation implements Listener {
     return room(v).equals(room(t));
   }
 
+  void playerVisible(Player viewer, Player target, boolean show) {
+    var states = playerVisibility.computeIfAbsent(viewer.getUniqueId(), k -> new HashMap<>());
+    Boolean previous = states.put(target.getUniqueId(), show);
+    if (previous != null && previous == show) return;
+    if (show) viewer.showPlayer(p, target);
+    else viewer.hidePlayer(p, target);
+  }
+
+  void forgetPlayer(UUID id) {
+    playerVisibility.remove(id);
+    for (var states : playerVisibility.values()) states.remove(id);
+  }
+
   void tick() {
     Map<UUID, Identity> next = new HashMap<>();
     for (UUID id : p.participants) {
@@ -89,10 +103,9 @@ final class PracticePresentation implements Listener {
       next.put(
           id, new Identity(player.getName(), badge(id), room(id), p.flag(player, "chat", true)));
       for (Player other : Bukkit.getOnlinePlayers()) {
-        if (visible(player, other)) player.showPlayer(p, other);
-        else player.hidePlayer(p, other);
+        playerVisible(player, other, visible(player, other));
       }
-      player.playerListName(
+      Component listName =
           ui(
               (p.social.spectators.containsKey(id)
                       ? "§8[SPEC] "
@@ -103,7 +116,8 @@ final class PracticePresentation implements Listener {
                   + p.data.getString("players." + id + ".title", "")
                   + " §7"
                   + player.getPing()
-                  + "ms"));
+                  + "ms");
+      if (!listName.equals(player.playerListName())) player.playerListName(listName);
       String queue = p.queues.get(id);
       if (queue != null)
         player.sendActionBar(
@@ -174,6 +188,11 @@ final class PracticePresentation implements Listener {
     return rows;
   }
 
+  static boolean displayed(Scoreboard board, Objective objective, DisplaySlot slot) {
+    Objective current = board.getObjective(slot);
+    return current != null && current.getName().equals(objective.getName());
+  }
+
   void board(Player player) {
     UUID id = player.getUniqueId();
     var m = match(id);
@@ -192,14 +211,17 @@ final class PracticePresentation implements Listener {
       if (p.getConfig().getBoolean("presentation.hide-score-numbers", true))
         sidebar.numberFormat(io.papermc.paper.scoreboard.numbers.NumberFormat.blank());
     }
-    sidebar.displayName(
+    Component heading =
         ui(
             "§e§l"
                 + p.getConfig().getString("presentation.brand", "Community")
                 + " §8- §f"
-                + (m != null ? "Duels" : p.ffa.contains(id) ? "FFA" : "Lobby")));
-    if (p.flag(player, "scoreboard", true)) sidebar.setDisplaySlot(DisplaySlot.SIDEBAR);
-    else board.clearSlot(DisplaySlot.SIDEBAR);
+                + (m != null ? "Duels" : p.ffa.contains(id) ? "FFA" : "Lobby"));
+    if (!heading.equals(sidebar.displayName())) sidebar.displayName(heading);
+    if (p.flag(player, "scoreboard", true)) {
+      if (!displayed(board, sidebar, DisplaySlot.SIDEBAR))
+        sidebar.setDisplaySlot(DisplaySlot.SIDEBAR);
+    } else if (displayed(board, sidebar, DisplaySlot.SIDEBAR)) board.clearSlot(DisplaySlot.SIDEBAR);
     List<String> rows = rows(player);
     for (int i = 0; i < 15; i++) {
       String entry = "§" + Integer.toHexString(i) + "§r";
@@ -210,14 +232,18 @@ final class PracticePresentation implements Listener {
         team.addEntry(entry);
       }
       if (i < rows.size()) {
-        team.prefix(ui(rows.get(i)));
-        sidebar.getScore(entry).setScore(15 - i);
-      } else board.resetScores(entry);
+        Component row = ui(rows.get(i));
+        if (!row.equals(team.prefix())) team.prefix(row);
+        if (sidebar.getScore(entry).getScore() != 15 - i) sidebar.getScore(entry).setScore(15 - i);
+      } else if (sidebar.getScore(entry).isScoreSet()) board.resetScores(entry);
     }
     Objective health = board.getObjective("health");
     if (health == null) health = board.registerNewObjective("health", Criteria.DUMMY, ui("§c♥"));
-    if (m != null && p.flag(player, "health", true)) health.setDisplaySlot(DisplaySlot.BELOW_NAME);
-    else board.clearSlot(DisplaySlot.BELOW_NAME);
+    if (m != null && p.flag(player, "health", true)) {
+      if (!displayed(board, health, DisplaySlot.BELOW_NAME))
+        health.setDisplaySlot(DisplaySlot.BELOW_NAME);
+    } else if (displayed(board, health, DisplaySlot.BELOW_NAME))
+      board.clearSlot(DisplaySlot.BELOW_NAME);
     Set<String> active = new HashSet<>();
     for (UUID otherId : p.participants) {
       Player other = Bukkit.getPlayer(otherId);
@@ -226,25 +252,32 @@ final class PracticePresentation implements Listener {
       active.add(key);
       Team team = board.getTeam(key);
       if (team == null) team = board.registerNewTeam(key);
-      team.addEntry(other.getName());
-      team.color(
+      if (!team.hasEntry(other.getName())) team.addEntry(other.getName());
+      NamedTextColor teamColor =
           m != null && otherId.equals(m.b)
               ? NamedTextColor.RED
-              : m != null && otherId.equals(m.a) ? NamedTextColor.BLUE : NamedTextColor.WHITE);
-      team.setOption(
-          Team.Option.COLLISION_RULE,
-          m == null ? Team.OptionStatus.NEVER : Team.OptionStatus.ALWAYS);
-      team.prefix(
+              : m != null && otherId.equals(m.a) ? NamedTextColor.BLUE : NamedTextColor.WHITE;
+      if (team.getColor() == ChatColor.RESET || !teamColor.equals(team.color()))
+        team.color(teamColor);
+      Team.OptionStatus collision = m == null ? Team.OptionStatus.NEVER : Team.OptionStatus.ALWAYS;
+      if (team.getOption(Team.Option.COLLISION_RULE) != collision)
+        team.setOption(Team.Option.COLLISION_RULE, collision);
+      Component prefix =
           p.getConfig().getBoolean("presentation.nametags", true)
               ? Component.empty()
-              : ui(p.flag(player, "nametags", true) ? badge(otherId) + " " : ""));
-      health
-          .getScore(other.getName())
-          .setScore((int) Math.ceil(other.getHealth() + other.getAbsorptionAmount()));
+              : ui(p.flag(player, "nametags", true) ? badge(otherId) + " " : "");
+      if (!prefix.equals(team.prefix())) team.prefix(prefix);
+      int hp = (int) Math.ceil(other.getHealth() + other.getAbsorptionAmount());
+      if (!health.getScore(other.getName()).isScoreSet()
+          || health.getScore(other.getName()).getScore() != hp)
+        health.getScore(other.getName()).setScore(hp);
     }
     for (Team team : new HashSet<>(board.getTeams()))
-      if (team.getName().startsWith("p") && !active.contains(team.getName())) team.unregister();
-    player.setScoreboard(board);
+      if (team.getName().startsWith("p") && !active.contains(team.getName())) {
+        for (String entry : team.getEntries()) board.resetScores(entry);
+        team.unregister();
+      }
+    if (player.getScoreboard() != board) player.setScoreboard(board);
     String middle =
         m == null
             ? "§7" + p.participants.size() + " players online"
@@ -254,7 +287,7 @@ final class PracticePresentation implements Listener {
                 + p.progression.name(m.b)
                 + "\n§7Spectators §f"
                 + Collections.frequency(new ArrayList<>(p.social.spectators.values()), m);
-    player.sendPlayerListHeaderAndFooter(
+    Component header =
         ui(
             "\n§e§l"
                 + p.getConfig().getString("presentation.brand", "Community")
@@ -262,7 +295,8 @@ final class PracticePresentation implements Listener {
                 + p.getConfig().getString("presentation.region", "Standalone")
                 + "\n"
                 + middle
-                + "\n"),
+                + "\n");
+    Component footer =
         ui(
             "\n§e"
                 + player.getPing()
@@ -270,7 +304,9 @@ final class PracticePresentation implements Listener {
                 + p.progression.elo(id)
                 + " Elo\n§7"
                 + p.getConfig().getString("presentation.footer", "/duel  /ranked  /profile")
-                + "\n"));
+                + "\n");
+    if (!header.equals(player.playerListHeader()) || !footer.equals(player.playerListFooter()))
+      player.sendPlayerListHeaderAndFooter(header, footer);
   }
 
   void nameplates() {
@@ -297,8 +333,11 @@ final class PracticePresentation implements Listener {
         display.setTeleportDuration(5);
         tags.put(id, display.getUniqueId());
       }
-      display.text(ui(badge(id)));
-      display.teleport(player.getLocation().add(0, player.isSneaking() ? 2.1 : 2.45, 0));
+      Component label = ui(badge(id));
+      if (!label.equals(display.text())) display.text(label);
+      Location target = player.getLocation().add(0, player.isSneaking() ? 2.1 : 2.45, 0);
+      if (!display.getWorld().equals(target.getWorld())
+          || display.getLocation().distanceSquared(target) > 0.0001) display.teleport(target);
       for (UUID viewerId : p.participants) {
         Player viewer = Bukkit.getPlayer(viewerId);
         if (viewer == null) continue;
@@ -322,9 +361,10 @@ final class PracticePresentation implements Listener {
       if (e != null) e.remove();
     }
     for (Player other : Bukkit.getOnlinePlayers()) {
-      player.showPlayer(p, other);
-      other.showPlayer(p, player);
+      playerVisible(player, other, true);
+      playerVisible(other, player, true);
     }
+    forgetPlayer(id);
     player.sendActionBar(Component.empty());
   }
 
@@ -427,6 +467,7 @@ final class PracticePresentation implements Listener {
       if (e != null) e.remove();
     }
     tags.clear();
+    playerVisibility.clear();
     identities = Map.of();
   }
 }

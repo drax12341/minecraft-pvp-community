@@ -54,7 +54,7 @@ final class Social implements Listener {
     viewer.teleport(target.getLocation().clone().add(0, 4, 0));
     for (UUID id : List.of(match.a, match.b)) {
       Player fighter = Bukkit.getPlayer(id);
-      if (fighter != null) fighter.hidePlayer(p, viewer);
+      if (fighter != null) p.presentation.playerVisible(fighter, viewer, false);
     }
     p.tell(viewer, "Spectating " + target.getName() + " | /leave to return.");
     p.presentation.tick();
@@ -62,7 +62,9 @@ final class Social implements Listener {
 
   void leave(Player player) {
     spectators.remove(player.getUniqueId());
-    for (Player other : Bukkit.getOnlinePlayers()) other.showPlayer(p, player);
+    for (Player other : Bukkit.getOnlinePlayers())
+      if (p.managed(other))
+        p.presentation.playerVisible(other, player, p.presentation.visible(other, player));
   }
 
   void finish(CommunityArena.Match match) {
@@ -154,10 +156,11 @@ final class Social implements Listener {
     if (spectators.containsKey(e.getPlayer().getUniqueId())) e.setCancelled(true);
   }
 
-  @EventHandler
+  @EventHandler(priority = EventPriority.MONITOR)
   public void quit(PlayerQuitEvent e) {
     UUID id = e.getPlayer().getUniqueId();
-    leave(e.getPlayer());
+    spectators.remove(id);
+    p.presentation.forgetPlayer(id);
     requests.remove(id);
     requests.values().removeIf(r -> r.from.equals(id));
   }

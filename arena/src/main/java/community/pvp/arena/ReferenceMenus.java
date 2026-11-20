@@ -196,8 +196,9 @@ final class ReferenceMenus {
       lore.add("Left: queue options | Right: layout");
       inv.setItem(
           10 + i + i / 7 * 2,
-          p.item(
-              Loadouts.icon(kit),
+          Loadouts.menuIcon(
+              p,
+              kit,
               Loadouts.name(kit),
               "kit:"
                   + (scope.equals("both") ? "b" : scope.equals("ranked") ? "r" : "u")
@@ -300,8 +301,9 @@ final class ReferenceMenus {
     for (String kit : CommunityArena.KITS) {
       inv.setItem(
           10 + i + i / 7 * 2,
-          p.item(
-              Loadouts.icon(kit),
+          Loadouts.menuIcon(
+              p,
+              kit,
               Loadouts.name(kit),
               "kit:b:" + kit,
               lore(p.insights.view(player.getUniqueId(), scope, period, kit))

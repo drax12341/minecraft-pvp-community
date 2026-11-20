@@ -89,8 +89,9 @@ final class PracticeMenus {
     Inventory inv = frame(27, Loadouts.name(kit) + " | " + (ranked ? "Ranked" : "Practice"));
     inv.setItem(
         11,
-        p.item(
-            Loadouts.icon(kit),
+        Loadouts.menuIcon(
+            p,
+            kit,
             "Join queue",
             (ranked ? "ranked:" : "queue:") + kit,
             "First to " + (ranked ? p.rankedRounds(kit) : 1),
@@ -175,8 +176,9 @@ final class PracticeMenus {
           || !p.flag(b, "spectators", true)) continue;
       inv.setItem(
           10 + i + i / 7 * 2,
-          p.item(
-              Loadouts.icon(m.kit),
+          Loadouts.menuIcon(
+              p,
+              m.kit,
               a.getName() + " vs " + b.getName(),
               "watch:" + a.getName(),
               Loadouts.name(m.kit) + " | " + m.sa + " : " + m.sb,
