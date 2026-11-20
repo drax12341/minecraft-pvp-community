@@ -1,0 +1,11 @@
+# CommunityArena 6.0.0 preview
+
+- Replaced the all-map tick builder with deterministic native chunk generation in fresh owned combat/courtyard worlds. Redesigned all eighteen arenas with ridges, gateways, biome palettes, irregular groves and small ruins; replaced the open monument lobby with an enclosed pavilion courtyard.
+- Added a serialized asynchronous prewarm for all 3,168 arena chunks, paused during fights, with `/pvpadmin maps` progress. New-world reset no longer force-loads the entire arena; legacy-world recovery retains its full scan. Falling terrain changes now restore both departure and landing blocks.
+- Replaced fourteen public presets with the eight main screenshot-reference modes plus Spear Mace. Removed extra preset modes from selection while retaining history. Added native spear/mace, the visible reserves/slots, UHC head consumption, and explicitly documented inferred metadata.
+- Added the lobby anvil and nine-kit layout picker, locked armor/offhand previews and saved-layout reopening. Opening the editor no longer equips or teleports the live player. Older positional layouts/overrides cannot silently alter the new preset schema.
+- Avoided unchanged nameplate visibility API calls and border-type writes; reused immutable map models/direct grid lookup. Adjusted moving targets for compact gateways and spaced fifty party members into distinct safe starting positions.
+
+Validation: **149 JUnit/MockBukkit tests pass, zero skips**; clean Maven verify; the deliberately inverted nameplate-cache condition is caught by the visibility regression before restoration. The fixture measures 480 repeated visibility API calls reduced to zero, and zero forced additional chunk loads in new large-map cleanup. These are operation counts, not native TPS/packet benchmarks. No runtime dependency was added.
+
+Paper 1.21.11 / Java 21+. Stop the server, back up worlds and plugin data together, replace the old JAR, restart and allow background prewarming to finish before public play. See INSTALL-V6.md for exact kit assumptions, commands and migration. Native client appearance, real regional ping, native power-loss behavior and live load testing remain unverified. The plugin does not spoof or guarantee lower ping. Discord and GitHub Pages remain separate and unchanged.

@@ -1,9 +1,13 @@
 name: CommunityArena
-version: 1.0.0
+version: 6.0.0
 main: community.pvp.arena.CommunityArena
 api-version: '1.21.11'
+softdepend: [Multiverse-Core]
 description: Original practice arenas, fair queues, private duels and supervised test sets.
 commands:
+  party:
+    aliases: [p]
+    description: Parties, leadership, teams and casual team battles
   linkdiscord:
     description: Prove ownership using your private Discord challenge
   arena:
@@ -21,10 +25,43 @@ commands:
   stats:
     description: View your own practice statistics
   settings:
-    description: Toggle scoreboard, duel invitations and hit sounds
+    description: Toggle scoreboard, duel invitations, spectators and hit sounds
+  notifications:
+    description: Open your persistent notification inbox
+  customkit:
+    description: Build one of three shared private kits
+  customduel:
+    description: Invite an opponent using a saved unranked kit
+  findplayer:
+    description: Find a recorded player by exact Minecraft name
+  layout:
+    description: Arrange a kit inventory without changing its items
+  profile:
+    description: View your practice profile and kit ratings
+  ranked:
+    description: Queue for ranked Elo duels
+  spec:
+    aliases: [spectate]
+    description: Spectate an active duel
+  friends:
+    description: Friend requests and list
+  quests:
+    description: Daily quests for cosmetic cases
+  cases:
+    description: Open a cosmetic reward case
+  cosmetics:
+    description: Select an unlocked effect or title
+  leaderboard:
+    aliases: [lb, top]
+    description: Elo, wins, deaths and streak leaderboards
+  pvpadmin:
+    permission: communityarena.admin
+    description: Operator lobby and hologram setup
   testmatch:
     description: Staff supervised first-to-ten set; /testmatch player1 player2 kit
     permission: communityarena.tester
 permissions:
+  communityarena.admin:
+    default: op
   communityarena.tester:
     default: op
