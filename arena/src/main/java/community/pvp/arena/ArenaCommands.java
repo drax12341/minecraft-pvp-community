@@ -38,11 +38,18 @@ final class ArenaCommands implements CommandExecutor, TabCompleter {
       return true;
     arena.commandTimes.put(p.getUniqueId(), System.currentTimeMillis() + 250);
     switch (cmd) {
+      case "notifications" -> arena.inbox.open(p, 0);
+      case "customkit" -> arena.savedKits.slots(p);
+      case "customduel" -> arena.savedKits.challenge(p, args);
+      case "findplayer" -> {
+        if (args.length == 1) arena.reference.find(p, args[0]);
+        else arena.tell(p, "/findplayer <name>");
+      }
       case "layout" -> {
         if (args.length == 0) arena.tell(p, "/layout <kit>");
         else arena.layouts.open(p, args[0]);
       }
-      case "profile" -> arena.presentation.profile(p);
+      case "profile" -> arena.reference.profile(p);
       case "ranked" -> {
         if (args.length == 0) arena.menu(p, true);
         else arena.progression.queue(p, args[0].toLowerCase(Locale.ROOT));
@@ -55,7 +62,7 @@ final class ArenaCommands implements CommandExecutor, TabCompleter {
         else arena.progression.cases(p);
       }
       case "cosmetics" -> arena.progression.cosmetics(p, args);
-      case "leaderboard" -> arena.visuals.leaderboard(p, args.length == 0 ? "elo" : args[0]);
+      case "leaderboard" -> arena.reference.board(p, args.length == 0 ? "elo" : args[0], 0, false);
       case "pvpadmin" -> arena.setup.command(p, args);
       case "arena" -> {
         if (arena.matches.containsKey(p.getUniqueId())) {
@@ -85,17 +92,7 @@ final class ArenaCommands implements CommandExecutor, TabCompleter {
           arena.tell(p, "Returned to lobby. /settings lets you leave the arena world.");
         }
       }
-      case "stats" ->
-          arena.tell(
-              p,
-              arena.progression.rank(p.getUniqueId())
-                  + " | "
-                  + arena.progression.elo(p.getUniqueId())
-                  + " Elo | "
-                  + arena.progression.number(p.getUniqueId(), "wins")
-                  + " wins | "
-                  + arena.progression.number(p.getUniqueId(), "deaths")
-                  + " deaths | Official tiers are reviewed separately on Discord.");
+      case "stats" -> arena.reference.stats(p);
       case "settings" -> {
         if (!arena.managed(p)) arena.enter(p);
         if (arena.managed(p) && !arena.busy(p)) arena.settings(p);
@@ -117,7 +114,7 @@ final class ArenaCommands implements CommandExecutor, TabCompleter {
             break;
           }
           arena.invites.remove(p.getUniqueId());
-          arena.start(a, p, i.kit(), i.rounds());
+          arena.start(a, p, i.kit(), i.rounds(), false, i.custom());
           break;
         }
         if (args.length < 2) {

@@ -1,5 +1,5 @@
 name: CommunityArena
-version: 3.0.0
+version: 4.0.0
 main: community.pvp.arena.CommunityArena
 api-version: '1.21.11'
 softdepend: [Multiverse-Core]
@@ -23,6 +23,14 @@ commands:
     description: View your own practice statistics
   settings:
     description: Toggle scoreboard, duel invitations, spectators and hit sounds
+  notifications:
+    description: Open your persistent notification inbox
+  customkit:
+    description: Build one of three shared private kits
+  customduel:
+    description: Invite an opponent using a saved unranked kit
+  findplayer:
+    description: Find a recorded player by exact Minecraft name
   layout:
     description: Arrange a kit inventory without changing its items
   profile:

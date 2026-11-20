@@ -39,7 +39,7 @@ final class Loadouts {
   }
 
   static boolean building(String kit) {
-    return Set.of("crystal", "uhc", "smp", "diasmp").contains(kit);
+    return Set.of("crystal", "uhc", "smp", "diasmp", "custom").contains(kit);
   }
 
   static ItemStack enchanted(Material type, Enchantment enchant, int level) {

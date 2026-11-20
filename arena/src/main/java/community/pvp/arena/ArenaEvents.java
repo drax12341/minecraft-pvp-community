@@ -181,7 +181,8 @@ final class ArenaEvents implements Listener {
   @EventHandler
   public void click(InventoryClickEvent e) {
     if (!(e.getWhoClicked() instanceof Player p)) return;
-    if (arena.layouts.editing(p, e.getView().getTopInventory())) return;
+    if (arena.layouts.editing(p, e.getView().getTopInventory())
+        || arena.savedKits.editing(p, e.getView().getTopInventory())) return;
     if (!(e.getView().getTopInventory().getHolder() instanceof ArenaMenu)) {
       if (arena.managed(p) && !arena.busy(p) && !arena.ffa.contains(p.getUniqueId()))
         e.setCancelled(true);
@@ -209,11 +210,13 @@ final class ArenaEvents implements Listener {
           .runTask(
               arena,
               () ->
-                  arena.action(
+                  arena.handleMenuClick(
                       p,
                       s.getItemMeta()
                           .getPersistentDataContainer()
-                          .get(arena.menuKey, PersistentDataType.STRING)));
+                          .get(arena.menuKey, PersistentDataType.STRING),
+                      e.isRightClick(),
+                      e.isShiftClick()));
   }
 
   @EventHandler

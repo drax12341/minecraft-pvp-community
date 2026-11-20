@@ -74,40 +74,14 @@ final class PracticeMenus {
             "Sword opens kit selection",
             "Right-click a kit for your inventory layout",
             "Shift in countdown: both players can ready early"));
+    inv.setItem(29, p.item(Material.WRITABLE_BOOK, "Notifications", "inbox"));
+    inv.setItem(31, p.item(Material.PURPLE_SHULKER_BOX, "Saved Custom Kits", "saved-kits"));
+    inv.setItem(33, p.item(Material.DIAMOND, "Detailed Statistics", "statistics"));
     player.openInventory(inv);
   }
 
   void kits(Player player, boolean ranked) {
-    if (!p.managed(player)) p.enter(player);
-    if (!p.managed(player) || p.busy(player)) return;
-    Inventory inv = frame(54, ranked ? "Community | Ranked" : "Community | Practice");
-    int[] slots = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25};
-    int i = 0;
-    for (String kit : CommunityArena.KITS) {
-      long waiting =
-          p.queues.values().stream().filter(((ranked ? "ranked:" : "") + kit)::equals).count();
-      long playing =
-          new HashSet<>(p.matches.values())
-                  .stream().filter(m -> !m.ended && m.kit.equals(kit)).count()
-              * 2;
-      int rating = p.progression.elo(player.getUniqueId(), kit);
-      inv.setItem(
-          slots[i++],
-          p.item(
-              Loadouts.icon(kit),
-              Loadouts.name(kit),
-              "kit:" + (ranked ? "r:" : "u:") + kit,
-              "Playing: " + playing + " | Waiting: " + waiting,
-              "Your kit rating: " + rating + " | " + Rating.division(rating),
-              "Left-click: queue details",
-              "Right-click: arrange inventory"));
-    }
-    inv.setItem(45, p.item(Material.ARROW, "Navigation", "navigation"));
-    inv.setItem(48, p.item(Material.IRON_SWORD, "Casual queues", "menu"));
-    inv.setItem(50, p.item(Material.NETHERITE_SWORD, "Ranked queues", "ranked"));
-    inv.setItem(49, p.item(Material.BARRIER, "Leave queue", "cancel-queue"));
-    inv.setItem(53, p.item(Material.BOOK, "Your statistics", "profile"));
-    player.openInventory(inv);
+    p.reference.queues(player, ranked ? "ranked" : "casual");
   }
 
   void kit(Player player, String kit, boolean ranked) {
@@ -144,7 +118,15 @@ final class PracticeMenus {
   void settings(Player player) {
     Inventory inv = frame(45, "Community | Settings");
     String[] flags = {
-      "scoreboard", "invites", "hitsounds", "spectators", "nametags", "health", "chat", "victory"
+      "scoreboard",
+      "invites",
+      "hitsounds",
+      "spectators",
+      "nametags",
+      "health",
+      "chat",
+      "victory",
+      "animations"
     };
     int i = 0;
     for (String flag : flags) {
@@ -158,6 +140,13 @@ final class PracticeMenus {
               "Click to toggle; saved between sessions"));
       i++;
     }
+    inv.setItem(
+        24,
+        p.item(
+            Material.CLOCK,
+            "Personal time: " + p.reference.pref(player, "time", "server"),
+            "time-cycle",
+            "Left: next | Right: previous | Shift: reset"));
     inv.setItem(36, p.item(Material.ARROW, "Navigation", "navigation"));
     inv.setItem(
         40,
@@ -170,35 +159,7 @@ final class PracticeMenus {
   }
 
   void leaderboard(Player player, String stat) {
-    Inventory inv = frame(54, "Community | Leaderboards");
-    String[] stats = {"elo", "wins", "kills", "deaths", "streak", "bestStreak", "games"};
-    for (int i = 0; i < stats.length; i++)
-      inv.setItem(
-          1 + i,
-          p.item(
-              Material.GOLD_INGOT,
-              stats[i],
-              "leaders:" + stats[i],
-              stats[i].equals(stat) ? "Currently selected" : "Click to view"));
-    int i = 0;
-    for (UUID id : p.visuals.leaders(stat)) {
-      inv.setItem(
-          10 + i + i / 7 * 2,
-          p.item(
-              Material.PLAYER_HEAD,
-              "#" + (i + 1) + " " + p.progression.name(id),
-              null,
-              stat
-                  + ": "
-                  + (stat.equals("elo") ? p.progression.elo(id) : p.progression.number(id, stat)),
-              "Server records; not reviewed community tiers"));
-      i++;
-    }
-    if (i == 0)
-      inv.setItem(
-          22, p.item(Material.PAPER, "No records yet", null, "Complete matches to appear here"));
-    inv.setItem(45, p.item(Material.ARROW, "Navigation", "navigation"));
-    player.openInventory(inv);
+    p.reference.board(player, stat, 0, false);
   }
 
   void spectators(Player player) {

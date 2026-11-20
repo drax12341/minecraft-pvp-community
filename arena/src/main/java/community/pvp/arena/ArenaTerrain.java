@@ -15,6 +15,8 @@ import org.bukkit.event.player.*;
 /** Write-ahead originals allow only the generated combat interior to be restored after a crash. */
 final class ArenaTerrain implements Listener {
   final CommunityArena p;
+  final World world;
+  final String journalPrefix;
   final Runnable flushWorld;
   final Map<Integer, LinkedHashMap<String, String>> changes = new HashMap<>();
   static final Set<Material> PLACE =
@@ -27,22 +29,45 @@ final class ArenaTerrain implements Listener {
           Material.COBBLESTONE);
 
   ArenaTerrain(CommunityArena p) {
-    this(p, () -> p.worldSaver.accept(p.world));
+    this(p, p.world, "v4-arena-", true, () -> p.worldSaver.accept(p.world));
   }
 
   ArenaTerrain(CommunityArena p, Runnable flushWorld) {
+    this(p, p.world, "v4-arena-", true, flushWorld);
+  }
+
+  private ArenaTerrain(
+      CommunityArena p, World world, String prefix, boolean listen, Runnable flushWorld) {
     this.p = p;
+    this.world = world;
+    this.journalPrefix = prefix;
     this.flushWorld = flushWorld;
-    Bukkit.getPluginManager().registerEvents(this, p);
+    if (listen) Bukkit.getPluginManager().registerEvents(this, p);
+  }
+
+  void recoverLegacy() {
+    boolean pending = false;
+    for (int i = 1; i <= 4; i++)
+      if (Files.exists(p.getDataFolder().toPath().resolve("arena-" + i + ".journal")))
+        pending = true;
+    if (!pending) return;
+    World old = Bukkit.getWorld("community_arena_v3");
+    if (old == null)
+      throw new IllegalStateException(
+          "A v3 terrain journal exists but its community_arena_v3 world is missing; recovery data"
+              + " was preserved");
+    ArenaTerrain legacy = new ArenaTerrain(p, old, "arena-", false, () -> p.worldSaver.accept(old));
+    for (int i = 1; i <= 4; i++) if (Files.exists(legacy.journal(i))) legacy.clearEntities(i);
+    legacy.recover();
   }
 
   Path journal(int arena) {
     if (arena < 1 || arena > 4) throw new IllegalArgumentException("Invalid arena");
-    return p.getDataFolder().toPath().resolve("arena-" + arena + ".journal");
+    return p.getDataFolder().toPath().resolve(journalPrefix + arena + ".journal");
   }
 
   int index(Location l) {
-    if (!l.getWorld().equals(p.world)
+    if (!l.getWorld().equals(world)
         || l.getBlockY() < 50
         || l.getBlockY() > 85
         || Math.abs(l.getBlockZ()) > 29) return 0;
@@ -149,7 +174,7 @@ final class ArenaTerrain implements Listener {
         String[] xyz = entry.getKey().split(",");
         if (xyz.length != 3) throw new IOException("Invalid coordinates");
         Block block =
-            p.world.getBlockAt(
+            world.getBlockAt(
                 Integer.parseInt(xyz[0]), Integer.parseInt(xyz[1]), Integer.parseInt(xyz[2]));
         if (index(block.getLocation()) != arena) throw new IOException("Journal outside arena");
         block.setBlockData(Bukkit.createBlockData(entry.getValue()), false);
@@ -190,7 +215,7 @@ final class ArenaTerrain implements Listener {
   public void bucket(PlayerBucketEmptyEvent e) {
     Block block = e.getBlockClicked().getRelative(e.getBlockFace());
     int arena = index(block.getLocation());
-    if (!block.getWorld().equals(p.world)) return;
+    if (!block.getWorld().equals(world)) return;
     var m = editable(e.getPlayer(), block);
     if (m == null || !record(arena, block)) e.setCancelled(true);
   }
@@ -198,7 +223,7 @@ final class ArenaTerrain implements Listener {
   @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
   public void bucket(PlayerBucketFillEvent e) {
     int arena = index(e.getBlockClicked().getLocation());
-    if (e.getBlockClicked().getWorld().equals(p.world)
+    if (e.getBlockClicked().getWorld().equals(world)
         && (editable(e.getPlayer(), e.getBlockClicked()) == null
             || !record(arena, e.getBlockClicked()))) e.setCancelled(true);
   }
@@ -210,7 +235,7 @@ final class ArenaTerrain implements Listener {
 
   @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
   public void flow(BlockFromToEvent e) {
-    if (!e.getBlock().getWorld().equals(p.world)) return;
+    if (!e.getBlock().getWorld().equals(world)) return;
     int arena = index(e.getBlock().getLocation());
     if (arena == 0
         || index(e.getToBlock().getLocation()) != arena
@@ -219,7 +244,7 @@ final class ArenaTerrain implements Listener {
   }
 
   void explosion(Location location, List<Block> blocks) {
-    if (!location.getWorld().equals(p.world)) return;
+    if (!location.getWorld().equals(world)) return;
     int arena = index(location);
     if (arena == 0 || !live(arena)) {
       blocks.clear();
@@ -244,10 +269,10 @@ final class ArenaTerrain implements Listener {
   public void crystal(PlayerInteractEvent e) {
     if (e.getItem() == null
         || e.getItem().getType() != Material.END_CRYSTAL
-        || !e.getPlayer().getWorld().equals(p.world)) return;
+        || !e.getPlayer().getWorld().equals(world)) return;
     Block block = e.getClickedBlock();
     var m = block == null ? null : editable(e.getPlayer(), block);
-    if (m == null || !m.kit.equals("crystal")) e.setCancelled(true);
+    if (m == null || !m.kit.equals("crystal") && m.customEquipment == null) e.setCancelled(true);
   }
 
   @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -265,7 +290,7 @@ final class ArenaTerrain implements Listener {
   @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
   public void spread(BlockSpreadEvent e) {
     int arena = index(e.getSource().getLocation());
-    if (e.getBlock().getWorld().equals(p.world)
+    if (e.getBlock().getWorld().equals(world)
         && (arena == 0
             || index(e.getBlock().getLocation()) != arena
             || !live(arena)
@@ -283,7 +308,7 @@ final class ArenaTerrain implements Listener {
     int cx = arena * 160;
     for (int x = (cx - 34) >> 4; x <= ((cx + 34) >> 4); x++)
       for (int z = -34 >> 4; z <= (34 >> 4); z++)
-        for (Entity entity : p.world.getChunkAt(x, z).getEntities())
+        for (Entity entity : world.getChunkAt(x, z).getEntities())
           if (Math.abs(entity.getLocation().getX() - cx) <= 34
               && Math.abs(entity.getLocation().getZ()) <= 34
               && !(entity instanceof Player)

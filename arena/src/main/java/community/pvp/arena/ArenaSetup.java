@@ -19,11 +19,14 @@ final class ArenaSetup implements Listener {
   }
 
   Location spawn() {
-    return p.data.getLocation(
-        "setup.spawn",
-        p.data.getLocation(
-            "grove.spawn",
-            p.grove == null ? p.loc(0, 0, 0, 180) : new Location(p.grove, 0.5, 65, 8.5, 180, 0)));
+    Location fallback =
+        p.data.getBoolean("citadel-v4") ? p.data.getLocation("citadel.spawn") : null;
+    if (fallback == null)
+      fallback =
+          p.data.getLocation(
+              "grove.spawn",
+              p.grove == null ? p.loc(0, 0, 0, 180) : new Location(p.grove, 0.5, 65, 8.5, 180, 0));
+    return p.data.getLocation("setup.spawn", fallback);
   }
 
   boolean validRegion(Location a, Location b) {
@@ -54,10 +57,12 @@ final class ArenaSetup implements Listener {
   }
 
   boolean contains(Location l) {
+    if ((l.getWorld().equals(p.citadel) || l.getWorld().equals(p.grove))
+        && Math.abs(l.getX()) <= 49
+        && Math.abs(l.getZ()) <= 49) return true;
     Location a = p.data.getLocation("setup.corner1"), b = p.data.getLocation("setup.corner2");
     if (a == null || b == null)
-      return (l.getWorld().equals(p.grove) && Math.abs(l.getX()) <= 49 && Math.abs(l.getZ()) <= 49)
-          || (l.getWorld().equals(p.world) && Math.abs(l.getX()) <= 33 && Math.abs(l.getZ()) <= 33);
+      return l.getWorld().equals(p.world) && Math.abs(l.getX()) <= 33 && Math.abs(l.getZ()) <= 33;
     return l.getWorld().equals(a.getWorld())
         && l.getX() >= Math.min(a.getX(), b.getX())
         && l.getX() <= Math.max(a.getX(), b.getX()) + 1
@@ -83,6 +88,15 @@ final class ArenaSetup implements Listener {
     }
     Location here = player.getLocation();
     switch (args[0].toLowerCase(Locale.ROOT)) {
+      case "usecitadel" -> {
+        if (!p.data.getBoolean("citadel-v4")) {
+          p.tell(player, "The citadel is still being constructed.");
+          return;
+        }
+        p.data.set("setup.corner1", new Location(p.citadel, -49, 0, -49));
+        p.data.set("setup.corner2", new Location(p.citadel, 49, 0, 49));
+        p.data.set("setup.spawn", p.data.getLocation("citadel.spawn"));
+      }
       case "usegrove" -> {
         p.data.set("setup.corner1", new Location(p.grove, -49, 0, -49));
         p.data.set("setup.corner2", new Location(p.grove, 49, 0, 49));

@@ -70,6 +70,8 @@ final class Progression {
   void result(CommunityArena.Match m, UUID winner) {
     if (winner == null) return;
     UUID loser = m.other(winner);
+    beginDay(m.a);
+    beginDay(m.b);
     for (UUID id : List.of(m.a, m.b)) {
       add(id, id.equals(winner) ? "wins" : "losses", 1);
       add(id, "games", 1);
@@ -83,7 +85,9 @@ final class Progression {
       plugin.data.set(base + stat, kitNumber(id, m.kit, stat) + 1);
       plugin.data.set(base + "streak", id.equals(winner) ? kitNumber(id, m.kit, "streak") + 1 : 0);
     }
+    plugin.insights.result(m, winner);
     if (m.ranked) {
+      String oldDivision = Rating.rank(elo(winner));
       int kitDelta = Rating.transfer(elo(winner, m.kit), elo(loser, m.kit));
       plugin.data.set(key(winner) + "kits." + m.kit + ".elo", elo(winner, m.kit) + kitDelta);
       plugin.data.set(key(loser) + "kits." + m.kit + ".elo", elo(loser, m.kit) - kitDelta);
@@ -95,6 +99,11 @@ final class Progression {
       for (UUID id : List.of(winner, loser)) add(id, "rankedGames", 1);
       lastPair.put(m.kit + ":" + pair(winner, loser), System.currentTimeMillis());
       refresh();
+      if (!oldDivision.equals(Rating.rank(elo(winner))))
+        plugin.inbox.add(
+            winner,
+            "Division promoted",
+            oldDivision + " to " + Rating.rank(elo(winner)) + " through ranked results");
     }
   }
 
@@ -164,28 +173,40 @@ final class Progression {
     }
   }
 
-  void quests(Player p) {
-    UUID id = p.getUniqueId();
+  void quests(Player player) {
+    UUID id = player.getUniqueId();
+    String before = plugin.data.saveToString();
     beginDay(id);
     String base = key(id) + "daily.";
     int games = number(id, "games") - plugin.data.getInt(base + "startGames"),
         wins = number(id, "wins") - plugin.data.getInt(base + "startWins");
-    if (games >= 5 && wins >= 3 && !plugin.data.getBoolean(base + "claimed")) {
+    boolean claim = games >= 5 && wins >= 3 && !plugin.data.getBoolean(base + "claimed");
+    if (claim) {
       add(id, "cases", 1);
       plugin.data.set(base + "claimed", true);
-      plugin.tell(p, "Daily quest complete! +1 cosmetic case. /cases");
-    } else
-      plugin.tell(
-          p,
-          "Daily quest (UTC): play "
-              + Math.min(5, games)
-              + "/5 duels and win "
-              + Math.min(3, wins)
-              + "/3. Reward: 1 cosmetic case. "
-              + (plugin.data.getBoolean(base + "claimed")
-                  ? "Claimed today."
-                  : "Use /quests to claim."));
-    plugin.save();
+      plugin.inbox.add(id, "Quest completed", "Daily quest earned one cosmetic case");
+    }
+    if (!plugin.save()) {
+      try {
+        plugin.data.loadFromString(before);
+      } catch (Exception ex) {
+        throw new IllegalStateException("Quest rollback failed", ex);
+      }
+      plugin.tell(player, "Could not save quest progress; no reward was consumed or claimed.");
+      return;
+    }
+    plugin.tell(
+        player,
+        claim
+            ? "Daily quest complete! +1 cosmetic case. /cases"
+            : "Daily quest (UTC): play "
+                + Math.min(5, games)
+                + "/5 duels and win "
+                + Math.min(3, wins)
+                + "/3. "
+                + (plugin.data.getBoolean(base + "claimed")
+                    ? "Claimed today."
+                    : "Use /quests to claim."));
   }
 
   void cases(Player p) {
@@ -194,20 +215,42 @@ final class Progression {
       plugin.tell(p, "No cases. Complete /quests. Rewards are cosmetic only.");
       return;
     }
-    add(id, "cases", -1);
+    if (plugin.busy(p) || plugin.motion.opening(id)) {
+      plugin.tell(p, "Finish your current session or reveal first.");
+      return;
+    }
+    if (!plugin.managed(p)) plugin.enter(p);
+    if (!plugin.managed(p)) return;
+    String before = plugin.data.saveToString();
+
     List<String> rewards = List.of("spark", "heart", "soul", "Champion", "Duelist", "Unstoppable");
     var owned = new ArrayList<>(plugin.data.getStringList(key(id) + "cosmetics"));
     var missing = rewards.stream().filter(r -> !owned.contains(r)).toList();
+    if (missing.isEmpty()) {
+      plugin.tell(p, "You already own every relic. Your case was kept.");
+      return;
+    }
+    add(id, "cases", -1);
     String reward = missing.isEmpty() ? "spark" : missing.get(new Random().nextInt(missing.size()));
     if (!owned.contains(reward)) owned.add(reward);
     plugin.data.set(key(id) + "cosmetics", owned);
     plugin.data.set(
         key(id) + (List.of("spark", "heart", "soul").contains(reward) ? "effect" : "title"),
         reward);
-    plugin.save();
-    p.showTitle(
-        net.kyori.adventure.title.Title.title(plugin.text("CASE UNLOCKED"), plugin.text(reward)));
-    plugin.tell(p, "Unlocked and equipped " + reward + "! /cosmetics to change.");
+    plugin.inbox.add(id, "Relic unlocked", reward + " is owned and equipped");
+    if (!plugin.save()) {
+      try {
+        plugin.data.loadFromString(before);
+      } catch (Exception ex) {
+        throw new IllegalStateException("Could not restore reward state", ex);
+      }
+      plugin.tell(p, "Reward save failed; your case was kept.");
+      return;
+    }
+    plugin.motion.caseReveal(p, reward);
+    plugin.tell(
+        p,
+        "Unlocked and equipped " + reward + ". The reward is saved even if you close the reveal.");
   }
 
   void cosmetics(Player p, String[] args) {

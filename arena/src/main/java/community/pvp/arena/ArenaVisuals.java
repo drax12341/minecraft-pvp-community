@@ -1,8 +1,6 @@
 package community.pvp.arena;
 
 import java.util.*;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.*;
@@ -94,52 +92,19 @@ final class ArenaVisuals {
         display.setLineWidth(350);
         holograms.put(id, display.getUniqueId());
       } else if (!display.getLocation().equals(l)) display.teleport(l);
+      List<String> customLines = p.data.getStringList("holograms." + id + ".text");
       display.text(
           PracticePresentation.ui(
-              String.join("\n", lines(p.data.getString("holograms." + id + ".stat", "elo")))));
+              String.join(
+                  "\n",
+                  customLines.isEmpty()
+                      ? lines(p.data.getString("holograms." + id + ".stat", "elo"))
+                      : customLines)));
     }
   }
 
   void board(Player player) {
     if (p.presentation != null) p.presentation.board(player);
-  }
-
-  void victory(Player player) {
-    if (!p.flag(player, "victory", true)) return;
-    player.showTitle(
-        net.kyori.adventure.title.Title.title(
-            Component.text("VICTORY", NamedTextColor.GOLD),
-            p.text("Well played • Returning to lobby"),
-            net.kyori.adventure.title.Title.Times.times(
-                java.time.Duration.ofMillis(200),
-                java.time.Duration.ofSeconds(2),
-                java.time.Duration.ofMillis(400))));
-    player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.6f, 1.2f);
-    String effect = p.data.getString("players." + player.getUniqueId() + ".effect", "spark");
-    Particle particle =
-        effect.equals("heart")
-            ? Particle.HEART
-            : effect.equals("soul") ? Particle.SOUL : Particle.END_ROD;
-    for (int t = 0; t < 4; t++) {
-      int step = t;
-      Bukkit.getScheduler()
-          .runTaskLater(
-              p,
-              () -> {
-                if (player.isOnline())
-                  player
-                      .getWorld()
-                      .spawnParticle(
-                          particle,
-                          player.getLocation().add(0, 1 + step * 0.2, 0),
-                          20,
-                          0.7,
-                          0.4,
-                          0.7,
-                          0.03);
-              },
-              t * 8L);
-    }
   }
 
   void close() {

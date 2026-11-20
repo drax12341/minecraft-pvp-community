@@ -31,6 +31,7 @@ class VideoPracticeTest {
     p = MockBukkit.load(CommunityArena.class);
     p.worldSaver = w -> {};
     p.getConfig().set("presentation.nametags", false);
+    p.getConfig().set("presentation.effects", false);
     p.getConfig().set("presentation.hide-score-numbers", false);
     p.ready = true;
     org.bukkit.event.HandlerList.unregisterAll(p.terrain);
@@ -360,6 +361,7 @@ class VideoPracticeTest {
     p.onEnable();
     p.worldSaver = w -> {};
     p.getConfig().set("presentation.nametags", false);
+    p.getConfig().set("presentation.effects", false);
     p.getConfig().set("presentation.hide-score-numbers", false);
     assertEquals(p.grove, p.data.getLocation("setup.spawn").getWorld());
     assertEquals(p.world, p.data.getLocation("setup.arenas.1.a").getWorld());

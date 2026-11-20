@@ -329,36 +329,7 @@ final class PracticePresentation implements Listener {
   }
 
   void profile(Player player) {
-    var inv = p.menus.frame(54, "Community | Your Profile");
-    UUID id = player.getUniqueId();
-    inv.setItem(
-        4,
-        p.item(
-            Material.PLAYER_HEAD,
-            player.getName(),
-            null,
-            "Division: " + Rating.division(p.progression.elo(id)),
-            "Global Elo: " + p.progression.elo(id),
-            "Wins: "
-                + p.progression.number(id, "wins")
-                + " | Deaths: "
-                + p.progression.number(id, "deaths"),
-            "Best streak: " + p.progression.number(id, "bestStreak")));
-    int i = 0;
-    for (String kit : CommunityArena.KITS) {
-      inv.setItem(
-          10 + i + i / 7 * 2,
-          p.item(
-              Loadouts.icon(kit),
-              Loadouts.name(kit),
-              "kit:r:" + kit,
-              "Kit Elo: " + p.progression.elo(id, kit),
-              "Wins: " + p.progression.kitNumber(id, kit, "wins"),
-              "Losses: " + p.progression.kitNumber(id, kit, "losses")));
-      i++;
-    }
-    inv.setItem(45, p.item(Material.ARROW, "Navigation", "navigation"));
-    player.openInventory(inv);
+    p.reference.profile(player);
   }
 
   void matchIntro(CommunityArena.Match m) {

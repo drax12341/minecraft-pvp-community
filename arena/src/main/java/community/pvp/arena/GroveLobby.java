@@ -46,7 +46,7 @@ final class GroveLobby {
             return;
           }
           p.groveReady = true;
-          p.ready = p.data.getBoolean("built-combat-v3");
+          p.ready = p.data.getBoolean("built-combat-v4");
           if (p.ready && p.getConfig().getBoolean("join-lobby", true))
             for (var player : Bukkit.getOnlinePlayers()) if (!p.busy(player)) p.enter(player);
           cancel();

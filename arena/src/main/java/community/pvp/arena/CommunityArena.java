@@ -45,10 +45,16 @@ public class CommunityArena extends JavaPlugin {
   final Map<UUID, Invite> invites = new HashMap<>();
   final Set<UUID> frozen = new HashSet<>();
   final Set<Integer> occupied = new HashSet<>();
+  PracticeInsights insights;
+  PracticeInbox inbox;
+  SavedKits savedKits;
+  ReferenceMenus reference;
+  PracticeMotion motion;
   PracticeMenus menus;
   KitLayouts layouts;
   ArenaTerrain terrain;
   PracticePresentation presentation;
+  World citadel;
   World grove;
   boolean groveReady;
   java.util.function.Consumer<World> worldSaver = World::save;
@@ -63,10 +69,16 @@ public class CommunityArena extends JavaPlugin {
   File dataFile;
   NamespacedKey menuKey;
 
-  record Invite(UUID sender, String kit, int rounds, long expires) {}
+  record Invite(UUID sender, String kit, int rounds, long expires, ItemStack[] custom) {
+    Invite(UUID sender, String kit, int rounds, long expires) {
+      this(sender, kit, rounds, expires, null);
+    }
+  }
 
   final class Match {
     UUID a, b;
+    ItemStack[] customEquipment;
+    final Map<UUID, Integer> roundKills = new HashMap<>(), roundDeaths = new HashMap<>();
     String kit;
     int arena, target, sa, sb;
     boolean paused = true, ended;
@@ -139,7 +151,19 @@ public class CommunityArena extends JavaPlugin {
     new OwnershipLink(this);
     menuKey = new NamespacedKey(this, "action");
     getDataFolder().mkdirs();
-    world = createPracticeWorld("community_arena_v3");
+    world = createPracticeWorld("community_arena_v4");
+    if (new File(getServer().getWorldContainer(), "community_arena_v3").isDirectory())
+      createPracticeWorld("community_arena_v3");
+    citadel = createPracticeWorld("community_citadel_v4");
+    citadel.setTime(6000);
+    citadel.setPVP(false);
+    citadel.setDifficulty(Difficulty.PEACEFUL);
+    for (var rule :
+        List.of(
+            GameRule.DO_MOB_SPAWNING,
+            GameRule.DO_DAYLIGHT_CYCLE,
+            GameRule.DO_WEATHER_CYCLE,
+            GameRule.DO_FIRE_TICK)) citadel.setGameRule(rule, false);
     grove = createPracticeWorld("community_grove_v3");
     if (new File(getServer().getWorldContainer(), "community_arena").isDirectory())
       createPracticeWorld("community_arena");
@@ -156,6 +180,7 @@ public class CommunityArena extends JavaPlugin {
     for (String kit : List.of("crystal", "smp", "nethop", "uhc"))
       getConfig().addDefault("rounds." + kit, 1);
     getConfig().addDefault("presentation.nametags", true);
+    getConfig().addDefault("presentation.effects", true);
     getConfig().addDefault("presentation.hide-score-numbers", true);
     getConfig().addDefault("presentation.brand", "Community");
     getConfig().addDefault("presentation.region", "Standalone");
@@ -169,15 +194,22 @@ public class CommunityArena extends JavaPlugin {
     progression.refresh();
     menus = new PracticeMenus(this);
     layouts = new KitLayouts(this);
+    insights = new PracticeInsights(this);
+    inbox = new PracticeInbox(this);
+    savedKits = new SavedKits(this);
+    reference = new ReferenceMenus(this);
+    motion = new PracticeMotion(this);
     grove.setTime(6000);
     grove.setGameRule(GameRule.DO_MOB_SPAWNING, false);
     grove.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
     grove.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
     grove.setGameRule(GameRule.DO_FIRE_TICK, false);
     terrain = new ArenaTerrain(this);
+    terrain.recoverLegacy();
     terrain.recover();
     presentation = new PracticePresentation(this);
     GroveLobby.build(this);
+    CitadelLobby.build(this);
     world.setAutoSave(true);
     world.setTime(6000);
     world.setStorm(false);
@@ -210,11 +242,15 @@ public class CommunityArena extends JavaPlugin {
             "leaderboard",
             "pvpadmin",
             "layout",
-            "profile")) {
+            "profile",
+            "notifications",
+            "customkit",
+            "customduel",
+            "findplayer")) {
       getCommand(cmd).setExecutor(commands);
       getCommand(cmd).setTabCompleter(commands);
     }
-    if (data.getBoolean("built-combat-v3")) {
+    if (data.getBoolean("built-combat-v4")) {
       ready = groveReady;
     } else build();
     getServer()
@@ -256,6 +292,7 @@ public class CommunityArena extends JavaPlugin {
         } catch (Exception ex) {
           getLogger().severe(ex.getMessage());
         }
+    if (motion != null) motion.close();
     if (presentation != null) presentation.close();
     if (visuals != null) visuals.close();
     save();
@@ -307,6 +344,7 @@ public class CommunityArena extends JavaPlugin {
               }
           }
         if (x > radius) {
+          if (section >= 1 && section <= 4) CitadelLobby.arena(CommunityArena.this, section);
           section++;
           x = section == 5 ? -40 : -32;
           if (section > 5) {
@@ -317,9 +355,9 @@ public class CommunityArena extends JavaPlugin {
               cancel();
               return;
             }
-            data.set("built-combat-v3", true);
+            data.set("built-combat-v4", true);
             if (!save()) {
-              data.set("built-combat-v3", false);
+              data.set("built-combat-v4", false);
               cancel();
               return;
             }
@@ -356,6 +394,8 @@ public class CommunityArena extends JavaPlugin {
         data.set(key + ".gamemode", p.getGameMode().name());
         data.set(key + ".xp", p.getTotalExperience());
         data.set(key + ".health", p.getHealth());
+        data.set(key + ".timeRelative", p.isPlayerTimeRelative());
+        data.set(key + ".timeOffset", p.getPlayerTimeOffset());
         data.set(key + ".absorption", p.getAbsorptionAmount());
         data.set(key + ".food", p.getFoodLevel());
         data.set(key + ".saturation", p.getSaturation());
@@ -367,6 +407,7 @@ public class CommunityArena extends JavaPlugin {
         }
       }
       participants.add(p.getUniqueId());
+      insights.join(p);
     }
     lobby(p);
   }
@@ -431,11 +472,15 @@ public class CommunityArena extends JavaPlugin {
     p.getInventory().setItem(6, null);
     p.getInventory().setItem(7, item(Material.PLAYER_HEAD, "Your Profile", "profile"));
     p.getInventory().setItem(8, item(Material.BOOK, "Rewards", "rewards"));
+    reference.applyTime(p);
     board(p);
     if (presentation != null) presentation.tick();
   }
 
   void restore(Player p) {
+    if (insights != null && managed(p)) insights.leave(p);
+    if (motion != null) motion.leave(p);
+    p.resetPlayerTime();
     if (presentation != null) presentation.restore(p);
     social.leave(p);
     visuals.boards.remove(p.getUniqueId());
@@ -465,6 +510,8 @@ public class CommunityArena extends JavaPlugin {
       for (Object effect : data.getList(key + ".effects", List.of()))
         if (effect instanceof PotionEffect potion) p.addPotionEffect(potion);
       p.setAbsorptionAmount(data.getDouble(key + ".absorption", 0));
+      if (data.contains(key + ".timeRelative"))
+        p.setPlayerTime(data.getLong(key + ".timeOffset"), data.getBoolean(key + ".timeRelative"));
       data.set(key, null);
       save();
     }
@@ -507,6 +554,11 @@ public class CommunityArena extends JavaPlugin {
     if (!managed(p)) return;
     if (busy(p)) {
       tell(p, "Use /leave to end your session first.");
+      return;
+    }
+    if (reference.handle(p, a, false, false)) return;
+    if (a.equals("queues-both")) {
+      reference.queues(p, "both");
       return;
     }
     if (menusAction(p, a)) return;
@@ -576,12 +628,20 @@ public class CommunityArena extends JavaPlugin {
               "nametags",
               "health",
               "chat",
-              "victory")
+              "victory",
+              "animations")
           .contains(key)) return;
       data.set("players." + p.getUniqueId() + "." + key, !flag(p, key, true));
       save();
       settings(p);
     }
+  }
+
+  void handleMenuClick(Player player, String action, boolean reverse, boolean reset) {
+    if (!managed(player)) enter(player);
+    if (!managed(player) || busy(player)) return;
+    if (reference.handle(player, action, reverse, reset)) return;
+    action(player, action);
   }
 
   boolean menusAction(Player p, String a) {
@@ -732,6 +792,12 @@ public class CommunityArena extends JavaPlugin {
   }
 
   void start(Player a, Player b, String k, int target, boolean ranked) {
+    start(a, b, k, target, ranked, null);
+  }
+
+  void start(Player a, Player b, String k, int target, boolean ranked, ItemStack[] custom) {
+    if (custom != null && (ranked || custom.length != 41))
+      throw new IllegalArgumentException("Custom sets must be unranked with 41 equipment slots");
     if (!ready) return;
     if (a == null || b == null || a.equals(b) || busy(a) || busy(b)) return;
     if (!managed(a)) enter(a);
@@ -750,6 +816,7 @@ public class CommunityArena extends JavaPlugin {
     ffa.remove(b.getUniqueId());
     Match m = new Match(a, b, k, index, target);
     m.ranked = ranked;
+    m.customEquipment = custom == null ? null : SavedKits.copy(custom);
     progression.remember(a);
     progression.remember(b);
     progression.beginDay(a.getUniqueId());
@@ -783,8 +850,13 @@ public class CommunityArena extends JavaPlugin {
       finish(m, null, "Arena recovery required");
       return;
     }
-    equip(a, m.kit);
-    equip(b, m.kit);
+    if (m.customEquipment == null) {
+      equip(a, m.kit);
+      equip(b, m.kit);
+    } else {
+      savedKits.equip(a, m.customEquipment);
+      savedKits.equip(b, m.customEquipment);
+    }
     a.teleport(setup.duelSpawn(m.arena, true));
     b.teleport(setup.duelSpawn(m.arena, false));
     frozen.add(m.a);
@@ -831,8 +903,10 @@ public class CommunityArena extends JavaPlugin {
     Match m = matches.get(loser.getUniqueId());
     if (m == null || m.paused || m.ended) return;
     m.paused = true;
+    m.roundDeaths.merge(loser.getUniqueId(), 1, Integer::sum);
     progression.add(loser.getUniqueId(), "deaths", 1);
     UUID winner = m.other(loser.getUniqueId());
+    m.roundKills.merge(winner, 1, Integer::sum);
     progression.add(winner, "kills", 1);
     if (winner.equals(m.a)) m.sa++;
     else m.sb++;
@@ -875,8 +949,12 @@ public class CommunityArena extends JavaPlugin {
       if (player != null) {
         player.setInvulnerable(true);
         player.getInventory().clear();
-        if (id.equals(winner)) visuals.victory(player);
-        else
+        if (id.equals(winner)) {
+          motion.result(m, player, true);
+        } else {
+          motion.result(m, player, false);
+        }
+        if (winner == null)
           player.showTitle(
               net.kyori.adventure.title.Title.title(
                   text(winner == null ? "DRAW" : "DEFEAT"), text(reason)));

@@ -17,6 +17,7 @@ class ArenaTest {
     p = MockBukkit.load(CommunityArena.class);
     p.worldSaver = w -> {};
     p.getConfig().set("presentation.nametags", false);
+    p.getConfig().set("presentation.effects", false);
     p.getConfig().set("presentation.hide-score-numbers", false);
     p.ready = true;
   }
