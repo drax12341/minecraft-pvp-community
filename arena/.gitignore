@@ -1,6 +1,0 @@
-graphify-out/
-*.log
-tools/*.npz
-tools/*.png
-tools/*-sections.json
-tools/__pycache__/
