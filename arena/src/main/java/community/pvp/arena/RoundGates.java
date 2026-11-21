@@ -71,6 +71,23 @@ final class RoundGates implements Listener {
         return team == null ? 0 : team.policy.arena;
     }
 
+    @EventHandler(ignoreCancelled = false)
+    public void ready(PlayerInteractEvent e) {
+        if (e.getAction() != org.bukkit.event.block.Action.LEFT_CLICK_BLOCK || e.getClickedBlock() == null) return;
+        var m = p.matches.get(e.getPlayer().getUniqueId());
+        if (m == null || m.ended || !m.paused || !ImportedBuilds.is(m.arena)) return;
+        var map = BattleMaps.get(m.arena);
+        var build = ImportedBuilds.build(m.arena);
+        var block = e.getClickedBlock();
+        for (var entry : List.of(build.a(), build.b()))
+            if (block.getWorld().equals(p.world) && block.getX() == map.cx() - map.width() / 2 + entry.gate() && Math.abs(block.getZ() - (1024 - map.length() / 2 + entry.z())) <= 8 && block.getY() >= 97 && block.getY() <= 101 && e.getPlayer().getLocation().distanceSquared(block.getLocation()) <= 36) {
+                m.readied.add(e.getPlayer().getUniqueId());
+                e.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text("Ready | " + m.readied.size() + "/2"));
+                e.setCancelled(true);
+                return;
+            }
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void move(PlayerMoveEvent e) {
         int id = arena(e.getPlayer());

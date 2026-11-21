@@ -133,6 +133,17 @@ public final class NativeBuildCheck extends JavaPlugin {
         check(spawn.clone().add(0, -1, 0).getBlock().getType().isSolid(), "lobby floor");
         check(spawn.getBlock().isPassable() && spawn.clone().add(0, 1, 0).getBlock().isPassable(), "lobby headroom");
         check(lobby.getBlockAt(300, 96, 0).getType().isAir(), "lobby void");
+        Object bots = field(arena, "bots");
+        Class<?> sessionType = Class.forName("community.pvp.arena.PracticeBots$Session", true, loader);
+        var constructor = sessionType.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        Object session = constructor.newInstance();
+        var targetLocation = (Location) stat("BattleMaps", "spawn", new Class<?>[]{arena.getClass(), int.class, boolean.class}, arena, 100, false);
+        call(bots, "pin", new Class<?>[]{sessionType, Location.class}, session, targetLocation);
+        check(targetLocation.getChunk().getPluginChunkTickets().contains((JavaPlugin) arena), "target chunk pinned");
+        call(bots, "unpin", new Class<?>[]{sessionType}, session);
+        check(!targetLocation.getChunk().getPluginChunkTickets().contains((JavaPlugin) arena), "target chunk ticket released");
+        points += 2;
         Object gates = field(arena, "gates");
         var occupied = (Set<Integer>) field(arena, "occupied");
         occupied.add(100);

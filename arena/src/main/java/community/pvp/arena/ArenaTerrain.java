@@ -108,7 +108,7 @@ final class ArenaTerrain implements Listener {
     public void entityUnload(org.bukkit.event.world.EntitiesUnloadEvent e) {
         if (!e.getWorld().equals(world) || !journalPrefix.equals(activePrefix(p))) return;
         for (Entity entity : e.getEntities())
-            if (!(entity instanceof Player) && !(entity instanceof Display)) entity.remove();
+            if (!(entity instanceof Player) && !(entity instanceof Display) && p.bots.session(entity)==null) entity.remove();
     }
 
     void recoverLegacy() {

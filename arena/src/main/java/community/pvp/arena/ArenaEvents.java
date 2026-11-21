@@ -172,8 +172,6 @@ final class ArenaEvents implements Listener {
                     e.setCancelled(true);
                     return;
                 }
-                if (arena.flag(attacker, "hitsounds", true))
-                    attacker.playSound(attacker.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.35f, 1.4f);
             }
         }
         if (m != null
@@ -355,15 +353,25 @@ final class ArenaEvents implements Listener {
     @EventHandler
     public void swap(PlayerSwapHandItemsEvent e) {
         if (arena.managed(e.getPlayer())
-                && !arena.matches.containsKey(e.getPlayer().getUniqueId())
+                && !arena.busy(e.getPlayer())
                 && !arena.ffa.contains(e.getPlayer().getUniqueId())) e.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void hitFeedback(EntityDamageByEntityEvent e) {
+        if (e.getFinalDamage() <= 0 || !(e.getEntity() instanceof Player target) || !arena.managed(target)) return;
+        Player attacker = e.getDamager() instanceof Player a ? a : e.getDamager() instanceof Projectile arrow && arrow.getShooter() instanceof Player a ? a : null;
+        if (attacker != null && arena.managed(attacker) && arena.flag(attacker, "hitsounds", true))
+            attacker.playSound(attacker.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, .35f, 1.4f);
     }
 
     @EventHandler
     public void respawn(PlayerRespawnEvent e) {
         if (arena.managed(e.getPlayer())) {
             e.setRespawnLocation(arena.setup.spawn());
-            arena.getServer().getScheduler().runTask(arena, () -> arena.lobby(e.getPlayer()));
+            arena.getServer().getScheduler().runTask(arena, () -> {
+                if (!arena.busy(e.getPlayer())) arena.lobby(e.getPlayer());
+            });
         }
     }
 

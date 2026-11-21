@@ -1,4 +1,4 @@
-# CommunityArena 8.0.1 preview
+# CommunityArena 8.0.2 preview
 
 Paper 1.21.11 / Java 21+. One server plugin JAR.
 

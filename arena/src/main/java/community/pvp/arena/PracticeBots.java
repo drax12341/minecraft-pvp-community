@@ -24,6 +24,7 @@ final class PracticeBots implements Listener {
         DuelRules rules;
         long started;
         int ticks;
+        final Set<org.bukkit.Chunk> tickets = new HashSet<>();
     }
 
     PracticeBots(CommunityArena p) {
@@ -69,6 +70,7 @@ final class PracticeBots implements Listener {
             else p.savedKits.equip(player, s.policy.customEquipment);
             Zombie bot = spawn(s);
             s.entity = bot.getUniqueId();
+            pin(s, bot.getLocation());
             sessions.put(player.getUniqueId(), s);
             player.closeInventory();
             player.teleport(BattleMaps.spawn(p, s.map, true));
@@ -81,6 +83,7 @@ final class PracticeBots implements Listener {
             }
             sessions.remove(player.getUniqueId());
             p.occupied.remove(map.id());
+            unpin(s);
             p.lobby(player);
             p.getLogger().severe("Bot start failed: " + ex.getMessage());
         }
@@ -95,7 +98,8 @@ final class PracticeBots implements Listener {
         for (int second = 0; second < 3; second++) {
             int left = 3 - second;
             Bukkit.getScheduler().runTaskLater(p, () -> {
-                if (sessions.get(player.getUniqueId()) == s) p.tell(player, "Starting in " + left + "...");
+                if (sessions.get(player.getUniqueId()) == s)
+                    RoundEffects.count(p, player, left, "Practice target | Sneak to prepare");
             }, second * 20L);
         }
         Bukkit.getScheduler().runTaskLater(p, () -> {
@@ -104,6 +108,7 @@ final class PracticeBots implements Listener {
             s.policy.paused = false;
             p.frozen.remove(player.getUniqueId());
             p.gates.open(s.map);
+            RoundEffects.go(p, player);
             p.tell(player, "GO!");
         }, 60);
     }
@@ -192,7 +197,9 @@ final class PracticeBots implements Listener {
                                 p.terrain.clearEntities(s.map);
                                 p.terrain.reset(s.map);
                                 s.remaining = s.initialTotems;
-                                s.entity = spawn(s).getUniqueId();
+                                Zombie next = spawn(s);
+                                s.entity = next.getUniqueId();
+                                pin(s, next.getLocation());
                                 s.paused = false;
                                 countdown(owner, s);
                                 if (s.policy.customEquipment == null) p.equip(owner, s.policy.kit);
@@ -224,6 +231,7 @@ final class PracticeBots implements Listener {
             if (s.moving) {
                 s.ticks += 2;
                 var origin = motionLocation(p, s.map, s.ticks);
+                pin(s, origin);
                 bot.teleport(origin);
             }
             player.sendActionBar(PracticePresentation.ui("§bBot practice §8| §fTotems: " + s.remaining + " §8| §7/leave"));
@@ -246,6 +254,7 @@ final class PracticeBots implements Listener {
         sessions.remove(id);
         Entity bot = Bukkit.getEntity(s.entity);
         if (bot != null) bot.remove();
+        unpin(s);
         try {
             p.terrain.clearEntities(s.map);
             p.terrain.reset(s.map);
@@ -264,5 +273,15 @@ final class PracticeBots implements Listener {
 
     void close() {
         for (var e : new HashMap<>(sessions).entrySet()) release(e.getKey(), e.getValue());
+    }
+
+    void pin(Session s, Location location) {
+        var chunk = location.getChunk();
+        if (s.tickets.add(chunk)) chunk.addPluginChunkTicket(p);
+    }
+
+    void unpin(Session s) {
+        for (var chunk : s.tickets) chunk.removePluginChunkTicket(p);
+        s.tickets.clear();
     }
 }

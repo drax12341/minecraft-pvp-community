@@ -133,6 +133,7 @@ final class Progression {
         remember(p);
         queuedAt.put(p.getUniqueId(), System.currentTimeMillis());
         plugin.queues.put(p.getUniqueId(), "ranked:" + kit);
+        RoundEffects.queued(plugin,p,kit);
         p.closeInventory();
         plugin.tell(p, "Ranked " + kit + " queued. Elo " + elo(p.getUniqueId()) + " | /leave cancels.");
     }

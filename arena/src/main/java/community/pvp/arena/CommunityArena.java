@@ -328,7 +328,7 @@ public class CommunityArena extends JavaPlugin {
 
     Location loc(int section, int x, int z, float yaw) {
         var map = BattleMaps.get(section);
-        return new Location(world, (map == null ? section * 160 : map.cx()) + x + 0.5, ImportedBuilds.is(section)?97:65, (map == null ? 0 : 1024) + z + 0.5, yaw, 0);
+        return new Location(world, (map == null ? section * 160 : map.cx()) + x + 0.5, ImportedBuilds.is(section) ? 97 : 65, (map == null ? 0 : 1024) + z + 0.5, yaw, 0);
     }
 
     void enter(Player p) {
@@ -389,6 +389,8 @@ public class CommunityArena extends JavaPlugin {
     }
 
     void lobby(Player p) {
+        // A delayed respawn/menu callback must not strip a newly started session.
+        if (busy(p)) return;
         queues.remove(p.getUniqueId());
         ffa.remove(p.getUniqueId());
         frozen.remove(p.getUniqueId());
@@ -743,6 +745,7 @@ public class CommunityArena extends JavaPlugin {
         if (ffa.contains(p.getUniqueId())) lobby(p);
         progression.queuedAt.put(p.getUniqueId(), System.currentTimeMillis());
         queues.put(p.getUniqueId(), k);
+        RoundEffects.queued(this, p, k);
         p.closeInventory();
         tell(p, "Queued for " + k + ". /leave cancels. Practice never changes your tier.");
         matchQueues();
@@ -817,6 +820,8 @@ public class CommunityArena extends JavaPlugin {
         progression.beginDay(b.getUniqueId());
         matches.put(m.a, m);
         matches.put(m.b, m);
+        RoundEffects.found(this, a);
+        RoundEffects.found(this, b);
         round(m);
         presentation.tick();
     }
@@ -869,26 +874,16 @@ public class CommunityArena extends JavaPlugin {
                     return;
                 }
                 if (left > 0 && m.readied.size() < 2) {
-                    for (Player p : List.of(a, b)) {
-                        p.showTitle(
-                                net.kyori.adventure.title.Title.title(
-                                        text("" + left),
-                                        Component.text(m.kit + " • " + m.sa + " : " + m.sb, NamedTextColor.GRAY)));
-                        p.sendActionBar(text("Sneak to ready • " + m.readied.size() + "/2"));
-                        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.6f, 1);
-                    }
+                    for (Player player : List.of(a, b))
+                        RoundEffects.count(CommunityArena.this, player, left, "Sneak to ready | " + m.sa + " : " + m.sb);
                     left--;
                 } else {
                     gates.open(m.arena);
+                    m.roundStarted = System.currentTimeMillis();
                     m.paused = false;
                     frozen.remove(m.a);
                     frozen.remove(m.b);
-                    for (Player p : List.of(a, b)) {
-                        p.showTitle(
-                                net.kyori.adventure.title.Title.title(
-                                        Component.text("GO!", NamedTextColor.GREEN), text("First to " + m.target)));
-                        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.5f);
-                    }
+                    for (Player player : List.of(a, b)) RoundEffects.go(CommunityArena.this, player);
                     cancel();
                 }
             }

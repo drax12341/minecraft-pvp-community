@@ -1,4 +1,6 @@
-# CommunityArena 8.0.1 preview
+# CommunityArena 8.0.2 preview
+
+8.0.2 guards active sessions against delayed lobby/respawn cleanup, pins operator practice targets' chunks until their session releases, permits native offhand swaps in bot and party sessions, and adds consistent queue/countdown/FIGHT cues. Existing v8 worlds and kits are reused. Countdown clears stale fall and velocity state at GO; it does not modify native weapon attributes, attack cooldowns or invulnerability windows.
 
 8.0.1 fixes map cards silently ignoring clicks while their copies are preparing or busy. Any compatible design can now be selected; the browser shows available/preparing counts, and selecting a preparing design prioritizes its next unused copy. Starting a match still waits for a prepared, unoccupied copy. This patch reuses the existing v8 worlds and builds; no world deletion or rebuild is needed.
 
