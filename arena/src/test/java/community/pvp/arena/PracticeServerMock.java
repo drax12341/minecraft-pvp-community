@@ -9,6 +9,29 @@ import org.mockbukkit.mockbukkit.ServerMock;
  * MockBukkit leaves this filesystem accessor unimplemented; no worlds are written by this fixture.
  */
 final class PracticeServerMock extends ServerMock {
+    final boolean imported;
+
+    PracticeServerMock() {
+        this(false);
+    }
+
+    PracticeServerMock(boolean imported) {
+        this.imported = imported;
+    }
+
+    @Override
+    public org.bukkit.block.data.BlockData createBlockData(String input) {
+        try {
+            return super.createBlockData(input);
+        } catch (IllegalArgumentException ex) {
+            // MockBukkit lacks several valid native properties (e.g. lantern.hanging).
+            String name = input.split("\\[")[0];
+            var material = org.bukkit.Material.matchMaterial(name);
+            if (material == null) throw ex;
+            return super.createBlockData(material);
+        }
+    }
+
     @Override
     public org.bukkit.World createWorld(org.bukkit.WorldCreator creator) {
         org.bukkit.World existing = getWorld(creator.name());
@@ -44,7 +67,8 @@ final class PracticeServerMock extends ServerMock {
                 return super.getBlockAt(x, y, z);
             }
         };
-        world.setName(creator.name());
+        // Keep existing generation regression fixtures on their archived v7 geometry.
+        world.setName(!imported && creator.name().endsWith("_v8") ? creator.name().replace("_v8", "_v7") : creator.name());
         addWorld(world);
         return world;
     }

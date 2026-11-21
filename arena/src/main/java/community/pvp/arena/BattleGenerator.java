@@ -29,7 +29,7 @@ class BattleGenerator extends ChunkGenerator {
         return new BiomeProvider() {
             @Override
             public org.bukkit.block.Biome getBiome(WorldInfo world, int x, int y, int z) {
-                var m = BattleMaps.at(x, z);
+                var m = BattleMaps.legacyAt(x, z);
                 return m == null ? org.bukkit.block.Biome.PLAINS : switch (m.theme()) {
                     case 1 -> org.bukkit.block.Biome.DESERT;
                     case 2 -> org.bukkit.block.Biome.JUNGLE;
@@ -87,7 +87,7 @@ class BattleGenerator extends ChunkGenerator {
         for (int x = 0; x < 16; x++)
             for (int z = 0; z < 16; z++) {
                 int wx = chunkX * 16 + x, wz = chunkZ * 16 + z;
-                BattleMaps.MapInfo map = BattleMaps.at(wx, wz);
+                BattleMaps.MapInfo map = BattleMaps.legacyAt(wx, wz);
                 final int lx = x, lz = z;
                 if (map != null) {
                     ArenaLandscape.Column out = (lo, hi, mat) -> {

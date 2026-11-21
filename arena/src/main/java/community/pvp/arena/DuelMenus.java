@@ -32,6 +32,7 @@ final class DuelMenus {
         if (!p.managed(player)) p.enter(player);
         if (!p.managed(player)) return;
         Draft d = new Draft();
+        d.map = BattleMaps.playable(p).getFirst().id();
         if ("bot".equalsIgnoreCase(target)) {
             if (!player.isOp()) {
                 p.tell(player, "Only operators can practice against bots.");
@@ -97,7 +98,7 @@ final class DuelMenus {
         inv.setItem(8, p.item(Material.BARRIER, "Cancel", "duelui:cancel"));
         inv.setItem(22, p.item(Loadouts.icon(d.kit), "§a" + (d.bot ? "Start practice" : "Send challenge"), "duelui:send", "Kit: " + Loadouts.name(d.kit), "Map: " + BattleMaps.get(d.map).name(), "First to: " + d.rounds, "Click to confirm your settings"));
         inv.setItem(39, p.item(Material.CLOCK, "First to: " + d.rounds, "duelui:rounds", "Click +1 | Right-click -1 (1..10)"));
-        inv.setItem(40, p.item(BattleMaps.ICONS[BattleMaps.get(d.map).theme()], BattleMaps.get(d.map).name(), "duelui:maps", "Choose biome and arena size"));
+        inv.setItem(40, p.item(BattleMaps.icon(d.map), BattleMaps.get(d.map).name(), "duelui:maps", "Choose biome and arena size"));
         inv.setItem(41, p.item(Material.COMPARATOR, "Duel Settings", "duelui:settings", "Pearls, movement, TNT and loot"));
         if (d.bot) {
             inv.setItem(29, p.item(Material.LEATHER_BOOTS, "Bot movement: " + on(d.moving), "duelui:moving", "Stationary or moving target"));
@@ -125,6 +126,10 @@ final class DuelMenus {
     void maps(Player player) {
         Draft d = drafts.get(player.getUniqueId());
         var current = BattleMaps.get(d.map);
+        if (ImportedBuilds.is(d.map)) {
+            importedMaps(player, d);
+            return;
+        }
         String[] sizes = {"Compact", "Standard", "Sky"};
         Inventory inv = frame(54, "Maps | " + sizes[current.size()]);
         for (int size = 0; size < 3; size++) {
@@ -142,6 +147,29 @@ final class DuelMenus {
                     m.width() + " x " + m.length() + " | Sky Y=" + m.ceiling(), busy ? "Arena in use; choose another biome" : "Click to select this biome"));
         }
         inv.setItem(40, p.item(Material.COMPASS, "Random available biome", "duelui:random-map", "Uses the selected size and kit restrictions"));
+        inv.setItem(49, p.item(Material.ARROW, "Back", "duelui:setup"));
+        player.openInventory(inv);
+    }
+
+    void importedMaps(Player player, Draft d) {
+        int size = BattleMaps.get(d.map).size();
+        String[] names = {"Small", "Bigger", "Massive"};
+        Inventory inv = frame(54, "Arenas | " + names[size]);
+        for (int n = 0; n < 3; n++) {
+            final int category = n;
+            if (ImportedBuilds.TEMPLATES.stream().noneMatch(m -> m.size() == category && m.supports(d.kit))) continue;
+            inv.setItem(2 + n * 2, p.item(n == size ? Material.LIME_DYE : Material.GRAY_DYE, names[n], "duelui:size:" + n, n == size ? "Selected size" : "Click to browse"));
+        }
+        int slot = 0;
+        for (var m : ImportedBuilds.TEMPLATES)
+            if (m.size() == size && m.supports(d.kit)) {
+                boolean selected = m.id() == d.map;
+                long free = ImportedBuilds.SLOTS.stream().filter(v -> v.theme() == m.theme() && !p.occupied.contains(v.id()) && p.warmup.ready(v.id())).count();
+                inv.setItem(19 + slot * 2, p.item(selected ? Material.LIME_DYE : Material.GRAY_DYE, (selected ? "\u00a7aSelected: " : "\u00a77") + m.name(), "duelui:map:" + m.id(), m.width() + " x " + m.length() + " | Ceiling: " + m.ceiling(), "Theme: " + BattleMaps.icon(m.id()).name().toLowerCase().replace('_', ' '), free + " of 3 separate copies free", selected ? "Selected arena" : "Click to select"));
+                inv.setItem(28 + slot * 2, p.item(BattleMaps.icon(m.id()), m.name(), "duelui:map:" + m.id(), "Imported build floating over void"));
+                slot++;
+            }
+        inv.setItem(40, p.item(Material.COMPASS, "Random available arena", "duelui:random-map"));
         inv.setItem(49, p.item(Material.ARROW, "Back", "duelui:setup"));
         player.openInventory(inv);
     }
@@ -177,7 +205,8 @@ final class DuelMenus {
                 if (p.kit(a[2])) {
                     d.custom = null;
                     d.kit = a[2];
-                    if (!BattleMaps.get(d.map).supports(d.kit)) d.map = 6 + BattleMaps.get(d.map).theme() * 3;
+                    if (!BattleMaps.get(d.map).supports(d.kit))
+                        d.map = ImportedBuilds.is(d.map) ? BattleMaps.playable(p).stream().filter(m -> m.supports(d.kit)).findFirst().orElseThrow().id() : 6 + BattleMaps.get(d.map).theme() * 3;
                     setup(player);
                 }
             }
@@ -185,15 +214,16 @@ final class DuelMenus {
             case "size" -> {
                 if (a.length != 3 || !a[2].matches("[0-2]")) return true;
                 var current = BattleMaps.get(d.map);
-                var next = BattleMaps.get(6 + current.theme() * 3 + Integer.parseInt(a[2]));
-                if (next.supports(d.kit)) {
+                int size = Integer.parseInt(a[2]);
+                var next = ImportedBuilds.is(d.map) ? ImportedBuilds.TEMPLATES.stream().filter(m -> m.size() == size && m.supports(d.kit)).findFirst().orElse(null) : BattleMaps.get(6 + current.theme() * 3 + size);
+                if (next != null && next.supports(d.kit)) {
                     d.map = next.id();
                     maps(player);
                 }
             }
             case "random-map" -> {
                 int size = BattleMaps.get(d.map).size();
-                var available = BattleMaps.all().stream().filter(m -> m.size() == size && m.supports(d.kit) && !p.occupied.contains(m.id())).toList();
+                var available = BattleMaps.playable(p).stream().filter(m -> m.size() == size && m.supports(d.kit) && BattleMaps.available(p, m.id(), d.kit) > 0).toList();
                 if (available.isEmpty()) p.tell(player, "All maps of this size are in use.");
                 else {
                     d.map = available.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(available.size())).id();
@@ -201,11 +231,11 @@ final class DuelMenus {
                 }
             }
             case "map" -> {
-                if (a.length != 3 || !a[2].matches("[0-9]{1,2}")) return true;
+                if (a.length != 3 || !a[2].matches("[0-9]{1,3}")) return true;
                 var m = BattleMaps.get(Integer.parseInt(a[2]));
-                if (m != null && m.supports(d.kit) && !p.occupied.contains(m.id())) {
+                if (m != null && BattleMaps.playable(p).contains(m) && m.supports(d.kit) && BattleMaps.available(p, m.id(), d.kit) > 0) {
                     d.map = m.id();
-                    setup(player);
+                    maps(player);
                 }
             }
             case "settings" -> settings(player);
@@ -242,7 +272,7 @@ final class DuelMenus {
                     return true;
                 }
                 var selected = BattleMaps.get(d.map);
-                if (selected == null || !selected.supports(d.kit) || p.occupied.contains(d.map)) {
+                if (selected == null || !selected.supports(d.kit) || BattleMaps.available(p, d.map, d.kit) == 0) {
                     p.tell(player, "That arena is unavailable. Choose another biome or size.");
                     maps(player);
                     return true;

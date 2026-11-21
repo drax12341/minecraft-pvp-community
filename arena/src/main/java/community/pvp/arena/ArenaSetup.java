@@ -42,7 +42,7 @@ final class ArenaSetup implements Listener {
                         && Math.max(a.getZ(), b.getZ()) >= -r
                         && Math.min(a.getZ(), b.getZ()) <= r) return false;
             }
-        if (a.getWorld().equals(p.world)) for (var map : BattleMaps.all()) {
+        if (a.getWorld().equals(p.world)) for (var map : BattleMaps.slots(p)) {
             if (Math.max(a.getX(), b.getX()) >= map.cx() - map.width() / 2 - 2 && Math.min(a.getX(), b.getX()) <= map.cx() + map.width() / 2 + 2
                     && Math.max(a.getZ(), b.getZ()) >= 1024 - map.length() / 2 - 2 && Math.min(a.getZ(), b.getZ()) <= 1024 + map.length() / 2 + 2)
                 return false;
@@ -63,6 +63,8 @@ final class ArenaSetup implements Listener {
     }
 
     boolean contains(Location l) {
+        if (p.citadel.getName().equals("community_citadel_v8") && l.getWorld().equals(p.citadel))
+            return ImportedLobby.contains(l, p.citadel);
         if ((l.getWorld().equals(p.citadel) || l.getWorld().equals(p.grove))
                 && Math.abs(l.getX()) <= 49
                 && Math.abs(l.getZ()) <= 49) return true;
@@ -103,8 +105,8 @@ final class ArenaSetup implements Listener {
                     p.tell(player, "The citadel is still being constructed.");
                     return;
                 }
-                p.data.set("setup.corner1", new Location(p.citadel, -49, 0, -49));
-                p.data.set("setup.corner2", new Location(p.citadel, 49, 0, 49));
+                p.data.set("setup.corner1", new Location(p.citadel, p.citadel.getName().endsWith("v8") ? -143 : -49, 0, p.citadel.getName().endsWith("v8") ? -135 : -49));
+                p.data.set("setup.corner2", new Location(p.citadel, p.citadel.getName().endsWith("v8") ? 143 : 49, 0, p.citadel.getName().endsWith("v8") ? 135 : 49));
                 p.data.set("setup.spawn", p.data.getLocation("citadel.spawn"));
             }
             case "usegrove" -> {

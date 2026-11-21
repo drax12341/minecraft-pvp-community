@@ -32,6 +32,7 @@ public class CommunityArena extends JavaPlugin {
     final Set<UUID> frozen = new HashSet<>();
     final Set<Integer> occupied = new HashSet<>();
     MapWarmup warmup;
+    RoundGates gates;
     DuelMenus duels;
     PracticeBots bots;
     Parties parties;
@@ -147,14 +148,19 @@ public class CommunityArena extends JavaPlugin {
         new OwnershipLink(this);
         menuKey = new NamespacedKey(this, "action");
         getDataFolder().mkdirs();
-        world = createPracticeWorld("community_arena_v7");
+        ImportedBuilds.load();
+        world = createPracticeWorld("community_arena_v8");
+        if (new File(getServer().getWorldContainer(), "community_arena_v7").isDirectory())
+            createPracticeWorld("community_arena_v7");
         if (new File(getServer().getWorldContainer(), "community_arena_v6").isDirectory())
             createPracticeWorld("community_arena_v6");
         if (new File(getServer().getWorldContainer(), "community_arena_v4").isDirectory())
             createPracticeWorld("community_arena_v4");
         if (new File(getServer().getWorldContainer(), "community_arena_v3").isDirectory())
             createPracticeWorld("community_arena_v3");
-        citadel = createPracticeWorld("community_citadel_v7");
+        citadel = createPracticeWorld("community_citadel_v8");
+        if (new File(getServer().getWorldContainer(), "community_citadel_v7").isDirectory())
+            createPracticeWorld("community_citadel_v7");
         if (new File(getServer().getWorldContainer(), "community_citadel_v6").isDirectory())
             createPracticeWorld("community_citadel_v6");
         if (new File(getServer().getWorldContainer(), "community_citadel_v4").isDirectory())
@@ -216,7 +222,9 @@ public class CommunityArena extends JavaPlugin {
         grove.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
         grove.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
         grove.setGameRule(GameRule.DO_FIRE_TICK, false);
+        gates = new RoundGates(this);
         terrain = new ArenaTerrain(this);
+        terrain.recoverV7();
         terrain.recoverV6();
         terrain.recoverV4();
         terrain.recoverLegacy();
@@ -305,7 +313,7 @@ public class CommunityArena extends JavaPlugin {
             if (p != null) restore(p);
         }
         if (terrain != null)
-            for (int i = 1; i <= BattleMaps.LAST; i++)
+            for (int i : terrain.arenaIds())
                 if (i != 5)
                     try {
                         terrain.reset(i);
@@ -320,7 +328,7 @@ public class CommunityArena extends JavaPlugin {
 
     Location loc(int section, int x, int z, float yaw) {
         var map = BattleMaps.get(section);
-        return new Location(world, (map == null ? section * 160 : map.cx()) + x + 0.5, 65, (map == null ? 0 : 1024) + z + 0.5, yaw, 0);
+        return new Location(world, (map == null ? section * 160 : map.cx()) + x + 0.5, ImportedBuilds.is(section)?97:65, (map == null ? 0 : 1024) + z + 0.5, yaw, 0);
     }
 
     void enter(Player p) {
@@ -665,6 +673,10 @@ public class CommunityArena extends JavaPlugin {
     }
 
     World createPracticeWorld(String name) {
+        if (name.equals("community_arena_v8"))
+            return new WorldCreator(name).generator(new ImportedGenerator(false)).createWorld();
+        if (name.equals("community_citadel_v8"))
+            return new WorldCreator(name).generator(new ImportedGenerator(true)).createWorld();
         if (name.equals("community_arena_v7"))
             return new WorldCreator(name).generator(new BattleGenerator()).createWorld();
         if (name.equals("community_arena_v6"))
@@ -753,7 +765,7 @@ public class CommunityArena extends JavaPlugin {
 
     int freeArena(String kit) {
         if (data.getBoolean("built-battle-maps-v5"))
-            return BattleMaps.all().stream().filter(m -> m.supports(kit) && !occupied.contains(m.id())).mapToInt(BattleMaps.MapInfo::id).findFirst().orElse(0);
+            return BattleMaps.playable(this).stream().mapToInt(m -> BattleMaps.available(this, m.id(), kit)).filter(i -> i > 0).findFirst().orElse(0);
         return java.util.stream.IntStream.rangeClosed(1, 4).filter(i -> !occupied.contains(i)).findFirst().orElse(0);
     }
 
@@ -784,11 +796,11 @@ public class CommunityArena extends JavaPlugin {
         }
         if (rules.map() != 0) {
             var chosen = BattleMaps.get(rules.map());
-            if (chosen == null || !chosen.supports(k) || !data.getBoolean("built-battle-maps-v5") || occupied.contains(chosen.id())) {
+            if (chosen == null || !chosen.supports(k) || !data.getBoolean("built-battle-maps-v5") || BattleMaps.available(this, chosen.id(), k) == 0) {
                 tell(a, "Selected map is unavailable. Choose another map.");
                 return;
             }
-            index = chosen.id();
+            index = BattleMaps.available(this, chosen.id(), k);
         }
         occupied.add(index);
         queues.remove(a.getUniqueId());
@@ -841,6 +853,7 @@ public class CommunityArena extends JavaPlugin {
         }
         a.teleport(BattleMaps.get(m.arena) == null ? setup.duelSpawn(m.arena, true) : BattleMaps.spawn(this, m.arena, true));
         b.teleport(BattleMaps.get(m.arena) == null ? setup.duelSpawn(m.arena, false) : BattleMaps.spawn(this, m.arena, false));
+        gates.close(m.arena);
         frozen.add(m.a);
         frozen.add(m.b);
         if (!m.announced) {
@@ -866,6 +879,7 @@ public class CommunityArena extends JavaPlugin {
                     }
                     left--;
                 } else {
+                    gates.open(m.arena);
                     m.paused = false;
                     frozen.remove(m.a);
                     frozen.remove(m.b);

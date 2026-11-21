@@ -43,8 +43,8 @@ final class PartyBattles implements Listener {
             p.tell(leader, "Choose both red and blue teams, or /party split.");
             return;
         }
-        var map = BattleMaps.get(d.map);
-        if (map == null || !map.supports(d.kit) || p.occupied.contains(d.map) || !p.data.getBoolean("built-battle-maps-v5")) {
+        var map = BattleMaps.get(BattleMaps.available(p, d.map, d.kit));
+        if (map == null || !map.supports(d.kit) || !p.data.getBoolean("built-battle-maps-v5")) {
             p.tell(leader, "Map unavailable.");
             return;
         }
@@ -61,10 +61,10 @@ final class PartyBattles implements Listener {
         b.teams.putAll(party.members);
         b.target = d.rounds;
         b.started = System.currentTimeMillis();
-        b.policy = p.new Match(leader, leader, d.kit, d.map, d.rounds);
+        b.policy = p.new Match(leader, leader, d.kit, map.id(), d.rounds);
         b.policy.customEquipment = d.custom == null ? null : SavedKits.copy(d.custom);
         b.policy.rules = d.rules();
-        p.occupied.add(d.map);
+        p.occupied.add(map.id());
         for (UUID id : b.teams.keySet()) {
             sessions.put(id, b);
             p.queues.remove(id);
@@ -94,6 +94,7 @@ final class PartyBattles implements Listener {
             finish(b, "Recovery required");
             return;
         }
+        p.gates.close(b.policy.arena);
         int red = 0, blue = 0;
         for (var e : b.teams.entrySet()) {
             Player a = Bukkit.getPlayer(e.getKey());
@@ -110,8 +111,15 @@ final class PartyBattles implements Listener {
             p.frozen.add(e.getKey());
         }
         message(b, "Teams: Red " + b.red + " : " + b.blue + " Blue. First to " + b.target + ". Fight in 3 seconds!");
+        for (int i = 0; i < 3; i++) {
+            int left = 3 - i;
+            Bukkit.getScheduler().runTaskLater(p, () -> {
+                if (!b.ended) message(b, "Starting in " + left + "...");
+            }, i * 20L);
+        }
         Bukkit.getScheduler().runTaskLater(p, () -> {
             if (b.ended) return;
+            p.gates.open(b.policy.arena);
             b.paused = false;
             b.policy.paused = false;
             for (UUID id : b.teams.keySet()) p.frozen.remove(id);
@@ -120,6 +128,10 @@ final class PartyBattles implements Listener {
     }
 
     static Location teamSpawn(CommunityArena p, int map, boolean first, int member) {
+        if (ImportedBuilds.is(map)) {
+            int[] order={0,-1,1,-2,2,-3,3};
+            return BattleMaps.spawn(p,map,first).add(order[member%7]*1.15,0,order[member/7]*2);
+        }
         return BattleMaps.spawn(p, map, first)
                 .add((first ? 1 : -1) * (member / 7) * 2, 0, (member % 7 - 3) * 2);
     }
@@ -177,6 +189,11 @@ final class PartyBattles implements Listener {
     public void move(PlayerMoveEvent e) {
         Battle b = sessions.get(e.getPlayer().getUniqueId());
         if (b == null || !e.hasChangedPosition()) return;
+        if (ImportedBuilds.is(b.policy.arena) && e.getTo().getY() < 52) {
+            e.setTo(p.gates.exit(b.policy.arena, e.getFrom()));
+            e.getPlayer().setFallDistance(0);
+            return;
+        }
         if (b.paused || !BattleMaps.contains(p, b.policy.arena, e.getTo())) e.setTo(e.getFrom());
     }
 

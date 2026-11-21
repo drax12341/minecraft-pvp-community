@@ -33,11 +33,11 @@ final class ArenaTerrain implements Listener {
                     Material.COBBLESTONE);
 
     ArenaTerrain(CommunityArena p) {
-        this(p, p.world, "v7-arena-", true, () -> p.worldSaver.accept(p.world));
+        this(p, p.world, activePrefix(p), true, () -> p.worldSaver.accept(p.world));
     }
 
     ArenaTerrain(CommunityArena p, Runnable flushWorld) {
-        this(p, p.world, "v7-arena-", true, flushWorld);
+        this(p, p.world, activePrefix(p), true, flushWorld);
     }
 
     private ArenaTerrain(
@@ -47,6 +47,25 @@ final class ArenaTerrain implements Listener {
         this.journalPrefix = prefix;
         this.flushWorld = flushWorld;
         if (listen) Bukkit.getPluginManager().registerEvents(this, p);
+    }
+
+    static String activePrefix(CommunityArena p) {
+        return p.world.getName().equals("community_arena_v8") ? "v8-arena-" : "v7-arena-";
+    }
+
+    java.util.List<Integer> arenaIds() {
+        return java.util.stream.IntStream.concat(java.util.stream.IntStream.rangeClosed(1, BattleMaps.LAST).filter(i -> i != 5), journalPrefix.equals("v8-arena-") ? java.util.stream.IntStream.rangeClosed(ImportedBuilds.FIRST, ImportedBuilds.LAST) : java.util.stream.IntStream.empty()).boxed().toList();
+    }
+
+    void recoverV7() {
+        boolean pending = java.util.stream.IntStream.rangeClosed(1, BattleMaps.LAST).filter(i -> i != 5).anyMatch(i -> Files.exists(p.getDataFolder().toPath().resolve("v7-arena-" + i + ".journal")));
+        if (!pending) return;
+        World old = Bukkit.getWorld("community_arena_v7");
+        if (old == null)
+            throw new IllegalStateException("v7 recovery needs original community_arena_v7; journal preserved");
+        var legacy = new ArenaTerrain(p, old, "v7-arena-", false, () -> p.worldSaver.accept(old));
+        for (int i : legacy.arenaIds()) if (Files.exists(legacy.journal(i))) legacy.clearEntities(i);
+        legacy.recover();
     }
 
     void recoverV6() {
@@ -75,19 +94,19 @@ final class ArenaTerrain implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void spawn(EntitySpawnEvent e) {
-        if (!(e.getEntity() instanceof Player) && e.getEntity().getWorld().equals(world) && journalPrefix.equals("v7-arena-"))
+        if (!(e.getEntity() instanceof Player) && e.getEntity().getWorld().equals(world) && journalPrefix.equals(activePrefix(p)))
             e.getEntity().setPersistent(false);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void projectile(org.bukkit.event.entity.ProjectileLaunchEvent e) {
-        if (e.getEntity().getWorld().equals(world) && journalPrefix.equals("v7-arena-"))
+        if (e.getEntity().getWorld().equals(world) && journalPrefix.equals(activePrefix(p)))
             e.getEntity().setPersistent(false);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void entityUnload(org.bukkit.event.world.EntitiesUnloadEvent e) {
-        if (!e.getWorld().equals(world) || !journalPrefix.equals("v7-arena-")) return;
+        if (!e.getWorld().equals(world) || !journalPrefix.equals(activePrefix(p))) return;
         for (Entity entity : e.getEntities())
             if (!(entity instanceof Player) && !(entity instanceof Display)) entity.remove();
     }
@@ -109,7 +128,8 @@ final class ArenaTerrain implements Listener {
     }
 
     Path journal(int arena) {
-        if (arena < 1 || arena > BattleMaps.LAST || arena == 5) throw new IllegalArgumentException("Invalid arena");
+        if ((arena < 1 || arena > BattleMaps.LAST) && !(journalPrefix.equals("v8-arena-") && ImportedBuilds.is(arena)) || arena == 5)
+            throw new IllegalArgumentException("Invalid arena");
         return p.getDataFolder().toPath().resolve(journalPrefix + arena + ".journal");
     }
 
@@ -150,7 +170,8 @@ final class ArenaTerrain implements Listener {
     }
 
     boolean record(int arena, Block block, String original) {
-        if (index(block.getLocation()) != arena || block.getState() instanceof TileState) return false;
+        if (index(block.getLocation()) != arena || ImportedBuilds.protectedRoom(arena, block.getLocation()) || block.getType() == Material.BARRIER || block.getState() instanceof TileState)
+            return false;
         var map = changes.computeIfAbsent(arena, k -> new LinkedHashMap<>());
         String key = coords(block);
         if (map.containsKey(key)) return true;
@@ -175,7 +196,7 @@ final class ArenaTerrain implements Listener {
         var map = changes.computeIfAbsent(arena, k -> new LinkedHashMap<>());
         var pending = new LinkedHashMap<String, String>();
         for (Block block : blocks) {
-            if (index(block.getLocation()) != arena || block.getState() instanceof TileState)
+            if (index(block.getLocation()) != arena || ImportedBuilds.protectedRoom(arena, block.getLocation()) || block.getType() == Material.BARRIER || block.getState() instanceof TileState)
                 return false;
             String key = coords(block);
             if (!map.containsKey(key)) pending.putIfAbsent(key, block.getBlockData().getAsString());
@@ -201,8 +222,7 @@ final class ArenaTerrain implements Listener {
     }
 
     void recover() {
-        for (int i = 1; i <= BattleMaps.LAST; i++) {
-            if (i == 5) continue;
+        for (int i : arenaIds()) {
             Path file = journal(i);
             if (!Files.exists(file)) continue;
             try {
@@ -285,7 +305,7 @@ final class ArenaTerrain implements Listener {
     }
 
     boolean live(int arena) {
-        if (p.bots != null && p.bots.sessions.values().stream().anyMatch(s -> s.map == arena && Loadouts.building(s.policy.kit)))
+        if (p.bots != null && p.bots.sessions.values().stream().anyMatch(s -> s.map == arena && !s.paused && Loadouts.building(s.policy.kit)))
             return true;
         if (p.partyBattles != null && p.partyBattles.sessions.values().stream().anyMatch(b -> b.policy.arena == arena && !b.paused && Loadouts.building(b.policy.kit)))
             return true;
@@ -319,7 +339,7 @@ final class ArenaTerrain implements Listener {
             return;
         }
         blocks.removeIf(
-                block -> index(block.getLocation()) != arena || block.getState() instanceof TileState);
+                block -> index(block.getLocation()) != arena || ImportedBuilds.protectedRoom(arena, block.getLocation()) || block.getType() == Material.BARRIER || block.getState() instanceof TileState);
         if (!recordBatch(arena, blocks)) blocks.clear();
     }
 
@@ -372,12 +392,13 @@ final class ArenaTerrain implements Listener {
     }
 
     void clearEntities(int arena) {
-        if (arena < 1 || arena > BattleMaps.LAST || arena == 5) throw new IllegalArgumentException("Invalid arena");
+        if ((arena < 1 || arena > BattleMaps.LAST) && !(journalPrefix.equals("v8-arena-") && ImportedBuilds.is(arena)) || arena == 5)
+            throw new IllegalArgumentException("Invalid arena");
         var map = BattleMaps.get(arena);
         if (map != null) {
             for (int x = (map.cx() - map.width() / 2) >> 4; x <= ((map.cx() + map.width() / 2) >> 4); x++)
                 for (int z = (1024 - map.length() / 2) >> 4; z <= ((1024 + map.length() / 2) >> 4); z++)
-                    if (journalPrefix.equals("v7-arena-") ? world.isChunkLoaded(x, z) : world.isChunkGenerated(x, z))
+                    if (journalPrefix.equals(activePrefix(p)) ? world.isChunkLoaded(x, z) : world.isChunkGenerated(x, z))
                         for (Entity e : world.getChunkAt(x, z).getEntities())
                             if (map.inside(e.getLocation(), world, 0) && !(e instanceof Player) && !(e instanceof Display))
                                 e.remove();
@@ -386,7 +407,7 @@ final class ArenaTerrain implements Listener {
         int cx = arena * 160;
         for (int x = (cx - 34) >> 4; x <= ((cx + 34) >> 4); x++)
             for (int z = -34 >> 4; z <= (34 >> 4); z++)
-                if (journalPrefix.equals("v7-arena-") ? world.isChunkLoaded(x, z) : world.isChunkGenerated(x, z))
+                if (journalPrefix.equals(activePrefix(p)) ? world.isChunkLoaded(x, z) : world.isChunkGenerated(x, z))
                     for (Entity entity : world.getChunkAt(x, z).getEntities())
                         if (Math.abs(entity.getLocation().getX() - cx) <= 34
                                 && Math.abs(entity.getLocation().getZ()) <= 34
@@ -394,4 +415,3 @@ final class ArenaTerrain implements Listener {
                                 && !(entity instanceof Display)) entity.remove();
     }
 }
-

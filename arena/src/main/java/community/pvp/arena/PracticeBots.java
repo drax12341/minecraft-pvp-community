@@ -34,7 +34,7 @@ final class PracticeBots implements Listener {
 
     void start(Player player, DuelMenus.Draft draft) {
         if (!player.isOp() || p.busy(player) || !p.ready || !p.data.getBoolean("built-battle-maps-v5")) return;
-        var map = BattleMaps.get(draft.map);
+        var map = BattleMaps.get(BattleMaps.available(p, draft.map, draft.kit));
         if (map == null || !map.supports(draft.kit) || p.occupied.contains(map.id())) {
             p.tell(player, "Map busy; choose another.");
             return;
@@ -51,7 +51,7 @@ final class PracticeBots implements Listener {
         s.target = draft.rounds;
         s.moving = draft.moving;
         s.rules = draft.rules();
-        s.policy = p.new Match(player, player, draft.kit, draft.map, 1);
+        s.policy = p.new Match(player, player, draft.kit, map.id(), 1);
         s.policy.customEquipment = draft.custom == null ? null : SavedKits.copy(draft.custom);
         s.policy.rules = s.rules;
         s.policy.paused = false;
@@ -72,6 +72,7 @@ final class PracticeBots implements Listener {
             sessions.put(player.getUniqueId(), s);
             player.closeInventory();
             player.teleport(BattleMaps.spawn(p, s.map, true));
+            countdown(player, s);
             p.tell(player, "Bot practice started. Totems: " + s.remaining + ". /leave to finish. No records awarded.");
         } catch (Exception ex) {
             if (s.entity != null) {
@@ -83,6 +84,28 @@ final class PracticeBots implements Listener {
             p.lobby(player);
             p.getLogger().severe("Bot start failed: " + ex.getMessage());
         }
+    }
+
+    void countdown(Player player, Session s) {
+        if (!ImportedBuilds.is(s.map)) return;
+        s.paused = true;
+        s.policy.paused = true;
+        p.frozen.add(player.getUniqueId());
+        p.gates.close(s.map);
+        for (int second = 0; second < 3; second++) {
+            int left = 3 - second;
+            Bukkit.getScheduler().runTaskLater(p, () -> {
+                if (sessions.get(player.getUniqueId()) == s) p.tell(player, "Starting in " + left + "...");
+            }, second * 20L);
+        }
+        Bukkit.getScheduler().runTaskLater(p, () -> {
+            if (sessions.get(player.getUniqueId()) != s) return;
+            s.paused = false;
+            s.policy.paused = false;
+            p.frozen.remove(player.getUniqueId());
+            p.gates.open(s.map);
+            p.tell(player, "GO!");
+        }, 60);
     }
 
     Zombie spawn(Session s) {
@@ -115,6 +138,10 @@ final class PracticeBots implements Listener {
     public void damage(EntityDamageEvent e) {
         Session s = session(e.getEntity());
         if (s == null) return;
+        if (s.paused) {
+            e.setCancelled(true);
+            return;
+        }
         if (e instanceof EntityDamageByEntityEvent hit) {
             Entity source = hit.getDamager();
             UUID id = source instanceof Player a ? a.getUniqueId() : source instanceof Projectile pr && pr.getShooter() instanceof Player a ? a.getUniqueId() : null;
@@ -167,6 +194,7 @@ final class PracticeBots implements Listener {
                                 s.remaining = s.initialTotems;
                                 s.entity = spawn(s).getUniqueId();
                                 s.paused = false;
+                                countdown(owner, s);
                                 if (s.policy.customEquipment == null) p.equip(owner, s.policy.kit);
                                 else p.savedKits.equip(owner, s.policy.customEquipment);
                                 owner.teleport(BattleMaps.spawn(p, s.map, true));
@@ -204,6 +232,7 @@ final class PracticeBots implements Listener {
 
     static Location motionLocation(CommunityArena p, int map, int ticks) {
         var origin = BattleMaps.spawn(p, map, false);
+        if (ImportedBuilds.is(map)) return p.gates.exit(map, origin).add(0, 0, Math.sin(ticks * .055) * 5);
         boolean compact = BattleMaps.get(map).size() == 0;
         origin.add(Math.sin(ticks * .055) * (compact ? 3 : 7), 0,
                 Math.cos(ticks * .055) * (compact ? 3 : 5));
@@ -212,6 +241,7 @@ final class PracticeBots implements Listener {
     }
 
     void release(UUID id, Session s) {
+        p.frozen.remove(id);
         p.social.finishExtra("bot:" + id);
         sessions.remove(id);
         Entity bot = Bukkit.getEntity(s.entity);

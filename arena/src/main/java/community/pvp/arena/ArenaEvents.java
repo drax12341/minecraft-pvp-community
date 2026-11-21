@@ -78,11 +78,21 @@ final class ArenaEvents implements Listener {
         if (arena.partyBattles.sessions.containsKey(p.getUniqueId())) return;
         var bot = arena.bots.sessions.get(p.getUniqueId());
         if (bot != null) {
+            if (ImportedBuilds.is(bot.map) && to.getY() < 52) {
+                e.setTo(arena.gates.exit(bot.map, e.getFrom()));
+                p.setFallDistance(0);
+                return;
+            }
             if (!BattleMaps.contains(arena, bot.map, to)) e.setTo(e.getFrom());
             return;
         }
         var modern = arena.matches.get(p.getUniqueId());
         if (modern != null && BattleMaps.get(modern.arena) != null) {
+            if (ImportedBuilds.is(modern.arena) && to.getY() < 52) {
+                e.setTo(arena.gates.exit(modern.arena, e.getFrom()));
+                p.setFallDistance(0);
+                return;
+            }
             if (arena.frozen.contains(p.getUniqueId()) || !BattleMaps.contains(arena, modern.arena, to))
                 e.setTo(e.getFrom());
             return;
@@ -129,6 +139,10 @@ final class ArenaEvents implements Listener {
         if (!(e.getEntity() instanceof Player p) || !arena.managed(p)) return;
         if (arena.partyBattles.sessions.containsKey(p.getUniqueId())) return;
         if (arena.bots.sessions.containsKey(p.getUniqueId())) {
+            if (arena.bots.sessions.get(p.getUniqueId()).paused) {
+                e.setCancelled(true);
+                return;
+            }
             if (e.getFinalDamage() >= p.getHealth() && p.getInventory().getItemInMainHand().getType() != Material.TOTEM_OF_UNDYING && p.getInventory().getItemInOffHand().getType() != Material.TOTEM_OF_UNDYING) {
                 e.setCancelled(true);
                 arena.tell(p, "Practice ended: you were knocked out.");

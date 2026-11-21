@@ -123,7 +123,7 @@ final class ArenaCommands implements CommandExecutor, TabCompleter {
                         arena.tell(p, "One player is already in a match.");
                         break;
                     }
-                    if (i.rules().map() > 0 && arena.occupied.contains(i.rules().map())) {
+                    if (i.rules().map() > 0 && BattleMaps.available(arena,i.rules().map(),i.kit())==0) {
                         arena.tell(p, "The invited arena is in use. Retry while this invitation is active, or ask for another map.");
                         break;
                     }
