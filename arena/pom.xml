@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>community.pvp</groupId>
     <artifactId>CommunityArena</artifactId>
-    <version>8.0.0</version>
+    <version>8.0.1</version>
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -45,6 +45,7 @@
                 <includes>
                     <include>INSTALL-V8.md</include>
                     <include>CHANGELOG-V8.md</include>
+                    <include>CHANGELOG-V8.0.1.md</include>
                     <include>BUILDS-V8.md</include>
                 </includes>
             </resource>

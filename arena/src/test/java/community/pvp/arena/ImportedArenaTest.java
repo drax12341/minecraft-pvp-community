@@ -50,7 +50,7 @@ class ImportedArenaTest {
         for (var map : ImportedBuilds.TEMPLATES)
             for (boolean first : List.of(true, false)) {
                 Set<Location> spawns = new HashSet<>();
-            for (int member = 0; member < 49; member++) {
+                for (int member = 0; member < 49; member++) {
                     Location l = PartyBattles.teamSpawn(p, map.id(), first, member);
                     assertTrue(ImportedBuilds.protectedRoom(map.id(), l));
                     assertTrue(BattleMaps.contains(p, map.id(), l));
@@ -100,6 +100,69 @@ class ImportedArenaTest {
         assertEquals(102, BattleMaps.available(p, template, "sword"));
         p.occupied.add(102);
         assertEquals(0, BattleMaps.available(p, template, "sword"));
+    }
+
+    @Test
+    void laterMapsRemainSelectableWhileTheirCopiesPrepare() {
+        var a = server.addPlayer();
+        p.duels.open(a, null);
+        var d = p.duels.drafts.get(a.getUniqueId());
+        d.kit = "mace";
+        server.importedGeneration = true;
+        p.warmup.readyMaps.clear();
+        for (int map : List.of(115, 118, 124)) {
+            assertEquals(0, BattleMaps.available(p, map, d.kit));
+            p.duels.handle(a, "duelui:map:" + map, false);
+            assertEquals(map, d.map, "Unprepared map must still be selectable: " + BattleMaps.get(map).name());
+        }
+        assertEquals(Material.LIME_DYE,a.getOpenInventory().getTopInventory().getItem(21).getType());
+        assertTrue(a.getOpenInventory().getTopInventory().getItem(21).getItemMeta().getLore().stream().anyMatch(line->line.contains("0 available | 3 preparing")));
+        p.duels.handle(a, "duelui:send", false);
+        assertTrue(p.matches.isEmpty());
+        assertTrue(p.bots.sessions.isEmpty());
+        assertTrue(p.invites.isEmpty());
+        var b = server.addPlayer();
+        p.start(a, b, "mace", 1, false, null, d.rules());
+        assertTrue(p.matches.isEmpty());
+    }
+
+    @Test
+    void occupiedDesignRemainsSelectableWithoutReservingASharedCopy() {
+        var a = server.addPlayer();
+        p.duels.open(a, null);
+        var d = p.duels.drafts.get(a.getUniqueId());
+        d.kit = "mace";
+        p.occupied.addAll(List.of(124, 125, 126));
+        p.duels.handle(a, "duelui:map:124", false);
+        assertEquals(124, d.map);
+        assertEquals(0, BattleMaps.available(p, 124, d.kit));
+    }
+
+    @Test
+    void selectingALaterMapMovesOnlyOneFreeCopyAheadOfOtherPreparation() {
+        server.importedGeneration = true;
+        var warmup = p.warmup;
+        warmup.pending.clear();
+        warmup.owners.clear();
+        warmup.readyMaps.clear();
+        var other = new MapWarmup.ChunkPos(1, 1);
+        var busy = new MapWarmup.ChunkPos(2, 1);
+        var first = new MapWarmup.ChunkPos(3, 1);
+        var second = new MapWarmup.ChunkPos(4, 1);
+        var later = new MapWarmup.ChunkPos(5, 1);
+        warmup.pending.addAll(List.of(other, busy, first, later, second));
+        warmup.owners.put(other, 100);
+        warmup.owners.put(busy, 115);
+        warmup.owners.put(first, 116);
+        warmup.owners.put(second, 116);
+        warmup.owners.put(later, 117);
+        p.occupied.add(115);
+        warmup.loading=true;
+        warmup.prioritize(115);
+        assertEquals(List.of(first, second, other, busy, later), List.copyOf(warmup.pending));
+        assertEquals(Set.of(115), p.occupied);
+        assertTrue(warmup.loading);
+        assertEquals(0, warmup.completed);
     }
 
     @Test

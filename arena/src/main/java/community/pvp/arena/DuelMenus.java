@@ -165,8 +165,10 @@ final class DuelMenus {
             if (m.size() == size && m.supports(d.kit)) {
                 boolean selected = m.id() == d.map;
                 long free = ImportedBuilds.SLOTS.stream().filter(v -> v.theme() == m.theme() && !p.occupied.contains(v.id()) && p.warmup.ready(v.id())).count();
-                inv.setItem(19 + slot * 2, p.item(selected ? Material.LIME_DYE : Material.GRAY_DYE, (selected ? "\u00a7aSelected: " : "\u00a77") + m.name(), "duelui:map:" + m.id(), m.width() + " x " + m.length() + " | Ceiling: " + m.ceiling(), "Theme: " + BattleMaps.icon(m.id()).name().toLowerCase().replace('_', ' '), free + " of 3 separate copies free", selected ? "Selected arena" : "Click to select"));
-                inv.setItem(28 + slot * 2, p.item(BattleMaps.icon(m.id()), m.name(), "duelui:map:" + m.id(), "Imported build floating over void"));
+                long preparing = ImportedBuilds.SLOTS.stream().filter(v -> v.theme() == m.theme() && !p.warmup.ready(v.id())).count();
+                String availability = free + " available | " + preparing + " preparing";
+                inv.setItem(19 + slot * 2, p.item(selected ? Material.LIME_DYE : Material.GRAY_DYE, (selected ? "\u00a7aSelected: " : "\u00a77") + m.name(), "duelui:map:" + m.id(), m.width() + " x " + m.length() + " | Ceiling: " + m.ceiling(), "Theme: " + BattleMaps.icon(m.id()).name().toLowerCase().replace('_', ' '), availability, selected ? "Selected arena" : "Click to select"));
+                inv.setItem(28 + slot * 2, p.item(BattleMaps.icon(m.id()), m.name(), "duelui:map:" + m.id(), "Imported build floating over void", availability));
                 slot++;
             }
         inv.setItem(40, p.item(Material.COMPASS, "Random available arena", "duelui:random-map"));
@@ -218,6 +220,7 @@ final class DuelMenus {
                 var next = ImportedBuilds.is(d.map) ? ImportedBuilds.TEMPLATES.stream().filter(m -> m.size() == size && m.supports(d.kit)).findFirst().orElse(null) : BattleMaps.get(6 + current.theme() * 3 + size);
                 if (next != null && next.supports(d.kit)) {
                     d.map = next.id();
+                    p.warmup.prioritize(d.map);
                     maps(player);
                 }
             }
@@ -233,8 +236,9 @@ final class DuelMenus {
             case "map" -> {
                 if (a.length != 3 || !a[2].matches("[0-9]{1,3}")) return true;
                 var m = BattleMaps.get(Integer.parseInt(a[2]));
-                if (m != null && BattleMaps.playable(p).contains(m) && m.supports(d.kit) && BattleMaps.available(p, m.id(), d.kit) > 0) {
+                if (m != null && BattleMaps.playable(p).contains(m) && m.supports(d.kit) && (ImportedBuilds.is(m.id()) || BattleMaps.available(p,m.id(),d.kit)>0)) {
                     d.map = m.id();
+                    p.warmup.prioritize(d.map);
                     maps(player);
                 }
             }
@@ -272,8 +276,15 @@ final class DuelMenus {
                     return true;
                 }
                 var selected = BattleMaps.get(d.map);
-                if (selected == null || !selected.supports(d.kit) || BattleMaps.available(p, d.map, d.kit) == 0) {
+                if (selected == null || !selected.supports(d.kit)) {
                     p.tell(player, "That arena is unavailable. Choose another biome or size.");
+                    maps(player);
+                    return true;
+                }
+                if (BattleMaps.available(p, d.map, d.kit) == 0) {
+                    p.warmup.prioritize(d.map);
+                    boolean preparing = ImportedBuilds.is(d.map) && ImportedBuilds.SLOTS.stream().anyMatch(m -> m.theme() == selected.theme() && !p.warmup.ready(m.id()) && !p.occupied.contains(m.id()));
+                    p.tell(player, preparing ? selected.name() + " is still preparing. Your selection is saved and its next free copy is prioritized. Try starting again shortly." : "All copies of " + selected.name() + " are in use. Your selection is saved; try again when a match finishes.");
                     maps(player);
                     return true;
                 }

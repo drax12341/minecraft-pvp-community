@@ -10,6 +10,7 @@ import org.mockbukkit.mockbukkit.ServerMock;
  */
 final class PracticeServerMock extends ServerMock {
     final boolean imported;
+    boolean importedGeneration;
 
     PracticeServerMock() {
         this(false);
@@ -47,6 +48,8 @@ final class PracticeServerMock extends ServerMock {
             // This fixture stores blocks directly; it does not run a native chunk generator or async IO.
             @Override
             public org.bukkit.generator.ChunkGenerator getGenerator() {
+                if (importedGeneration && creator.name().equals("community_arena_v8"))
+                    return new ImportedGenerator(false);
                 return null;
             }
 

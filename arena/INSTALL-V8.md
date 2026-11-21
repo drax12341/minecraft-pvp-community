@@ -1,4 +1,6 @@
-# CommunityArena 8.0.0 preview
+# CommunityArena 8.0.1 preview
+
+8.0.1 fixes map cards silently ignoring clicks while their copies are preparing or busy. Any compatible design can now be selected; the browser shows available/preparing counts, and selecting a preparing design prioritizes its next unused copy. Starting a match still waits for a prepared, unoccupied copy. This patch reuses the existing v8 worlds and builds; no world deletion or rebuild is needed.
 
 Paper 1.21.11, Java 21 or newer. Stop the server, back up the plugin data and worlds, replace the CommunityArena JAR, and start again. No WorldEdit, FAWE, Citizens, or schematic files are needed on the server: the sanitized builds are bundled in the one JAR.
 

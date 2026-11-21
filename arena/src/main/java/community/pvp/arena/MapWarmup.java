@@ -116,6 +116,25 @@ final class MapWarmup {
         return !(p.world.getGenerator() instanceof ImportedGenerator) || readyMaps.contains(id);
     }
 
+    void prioritize(int template) {
+        if (!ImportedBuilds.is(template)) return;
+        int first = ImportedBuilds.template(template);
+        for (int id = first; id < first + ImportedBuilds.COPIES; id++) {
+            if (p.occupied.contains(id) || ready(id)) continue;
+            ArrayDeque<ChunkPos> preferred = new ArrayDeque<>();
+            for (var it = pending.iterator(); it.hasNext(); ) {
+                var pos = it.next();
+                if (Objects.equals(owners.get(pos), id)) {
+                    preferred.add(pos);
+                    it.remove();
+                }
+            }
+            if (preferred.isEmpty()) continue;
+            while (!preferred.isEmpty()) pending.addFirst(preferred.removeLast());
+            return;
+        }
+    }
+
     String marker() {
         return p.world.getName().equals("community_arena_v8") ? "maps-v8-prewarmed" : "maps-v7-prewarmed";
     }
