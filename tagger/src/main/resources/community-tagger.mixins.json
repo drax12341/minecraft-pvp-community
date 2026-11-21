@@ -1,1 +1,0 @@
-{"required":true,"package":"community.pvp.client.mixin","compatibilityLevel":"JAVA_21","client":["EntityRendererMixin","PlayerListMixin"],"injectors":{"defaultRequire":1}}
