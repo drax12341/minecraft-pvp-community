@@ -34,6 +34,8 @@ final class ImportedGenerator extends ChunkGenerator {
                     var b = ImportedBuilds.build(m.id());
                     int bx = wx - (m.cx() - m.width() / 2), bz = wz - (1024 - m.length() / 2);
                     b.column(chunk, x, z, bx, bz);
+                    int lx = x, lz = z;
+                    ArenaLayout.column(m, bx, bz, (from, to, material) -> chunk.setRegion(lx, from, lz, lx + 1, to, lz + 1, material));
                     // Invisible shell includes a catch floor. It adds no mainland beneath floating builds.
                     chunk.setBlock(x, 48, z, Material.BARRIER);
                     chunk.setBlock(x, m.ceiling() - 1, z, Material.BARRIER);

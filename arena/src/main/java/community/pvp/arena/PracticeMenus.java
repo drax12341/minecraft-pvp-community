@@ -120,15 +120,15 @@ final class PracticeMenus {
 
     void settings(Player player) {
         Inventory inv = frame(27, "Community | Settings");
-        inv.setItem(4, p.item(Material.PLAYER_HEAD, "Â§eYour preferences", "profile-details", "Saved to your player profile"));
-        inv.setItem(10, p.item(Material.LEVER, "Â§eDisplay & effects", "settings-page:display", "Sidebar, health, animations and victory effects"));
-        inv.setItem(11, p.item(Material.OAK_SIGN, "Â§eSocial settings", "settings-page:social", "Duel invitations, friend requests and match chat"));
-        inv.setItem(12, p.item(Material.BELL, "Â§eNotifications", "inbox", "Unread: " + p.inbox.unread(player.getUniqueId())));
-        inv.setItem(13, p.item(Material.CLOCK, "Â§eTime of day: " + p.reference.pref(player, "time", "server"), "time-cycle",
+        inv.setItem(4, p.item(Material.PLAYER_HEAD, "§eYour preferences", "profile-details", "Saved to your player profile"));
+        inv.setItem(10, p.item(Material.LEVER, "§eDisplay & effects", "settings-page:display", "Sidebar, health, animations and victory effects"));
+        inv.setItem(11, p.item(Material.OAK_SIGN, "§eSocial settings", "settings-page:social", "Duel invitations, friend requests and match chat"));
+        inv.setItem(12, p.item(Material.BELL, "§eNotifications", "inbox", "Unread: " + p.inbox.unread(player.getUniqueId())));
+        inv.setItem(13, p.item(Material.CLOCK, "§eTime of day: " + p.reference.pref(player, "time", "server"), "time-cycle",
                 "Server / Day / Afternoon / Night / Midnight", "Left: next | Right: previous | Shift: reset"));
-        inv.setItem(14, p.item(Material.NAME_TAG, "Â§eNameplates & health", "settings-page:display", "Colored server divisions and fighter health"));
-        inv.setItem(15, p.item(Material.NETHERITE_CHESTPLATE, "Â§eCombat settings", "settings-page:combat", "Hit feedback, spectator privacy and combat controls"));
-        inv.setItem(16, p.item(Material.DIAMOND, "Â§eDuel statistics", "statistics", "Per-kit casual and ranked records"));
+        inv.setItem(14, p.item(Material.NAME_TAG, "§eNameplates & health", "settings-page:display", "Colored server divisions and fighter health"));
+        inv.setItem(15, p.item(Material.NETHERITE_CHESTPLATE, "§eCombat settings", "settings-page:combat", "Hit feedback, spectator privacy and combat controls"));
+        inv.setItem(16, p.item(Material.DIAMOND, "§eDuel statistics", "statistics", "Per-kit casual and ranked records"));
         inv.setItem(18, p.item(Material.ARROW, "Navigation", "navigation"));
         inv.setItem(26, p.item(Material.OAK_DOOR, "Exit practice", "exit", "Restore your original inventory and location"));
         player.openInventory(inv);
@@ -154,11 +154,11 @@ final class PracticeMenus {
             if (!settingsCategory(flag).equals(category)) continue;
             boolean enabled = p.flag(player, flag, true);
             inv.setItem(slot++, p.item(enabled ? Material.LIME_DYE : Material.GRAY_DYE,
-                    "Â§e" + labels[i] + ": " + (enabled ? "Â§aON" : "Â§cOFF"), "setting:" + flag,
+                    "§e" + labels[i] + ": " + (enabled ? "§aON" : "§cOFF"), "setting:" + flag,
                     descriptions[i], "Left: toggle | Shift: reset to ON", "Saved between sessions"));
         }
         if (category.equals("combat"))
-            inv.setItem(15, p.item(Material.NETHERITE_SPEAR, "Â§eWeapon swaps & Lunge III", "combat-info", "View combat controls and server compatibility"));
+            inv.setItem(15, p.item(Material.NETHERITE_SPEAR, "§eWeapon swaps & Lunge III", "combat-info", "View combat controls and server compatibility"));
         inv.setItem(18, p.item(Material.ARROW, "Settings", "settings"));
         player.openInventory(inv);
     }

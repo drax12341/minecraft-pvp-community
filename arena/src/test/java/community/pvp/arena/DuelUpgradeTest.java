@@ -47,7 +47,7 @@ class DuelUpgradeTest {
         session.rules = DuelRules.defaults();
         session.map = 6;
         session.policy = p.new Match(owner, owner, "sword", 6, 1);
-        p.bots.sessions.put(owner.getUniqueId(), session);
+        p.bots.register(owner.getUniqueId(), session);
         for (int remaining = 1; remaining >= 0; remaining--) {
             var hit = new EntityDamageEvent(bot, EntityDamageEvent.DamageCause.FALL, 100);
             p.bots.damage(hit);

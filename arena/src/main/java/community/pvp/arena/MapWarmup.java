@@ -73,6 +73,13 @@ final class MapWarmup {
             return;
         if (pending.isEmpty()) {
             done = true;
+            if (failures == 0 && p.world.getGenerator() instanceof ImportedGenerator) {
+                try { p.worldSaver.accept(p.world); }
+                catch (RuntimeException ex) {
+                    failures++;
+                    p.getLogger().warning("Layout save failed; migration will retry after restart.");
+                }
+            }
             p.data.set(marker(), failures == 0);
             p.save();
             p.getLogger().info("Map prewarm finished: " + completed + "/" + total + " chunks, failures=" + failures);
@@ -89,8 +96,14 @@ final class MapWarmup {
                         return;
                     }
                     loading = false;
-                    completed++;
                     Integer owner = owners.get(pos);
+                    try {
+                        if (owner != null && chunk != null && ImportedBuilds.is(owner)) ArenaLayout.prepareChunk(p, owner, chunk);
+                    } catch (RuntimeException layoutError) {
+                        failed(pos, layoutError);
+                        return;
+                    }
+                    completed++;
                     if (owner != null && remaining.computeIfPresent(owner, (id, n) -> n - 1) == 0) readyMaps.add(owner);
                     unloader.accept(pos);
                     if (completed % 200 == 0) p.getLogger().info("Map prewarm " + completed + "/" + total + " chunks");
@@ -136,6 +149,6 @@ final class MapWarmup {
     }
 
     String marker() {
-        return p.world.getName().equals("community_arena_v8") ? "maps-v8-prewarmed" : "maps-v7-prewarmed";
+        return p.world.getName().equals("community_arena_v8") ? "maps-v10-prewarmed" : "maps-v7-prewarmed";
     }
 }

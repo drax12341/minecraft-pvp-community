@@ -8,30 +8,28 @@ import org.bukkit.event.*;
 import org.bukkit.event.player.*;
 
 /**
- * Keeps unused entry rooms closed and contains fighters on the battlefield.
+ * Contains fighters; removes historical cages once per reserved arena after startup.
  */
 final class RoundGates implements Listener {
     final CommunityArena p;
-    final Set<Integer> sealed = new HashSet<>();
+    final Set<Integer> prepared = new HashSet<>();
 
     RoundGates(CommunityArena p) {
         this.p = p;
         Bukkit.getPluginManager().registerEvents(this, p);
     }
 
-    void gate(int id, Material material) {
-        if (!ImportedBuilds.is(id)) return;
-        var m = BattleMaps.get(id);
+    void prepare(int id) {
+        if (!ImportedBuilds.is(id) || !prepared.add(id)) return;
+        var m = ImportedBuilds.get(id);
         var b = ImportedBuilds.build(id);
-        for (var e : List.of(b.a(), b.b()))
-            for (int z = e.z() - 8; z <= e.z() + 8; z++)
-                for (int y = 97; y <= 101; y++)
-                    p.world.getBlockAt(m.cx() - m.width() / 2 + e.gate(), y, 1024 - m.length() / 2 + z).setType(material, false);
-    }
-
-    void close(int id) {
-        sealed.add(id);
-        gate(id, Material.IRON_BARS);
+        for (var entry : List.of(b.a(), b.b()))
+            for (int x = entry.x() - 5; x <= entry.x() + 5; x++)
+                for (int z = entry.z() - 8; z <= entry.z() + 8; z++)
+                    for (int y = 97; y <= 102; y++) {
+                        var block = p.world.getBlockAt(m.cx() - m.width()/2 + x, y, 1024 - m.length()/2 + z);
+                        if (!block.getType().isAir()) block.setType(Material.AIR, false);
+                    }
     }
 
     Location exit(int id, Location here) {
@@ -60,13 +58,7 @@ final class RoundGates implements Listener {
             e.setTo(exit(id, e.getFrom()));
             e.getPlayer().setFallDistance(0);
             e.getPlayer().setVelocity(new org.bukkit.util.Vector());
-        } else if (sealed.contains(id) && ImportedBuilds.protectedRoom(id, e.getTo())) e.setTo(e.getFrom());
+        }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void teleport(PlayerTeleportEvent e) {
-        int id = arena(e.getPlayer());
-        if (e.getCause() != PlayerTeleportEvent.TeleportCause.PLUGIN && sealed.contains(id) && ImportedBuilds.protectedRoom(id, e.getTo()))
-            e.setCancelled(true);
-    }
 }

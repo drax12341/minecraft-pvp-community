@@ -133,6 +133,7 @@ final class ImportedBuilds {
 
     static Material material(Build b, int x, int y, int z) {
         if (x < 0 || z < 0 || x >= b.width || z >= b.length) return Material.AIR;
+        if (y >= 97 && y <= 102 && ArenaLayout.cage(b, x, z)) return Material.AIR;
         int localY = y - b.baseY();
         for (Run run : b.columns[z * b.width + x])
             if (localY >= run.from && localY < run.to) return b.palette[run.palette].getMaterial();
@@ -179,12 +180,4 @@ final class ImportedBuilds {
         return 0;
     }
 
-    static boolean protectedRoom(int id, Location l) {
-        if (!is(id)) return false;
-        var m = get(id);
-        var b = build(id);
-        double x = l.getX() - (m.cx() - m.width() / 2), z = l.getZ() - (1024 - m.length() / 2);
-        if (l.getY() < 95 || l.getY() > 103) return false;
-        return Math.abs(x - b.a.x - .5) < 7 && Math.abs(z - b.a.z - .5) < 10 || Math.abs(x - b.b.x - .5) < 7 && Math.abs(z - b.b.z - .5) < 10;
-    }
 }

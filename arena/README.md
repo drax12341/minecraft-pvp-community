@@ -1,11 +1,11 @@
-# CommunityArena 9.0.0 preview
+# CommunityArena 10.0.0 preview
 
 Paper 1.21.11 / Java 21+. One server plugin JAR.
 
-Direct battlefield spawns, crouch-ready countdowns, native Spear Mace Lunge III, attribute-swap compatibility, kit-specific ranked queues, Copper-to-Netherite divisions, qualified Champion standing, clickable record holograms, filtered leaderboards and compact saved settings.
+Fixed menu text, cage-free battlefield entry, destructible recoverable ground over bedrock, protected stone edges, operator melee bot duels and reduced presentation/chunk overhead.
 
-See [installation and compatibility](INSTALL-V9.md), [changes](CHANGELOG-V9.md), [Medal analysis](MEDAL-REFERENCE.md), and the existing [build catalogue](BUILDS-V8.md).
+See [installation and migration](INSTALL-V10.md), [changes and limits](CHANGELOG-V10.md), and the existing [build catalogue](BUILDS-V8.md).
 
-Build: `mvn -f arena/pom.xml clean verify`.
+Build: mvn -f arena/pom.xml clean verify.
 
-Preview limits: connected-client visuals, swap timing and multiplayer load still need staging checks. No automatic community placement is published.
+Preview: connected-client visuals, multiplayer load, hit timing and Internet RTT still need staging checks.

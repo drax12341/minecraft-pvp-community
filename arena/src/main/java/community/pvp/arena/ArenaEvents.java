@@ -146,14 +146,22 @@ final class ArenaEvents implements Listener {
         if (!(e.getEntity() instanceof Player p) || !arena.managed(p)) return;
         if (arena.partyBattles.sessions.containsKey(p.getUniqueId())) return;
         if (arena.bots.sessions.containsKey(p.getUniqueId())) {
+            var botSession = arena.bots.sessions.get(p.getUniqueId());
+            if (e instanceof EntityDamageByEntityEvent hit) {
+                Entity source = hit.getDamager();
+                if (source instanceof Projectile projectile && projectile.getShooter() instanceof Entity shooter) source = shooter;
+                if (source instanceof LivingEntity && !source.getUniqueId().equals(botSession.entity) && !source.getUniqueId().equals(p.getUniqueId())) {
+                    e.setCancelled(true);
+                    return;
+                }
+            }
             if (arena.bots.sessions.get(p.getUniqueId()).paused) {
                 e.setCancelled(true);
                 return;
             }
             if (e.getFinalDamage() >= p.getHealth() && p.getInventory().getItemInMainHand().getType() != Material.TOTEM_OF_UNDYING && p.getInventory().getItemInOffHand().getType() != Material.TOTEM_OF_UNDYING) {
                 e.setCancelled(true);
-                arena.tell(p, "Practice ended: you were knocked out.");
-                arena.bots.stop(p);
+                arena.bots.lost(p);
             }
             return;
         }
@@ -174,7 +182,7 @@ final class ArenaEvents implements Listener {
                             : src instanceof Projectile proj && proj.getShooter() instanceof Player a ? a : null;
             if (attacker != null) {
                 if (arena.social.spectators.containsKey(attacker.getUniqueId())
-                        || m != null && !attacker.getUniqueId().equals(m.other(p.getUniqueId()))
+                        || m != null && !attacker.getUniqueId().equals(m.other(p.getUniqueId())) && !attacker.equals(p)
                         || m == null && !arena.ffa.contains(attacker.getUniqueId())) {
                     e.setCancelled(true);
                     return;
@@ -355,7 +363,7 @@ final class ArenaEvents implements Listener {
 
     @EventHandler
     public void explode(BlockExplodeEvent e) {
-        if (e.getBlock().getWorld().equals(arena.world)) e.blockList().clear();
+        if (e.getBlock().getWorld().equals(arena.world) && arena.terrain.index(e.getBlock().getLocation()) == 0) e.blockList().clear();
     }
 
     @EventHandler

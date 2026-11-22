@@ -107,7 +107,7 @@ public class CommunityArena extends JavaPlugin {
     void tell(Player p, String s) {
         p.sendMessage(
                 Component.text("Practice ", NamedTextColor.YELLOW)
-                        .append(Component.text("â€º " + s, NamedTextColor.GRAY)));
+                        .append(Component.text("› " + s, NamedTextColor.GRAY)));
     }
 
     boolean managed(Player p) {
@@ -289,8 +289,6 @@ public class CommunityArena extends JavaPlugin {
                         this,
                         () -> {
                             presentation.tick();
-                            matchQueues();
-                            progression.match();
                             for (Match m : new HashSet<>(matches.values()))
                                 if (System.currentTimeMillis() - m.started > 600000)
                                     finish(m, null, "Ten minute time limit");
@@ -302,6 +300,9 @@ public class CommunityArena extends JavaPlugin {
                         },
                         20,
                         20);
+        getServer().getScheduler().runTaskTimer(this, () -> {
+            if (!queues.isEmpty()) { matchQueues(); progression.match(); }
+        }, 5, 5);
         getServer().getScheduler().runTaskTimer(this, this::save, 1200, 1200);
         getServer().getScheduler().runTaskTimer(this, () -> visuals.refreshHolograms(), 100, 200);
         getLogger()
@@ -490,7 +491,7 @@ public class CommunityArena extends JavaPlugin {
                 Arrays.stream(lore)
                         .map(
                                 v ->
-                                        PracticePresentation.ui("Â§7" + v)
+                                        PracticePresentation.ui("§7" + v)
                                                 .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false))
                         .toList());
         if (action != null)
@@ -881,7 +882,7 @@ public class CommunityArena extends JavaPlugin {
         }
         a.teleport(BattleMaps.get(m.arena) == null ? setup.duelSpawn(m.arena, true) : BattleMaps.spawn(this, m.arena, true));
         b.teleport(BattleMaps.get(m.arena) == null ? setup.duelSpawn(m.arena, false) : BattleMaps.spawn(this, m.arena, false));
-        gates.close(m.arena);
+        gates.prepare(m.arena);
         frozen.add(m.a);
         frozen.add(m.b);
         if (!m.announced) {
@@ -914,7 +915,7 @@ public class CommunityArena extends JavaPlugin {
             if (p != null) {
                 p.setInvulnerable(true);
                 frozen.add(id);
-                tell(p, "Round: " + m.sa + " : " + m.sb + " â€¢ " + why);
+                tell(p, "Round: " + m.sa + " : " + m.sb + " • " + why);
             }
         }
         if (Math.max(m.sa, m.sb) >= m.target) {
@@ -1016,7 +1017,7 @@ public class CommunityArena extends JavaPlugin {
         ffa.add(p.getUniqueId());
         p.teleport(loc(5, new Random().nextInt(51) - 25, new Random().nextInt(51) - 25, 0));
         p.setNoDamageTicks(60);
-        tell(p, "Sword FFA â€¢ /leave returns to the lobby. Three seconds of spawn protection.");
+        tell(p, "Sword FFA • /leave returns to the lobby. Three seconds of spawn protection.");
     }
 
     void board(Player p) {

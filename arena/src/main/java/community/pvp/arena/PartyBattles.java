@@ -94,7 +94,7 @@ final class PartyBattles implements Listener {
             finish(b, "Recovery required");
             return;
         }
-        p.gates.close(b.policy.arena);
+        p.gates.prepare(b.policy.arena);
         int red = 0, blue = 0;
         for (var e : b.teams.entrySet()) {
             Player a = Bukkit.getPlayer(e.getKey());
@@ -161,7 +161,7 @@ final class PartyBattles implements Listener {
         if (e instanceof EntityDamageByEntityEvent hit) {
             Entity src = hit.getDamager();
             Player attacker = src instanceof Player pl ? pl : src instanceof Projectile pr && pr.getShooter() instanceof Player pl ? pl : src instanceof TNTPrimed tnt && tnt.getSource() instanceof Player pl ? pl : null;
-            if (attacker != null && (sessions.get(attacker.getUniqueId()) != b || !b.alive.contains(attacker.getUniqueId()) || b.teams.get(attacker.getUniqueId()).equals(b.teams.get(a.getUniqueId())))) {
+            if (attacker != null && (sessions.get(attacker.getUniqueId()) != b || !b.alive.contains(attacker.getUniqueId()) || !attacker.equals(a) && b.teams.get(attacker.getUniqueId()).equals(b.teams.get(a.getUniqueId())))) {
                 e.setCancelled(true);
                 return;
             }

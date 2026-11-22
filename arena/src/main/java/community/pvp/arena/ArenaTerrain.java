@@ -170,10 +170,11 @@ final class ArenaTerrain implements Listener {
     }
 
     boolean record(int arena, Block block, String original) {
-        if (index(block.getLocation()) != arena || ImportedBuilds.protectedRoom(arena, block.getLocation()) || block.getType() == Material.BARRIER || block.getState() instanceof TileState)
+        if (index(block.getLocation()) != arena || block.getType() == Material.BARRIER || block.getState() instanceof TileState)
             return false;
         var map = changes.computeIfAbsent(arena, k -> new LinkedHashMap<>());
         String key = coords(block);
+        if (!ArenaLayout.mutable(arena, block, original, map.containsKey(key))) return false;
         if (map.containsKey(key)) return true;
         if (map.size() >= 25000) return false;
         try {
@@ -196,9 +197,10 @@ final class ArenaTerrain implements Listener {
         var map = changes.computeIfAbsent(arena, k -> new LinkedHashMap<>());
         var pending = new LinkedHashMap<String, String>();
         for (Block block : blocks) {
-            if (index(block.getLocation()) != arena || ImportedBuilds.protectedRoom(arena, block.getLocation()) || block.getType() == Material.BARRIER || block.getState() instanceof TileState)
+            if (index(block.getLocation()) != arena || block.getType() == Material.BARRIER || block.getState() instanceof TileState)
                 return false;
             String key = coords(block);
+            if (!ArenaLayout.mutable(arena, block, block.getBlockData().getAsString(), map.containsKey(key))) return false;
             if (!map.containsKey(key)) pending.putIfAbsent(key, block.getBlockData().getAsString());
         }
         if (map.size() + pending.size() > 25000) return false;
@@ -338,8 +340,10 @@ final class ArenaTerrain implements Listener {
             blocks.clear();
             return;
         }
+        var originals = changes.get(arena);
         blocks.removeIf(
-                block -> index(block.getLocation()) != arena || ImportedBuilds.protectedRoom(arena, block.getLocation()) || block.getType() == Material.BARRIER || block.getState() instanceof TileState);
+                block -> index(block.getLocation()) != arena || block.getType() == Material.BARRIER || block.getState() instanceof TileState
+                        || !ArenaLayout.mutable(arena, block, block.getBlockData().getAsString(), originals != null && originals.containsKey(coords(block))));
         if (!recordBatch(arena, blocks)) blocks.clear();
     }
 

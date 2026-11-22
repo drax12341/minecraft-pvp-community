@@ -125,7 +125,7 @@ final class CitadelLobby {
         p.data.set(
                 "holograms.c4000003.text",
                 java.util.List.of(
-                        "\u00a7e\u00a7lTHE CITADEL", "\u00a77Ranked practice | Your next chapter"));
+                        "§e§lTHE CITADEL", "§7Ranked practice | Your next chapter"));
         p.data.set("citadel.spawn", new Location(w, 0.5, 65, 16.5, 180, 0));
         w.setSpawnLocation(0, 65, 16);
     }

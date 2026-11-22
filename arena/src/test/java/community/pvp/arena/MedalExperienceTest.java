@@ -28,7 +28,7 @@ class MedalExperienceTest {
         for (var map : ImportedBuilds.SLOTS)
             for (boolean first : List.of(true, false)) {
                 var spawn = BattleMaps.spawn(p, map.id(), first);
-                assertFalse(ImportedBuilds.protectedRoom(map.id(), spawn), map.name());
+                assertTrue(BattleMaps.contains(p, map.id(), spawn), map.name());
                 assertTrue(BattleMaps.contains(p, map.id(), spawn));
             }
     }

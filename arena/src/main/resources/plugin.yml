@@ -1,5 +1,5 @@
 name: CommunityArena
-version: 9.0.0
+version: 10.0.0
 main: community.pvp.arena.CommunityArena
 api-version: '1.21.11'
 softdepend: [Multiverse-Core]

@@ -15,15 +15,17 @@ import org.bukkit.potion.*;
 final class PracticeBots implements Listener {
     final CommunityArena p;
     final Map<UUID, Session> sessions = new HashMap<>();
+    final Map<UUID, Session> byEntity = new HashMap<>();
 
     static final class Session {
         CommunityArena.Match policy;
-        int map, remaining, initialTotems, target, won;
+        int map, remaining, initialTotems, target, won, lost, healing, eating, nextHeal, nextAttack;
+        ItemStack[] equipment;
         boolean moving, paused;
         UUID entity;
         DuelRules rules;
         long started;
-        int ticks;
+        int ticks, regenerationTicks, regenerationPulse, shownHealth = -1;
         final Set<org.bukkit.Chunk> tickets = new HashSet<>();
     }
 
@@ -68,20 +70,23 @@ final class PracticeBots implements Listener {
         try {
             if (s.policy.customEquipment == null) p.equip(player, draft.kit);
             else p.savedKits.equip(player, s.policy.customEquipment);
+            s.equipment = SavedKits.copy(player.getInventory().getContents());
+            s.healing = BotCombat.healing(s.equipment);
             Zombie bot = spawn(s);
             s.entity = bot.getUniqueId();
             pin(s, bot.getLocation());
-            sessions.put(player.getUniqueId(), s);
+            register(player.getUniqueId(), s);
             player.closeInventory();
             player.teleport(BattleMaps.spawn(p, s.map, true));
             countdown(player, s);
-            p.tell(player, "Bot practice started. Totems: " + s.remaining + ". /leave to finish. No records awarded.");
+            p.tell(player, "Bot duel started. Totems: " + s.remaining + ". /leave to finish. No records awarded.");
         } catch (Exception ex) {
             if (s.entity != null) {
                 Entity entity = Bukkit.getEntity(s.entity);
                 if (entity != null) entity.remove();
             }
             sessions.remove(player.getUniqueId());
+            byEntity.remove(s.entity);
             p.occupied.remove(map.id());
             unpin(s);
             p.lobby(player);
@@ -90,45 +95,47 @@ final class PracticeBots implements Listener {
     }
 
     void countdown(Player player, Session s) {
-        if (!ImportedBuilds.is(s.map)) return;
         s.paused = true;
         s.policy.paused = true;
+        if (Bukkit.getEntity(s.entity) instanceof Zombie bot) bot.setAI(false);
         p.frozen.add(player.getUniqueId());
-        p.gates.close(s.map);
+        p.gates.prepare(s.map);
         p.countdown.start(List.of(player), new HashSet<>(),
                 () -> sessions.get(player.getUniqueId()) == s && s.paused, () -> {
                     s.paused = false;
                     s.policy.paused = false;
+                    if (Bukkit.getEntity(s.entity) instanceof Zombie bot) bot.setAI(s.moving);
                     RoundEffects.go(p, player);
                     p.tell(player, "GO!");
-                }, "Practice target");
+                }, s.moving ? "Bot duel | " + s.won + " : " + s.lost : "Practice target");
 
+    }
+
+    void register(UUID owner, Session s) {
+        sessions.put(owner, s);
+        byEntity.put(s.entity, s);
     }
 
     Zombie spawn(Session s) {
         return p.world.spawn(BattleMaps.spawn(p, s.map, false), Zombie.class, b -> {
-            b.setAI(false);
+            b.setAI(s.moving);
+            Bukkit.getMobGoals().removeAllGoals(b);
             b.setSilent(true);
             b.setAdult();
             b.setPersistent(false);
             b.setRemoveWhenFarAway(false);
             b.setShouldBurnInDay(false);
             b.setCanPickupItems(false);
-            b.customName(PracticePresentation.ui("§bPractice Bot"));
+            b.setCanBreakDoors(false);
+            b.customName(PracticePresentation.ui("§bPractice Opponent"));
             b.setCustomNameVisible(true);
-            var eq = b.getEquipment();
-            eq.setHelmet(new ItemStack(Material.DIAMOND_HELMET));
-            eq.setChestplate(new ItemStack(Material.DIAMOND_CHESTPLATE));
-            eq.setLeggings(new ItemStack(Material.DIAMOND_LEGGINGS));
-            eq.setBoots(new ItemStack(Material.DIAMOND_BOOTS));
-            eq.setItemInMainHand(new ItemStack(Material.DIAMOND_SWORD));
-            eq.setItemInOffHand(new ItemStack(s.remaining > 0 ? Material.TOTEM_OF_UNDYING : Material.AIR));
+            BotCombat.equip(b, s.equipment);
+            b.getEquipment().setItemInOffHand(new ItemStack(s.remaining > 0 ? Material.TOTEM_OF_UNDYING : Material.AIR));
         });
     }
 
     Session session(Entity e) {
-        for (var s : sessions.values()) if (e.getUniqueId().equals(s.entity)) return s;
-        return null;
+        return byEntity.get(e.getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -141,7 +148,7 @@ final class PracticeBots implements Listener {
         }
         if (e instanceof EntityDamageByEntityEvent hit) {
             Entity source = hit.getDamager();
-            UUID id = source instanceof Player a ? a.getUniqueId() : source instanceof Projectile pr && pr.getShooter() instanceof Player a ? a.getUniqueId() : null;
+            UUID id = source instanceof LivingEntity a ? a.getUniqueId() : source instanceof Projectile pr && pr.getShooter() instanceof LivingEntity a ? a.getUniqueId() : null;
             if (id != null && sessions.get(id) != s) {
                 e.setCancelled(true);
                 return;
@@ -150,9 +157,12 @@ final class PracticeBots implements Listener {
         if (e.getEntity() instanceof LivingEntity living && e.getFinalDamage() >= living.getHealth() && s.remaining > 0) {
             e.setCancelled(true);
             s.remaining--;
-            living.setHealth(living.getMaxHealth());
+            living.setHealth(1);
+            s.regenerationTicks = 900;
+            s.regenerationPulse = 0;
+            living.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 100, 1));
             living.setFireTicks(0);
-            living.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 100, 1));
+            living.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 900, 1));
             living.getEquipment().setItemInOffHand(new ItemStack(s.remaining > 0 ? Material.TOTEM_OF_UNDYING : Material.AIR));
             living.getWorld().playSound(living.getLocation(), Sound.ITEM_TOTEM_USE, 1, 1);
             living.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, living.getLocation().add(0, 1, 0), 40, .4, .8, .4, .2);
@@ -165,86 +175,90 @@ final class PracticeBots implements Listener {
         if (s == null) return;
         e.getDrops().clear();
         e.setDroppedExp(0);
-        if (s.rules.loot()) {
-            var eq = e.getEntity().getEquipment();
-            for (var item : eq.getArmorContents()) if (item != null) e.getDrops().add(item.clone());
-            if (eq.getItemInMainHand().getType() != Material.AIR) e.getDrops().add(eq.getItemInMainHand().clone());
+        Player owner = Bukkit.getPlayer(s.policy.a);
+        if (owner != null) roundEnd(owner, s, true);
+    }
+
+    void lost(Player owner) {
+        Session s = sessions.get(owner.getUniqueId());
+        if (s != null && !s.paused) roundEnd(owner, s, false);
+    }
+
+    void roundEnd(Player owner, Session s, boolean win) {
+        if (s.paused) return;
+        s.paused = true;
+        s.policy.paused = true;
+        if (Bukkit.getEntity(s.entity) instanceof Zombie bot) {
+            bot.getPathfinder().stopPathfinding();
+            bot.setAI(false);
         }
-        for (var entry : new HashMap<>(sessions).entrySet())
-            if (entry.getValue().entity.equals(e.getEntity().getUniqueId())) {
-                Player owner = Bukkit.getPlayer(entry.getKey());
-                if (owner != null) {
-                    s.won++;
-                    p.tell(owner, "Bot defeated. Round " + s.won + "/" + s.target);
-                    if (s.won >= s.target) {
-                        s.paused = true;
-                        Bukkit.getScheduler().runTaskLater(p, () -> {
-                            if (sessions.get(owner.getUniqueId()) == s) stop(owner);
-                        }, 40);
-                    } else {
-                        s.paused = true;
-                        Bukkit.getScheduler().runTaskLater(p, () -> {
-                            if (sessions.get(owner.getUniqueId()) != s) return;
-                            try {
-                                p.terrain.clearEntities(s.map);
-                                p.terrain.reset(s.map);
-                                s.remaining = s.initialTotems;
-                                Zombie next = spawn(s);
-                                s.entity = next.getUniqueId();
-                                pin(s, next.getLocation());
-                                s.paused = false;
-                                countdown(owner, s);
-                                if (s.policy.customEquipment == null) p.equip(owner, s.policy.kit);
-                                else p.savedKits.equip(owner, s.policy.customEquipment);
-                                owner.teleport(BattleMaps.spawn(p, s.map, true));
-                            } catch (Exception ex) {
-                                p.getLogger().severe(ex.getMessage());
-                                stop(owner);
-                            }
-                        }, 40);
-                    }
-                }
-                break;
+        if (win) s.won++; else s.lost++;
+        s.policy.sa = s.won;
+        s.policy.sb = s.lost;
+        p.frozen.add(owner.getUniqueId());
+        p.tell(owner, (win ? "Round won" : "Bot won the round") + " | " + s.won + " : " + s.lost + " | First to " + s.target);
+        Bukkit.getScheduler().runTaskLater(p, () -> {
+            if (sessions.get(owner.getUniqueId()) != s) return;
+            if (Math.max(s.won, s.lost) >= s.target) { stop(owner); return; }
+            try {
+                byEntity.remove(s.entity);
+                p.terrain.clearEntities(s.map);
+                p.terrain.reset(s.map);
+                if (s.policy.customEquipment == null) p.equip(owner, s.policy.kit);
+                else p.savedKits.equip(owner, s.policy.customEquipment);
+                s.equipment = SavedKits.copy(owner.getInventory().getContents());
+                s.healing = BotCombat.healing(s.equipment);
+                s.eating = s.nextHeal = s.nextAttack = s.ticks = s.regenerationTicks = s.regenerationPulse = 0;
+                s.remaining = s.initialTotems;
+                var next = spawn(s);
+                s.entity = next.getUniqueId();
+                byEntity.put(s.entity, s);
+                pin(s, next.getLocation());
+                owner.teleport(BattleMaps.spawn(p, s.map, true));
+                countdown(owner, s);
+            } catch (Exception ex) {
+                p.getLogger().severe(ex.getMessage());
+                stop(owner);
             }
+        }, 40);
     }
 
     void tick() {
-        for (var entry : new HashMap<>(sessions).entrySet()) {
+        for (var entry : new ArrayList<>(sessions.entrySet())) {
             Player player = Bukkit.getPlayer(entry.getKey());
             Session s = entry.getValue();
-            if (s.paused) continue;
-            Entity bot = Bukkit.getEntity(s.entity);
-            if (player == null || !player.isOnline() || !player.isOp() || bot == null || !bot.isValid() || System.currentTimeMillis() - s.started > 600000) {
-                if (player != null) stop(player);
-                else release(entry.getKey(), s);
+            Entity bot = s.entity == null ? null : Bukkit.getEntity(s.entity);
+            if (player == null || !player.isOnline() || !player.isOp() || System.currentTimeMillis() - s.started > 600000) {
+                if (player != null) stop(player); else release(entry.getKey(), s);
                 continue;
             }
-            if (!BattleMaps.contains(p, s.map, bot.getLocation())) bot.teleport(BattleMaps.spawn(p, s.map, false));
-            if (s.moving) {
-                s.ticks += 2;
-                var origin = motionLocation(p, s.map, s.ticks);
-                pin(s, origin);
-                bot.teleport(origin);
+            if (s.paused) continue;
+            if (!(bot instanceof Zombie opponent) || !bot.isValid()) { stop(player); continue; }
+            if (!BattleMaps.contains(p, s.map, bot.getLocation()) || bot.getY() < 93) {
+                bot.teleport(BattleMaps.spawn(p, s.map, false));
+                bot.setFallDistance(0);
             }
-            player.sendActionBar(PracticePresentation.ui("§bBot practice §8| §fTotems: " + s.remaining + " §8| §7/leave"));
+            s.ticks += 2;
+            pin(s, bot.getLocation());
+            BotCombat.tick(player, opponent, s);
+            if (s.ticks % 10 == 0) {
+                int health = (int) Math.ceil(opponent.getHealth() + opponent.getAbsorptionAmount());
+                if (health != s.shownHealth) {
+                    s.shownHealth = health;
+                    opponent.customName(PracticePresentation.ui("\u00a7bPractice Opponent \u00a77| \u00a7c" + health + " HP"));
+                }
+            }
+            if (s.ticks % 20 == 0)
+                player.sendActionBar(PracticePresentation.ui("§bBot duel §8| §f" + s.won + " : " + s.lost + " | Totems " + s.remaining + " §8| §7/leave"));
         }
-    }
-
-    static Location motionLocation(CommunityArena p, int map, int ticks) {
-        var origin = BattleMaps.spawn(p, map, false);
-        if (ImportedBuilds.is(map)) return p.gates.exit(map, origin).add(0, 0, Math.sin(ticks * .055) * 5);
-        boolean compact = BattleMaps.get(map).size() == 0;
-        origin.add(Math.sin(ticks * .055) * (compact ? 3 : 7), 0,
-                Math.cos(ticks * .055) * (compact ? 3 : 5));
-        origin.setYaw((float) (ticks * 3));
-        return origin;
     }
 
     void release(UUID id, Session s) {
         p.frozen.remove(id);
         p.social.finishExtra("bot:" + id);
         sessions.remove(id);
-        Entity bot = Bukkit.getEntity(s.entity);
+        byEntity.remove(s.entity);
+        Entity bot = s.entity == null ? null : Bukkit.getEntity(s.entity);
         if (bot != null) bot.remove();
         unpin(s);
         try {
@@ -269,7 +283,11 @@ final class PracticeBots implements Listener {
 
     void pin(Session s, Location location) {
         var chunk = location.getChunk();
-        if (s.tickets.add(chunk)) chunk.addPluginChunkTicket(p);
+        if (s.tickets.contains(chunk)) return;
+        chunk.addPluginChunkTicket(p);
+        for (var old : s.tickets) old.removePluginChunkTicket(p);
+        s.tickets.clear();
+        s.tickets.add(chunk);
     }
 
     void unpin(Session s) {

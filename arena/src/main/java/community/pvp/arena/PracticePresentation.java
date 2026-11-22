@@ -63,7 +63,7 @@ final class PracticePresentation implements Listener {
     }
 
     static Component ui(String text) {
-        return LegacyComponentSerializer.legacySection().deserialize(text);
+        return LegacyComponentSerializer.legacySection().deserialize(text.replace("\u00c2§", "§"));
     }
 
     static String time(long millis) {
@@ -136,6 +136,7 @@ final class PracticePresentation implements Listener {
     }
 
     void tick() {
+        var online = List.copyOf(Bukkit.getOnlinePlayers());
         Map<UUID, Identity> next = new HashMap<>();
         for (UUID id : p.participants) {
             Player player = Bukkit.getPlayer(id);
@@ -144,7 +145,7 @@ final class PracticePresentation implements Listener {
                     id, new Identity(player.getName(), badge(id), room(id), p.flag(player, "chat", true)));
             boolean friendsOnly = friendTabs.contains(id) && !p.busy(player) && !p.ffa.contains(id);
             Set<String> friends = friendsOnly ? new HashSet<>(p.social.friends(id)) : Set.of();
-            for (Player other : Bukkit.getOnlinePlayers()) {
+            for (Player other : online) {
                 playerVisible(player, other, visible(player, other));
                 if (friendsOnly && !other.equals(player) && !friends.contains(other.getUniqueId().toString()))
                     listed(player, other, false);
@@ -183,7 +184,16 @@ final class PracticePresentation implements Listener {
         var m = match(id);
         List<String> rows = new ArrayList<>();
         rows.add("§8──────────────────");
-        if (m == null) {
+        var training = p.bots.sessions.get(id);
+        if (m == null && training != null) {
+            rows.add("§eBOT DUEL");
+            rows.add("§7Kit §f" + Loadouts.name(training.policy.kit));
+            rows.add("§7First to §f" + training.target);
+            rows.add("§aYou §f" + training.won + " §8: §cBot §f" + training.lost);
+            rows.add("§7Totems left §f" + training.remaining);
+            rows.add(training.paused ? "§eNext round..." : "§aFight in progress");
+            rows.add("§7Practice only · /leave");
+        } else if (m == null) {
             String q = p.queues.get(id);
             rows.add("§7Division");
             rows.add(badge(id));
@@ -394,7 +404,7 @@ final class PracticePresentation implements Listener {
             if (!label.equals(display.text())) display.text(label);
             Location target = player.getLocation().add(0, player.isSneaking() ? 2.1 : 2.45, 0);
             if (!display.getWorld().equals(target.getWorld())
-                    || display.getLocation().distanceSquared(target) > 0.0001) display.teleport(target);
+                    || display.getLocation().distanceSquared(target) > 0.0025) display.teleport(target);
             for (UUID viewerId : p.participants) {
                 Player viewer = Bukkit.getPlayer(viewerId);
                 if (viewer == null) continue;

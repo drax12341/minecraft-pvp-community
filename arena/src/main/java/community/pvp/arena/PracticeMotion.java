@@ -217,6 +217,7 @@ final class PracticeMotion {
             }
             Inventory inv = player.getOpenInventory().getTopInventory();
             if (inv != null
+                    && ticks % 12 == 0
                     && inv.getHolder() instanceof ArenaMenu
                     && !p.layouts.editing(player, inv)
                     && !p.savedKits.editing(player, inv)) {

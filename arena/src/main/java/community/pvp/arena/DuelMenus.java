@@ -16,7 +16,8 @@ final class DuelMenus {
         boolean bot, party;
         String kit = "sword";
         int rounds = 1, map = 6, totems = 5;
-        boolean pearls, responsive, spec = true, tnt, loot, moving;
+        boolean pearls, responsive, spec = true, tnt, loot;
+        boolean moving = true;
 
         DuelRules rules() {
             return new DuelRules(map, pearls, responsive, spec, tnt, loot);
@@ -101,7 +102,7 @@ final class DuelMenus {
         inv.setItem(40, p.item(BattleMaps.icon(d.map), BattleMaps.get(d.map).name(), "duelui:maps", "Choose biome and arena size"));
         inv.setItem(41, p.item(Material.COMPARATOR, "Duel Settings", "duelui:settings", "Pearls, movement, TNT and loot"));
         if (d.bot) {
-            inv.setItem(29, p.item(Material.LEATHER_BOOTS, "Bot movement: " + on(d.moving), "duelui:moving", "Stationary or moving target"));
+            inv.setItem(29, p.item(Material.LEATHER_BOOTS, "Bot fights back: " + on(d.moving), "duelui:moving", "ON: pursuing combat opponent | OFF: stationary target"));
             inv.setItem(33, p.item(Material.TOTEM_OF_UNDYING, "Bot totems: " + d.totems, "duelui:totems", "Click +1 | Right-click -1 (0..64)"));
         }
         player.openInventory(inv);
@@ -167,7 +168,7 @@ final class DuelMenus {
                 long free = ImportedBuilds.SLOTS.stream().filter(v -> v.theme() == m.theme() && !p.occupied.contains(v.id()) && p.warmup.ready(v.id())).count();
                 long preparing = ImportedBuilds.SLOTS.stream().filter(v -> v.theme() == m.theme() && !p.warmup.ready(v.id())).count();
                 String availability = free + " available | " + preparing + " preparing";
-                inv.setItem(19 + slot * 2, p.item(selected ? Material.LIME_DYE : Material.GRAY_DYE, (selected ? "\u00a7aSelected: " : "\u00a77") + m.name(), "duelui:map:" + m.id(), m.width() + " x " + m.length() + " | Ceiling: " + m.ceiling(), "Theme: " + BattleMaps.icon(m.id()).name().toLowerCase().replace('_', ' '), availability, selected ? "Selected arena" : "Click to select"));
+                inv.setItem(19 + slot * 2, p.item(selected ? Material.LIME_DYE : Material.GRAY_DYE, (selected ? "§aSelected: " : "§7") + m.name(), "duelui:map:" + m.id(), m.width() + " x " + m.length() + " | Ceiling: " + m.ceiling(), "Theme: " + BattleMaps.icon(m.id()).name().toLowerCase().replace('_', ' '), availability, selected ? "Selected arena" : "Click to select"));
                 inv.setItem(28 + slot * 2, p.item(BattleMaps.icon(m.id()), m.name(), "duelui:map:" + m.id(), "Imported build floating over void", availability));
                 slot++;
             }

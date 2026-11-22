@@ -20,6 +20,12 @@ public final class NativeBuildCheck extends JavaPlugin {
         return f.get(o);
     }
 
+    void set(Object o, String n, Object value) throws Exception {
+        var f = o.getClass().getDeclaredField(n);
+        f.setAccessible(true);
+        f.set(o, value);
+    }
+
     Object call(Object o, String n, Class<?>[] types, Object... args) throws Exception {
         var m = o.getClass().getDeclaredMethod(n, types);
         m.setAccessible(true);
@@ -74,6 +80,11 @@ public final class NativeBuildCheck extends JavaPlugin {
         loadNext(queue);
     }
 
+    World fieldWorld() {
+        try { return (World) field(arena, "world"); }
+        catch (Exception ex) { throw new IllegalStateException(ex); }
+    }
+
     void loadNext(ArrayDeque<Location> queue) {
         if (queue.isEmpty()) {
             try {
@@ -92,6 +103,12 @@ public final class NativeBuildCheck extends JavaPlugin {
                 return;
             }
             chunk.addPluginChunkTicket(this);
+            if (chunk.getWorld().equals(fieldWorld())) {
+                int id = 100 + Math.floorDiv(chunk.getX() * 16 - 20000 + 512, 1024);
+                try {
+                    if (id >= 100 && id <= 126) stat("ArenaLayout", "prepareChunk", new Class<?>[]{arena.getClass(), int.class, Chunk.class}, arena, id, chunk);
+                } catch (Exception ex) { throw new IllegalStateException(ex); }
+            }
             loadNext(queue);
         }));
     }
@@ -116,12 +133,15 @@ public final class NativeBuildCheck extends JavaPlugin {
                 var build = data.get(i);
                 for (boolean first : List.of(true, false)) {
                     var spawn = (Location) stat("BattleMaps", "spawn", new Class<?>[]{arena.getClass(), int.class, boolean.class}, arena, id, first);
-                    check(!(boolean) stat("ImportedBuilds", "protectedRoom", new Class<?>[]{int.class, Location.class}, id, spawn), "outside room " + id);
+                    check(spawn.clone().add(0, -5, 0).getBlock().getType() == Material.BEDROCK, "bedrock base " + id);
                     check(spawn.clone().add(0, -1, 0).getBlock().getType().isSolid(), "solid spawn " + id);
                     check(spawn.getBlock().isPassable() && spawn.clone().add(0, 1, 0).getBlock().isPassable(), "clear spawn " + id);
                     Object e = call(build, first ? "a" : "b", new Class<?>[]{});
                     int gate = (int) call(e, "gate", new Class<?>[]{}), z = (int) call(e, "z", new Class<?>[]{});
-                    check(world.getBlockAt(cx - width / 2 + gate, 98, 1024 - length / 2 + z).getType() == Material.IRON_BARS, "generated gate " + id);
+                    check(world.getBlockAt(cx - width / 2 + gate, 98, 1024 - length / 2 + z).getType().isAir(), "cage door removed " + id);
+                    int roomX = (int) call(e, "x", new Class<?>[]{});
+                    for (int dx = -5; dx <= 5; dx++) for (int dz = -8; dz <= 8; dz++) for (int y = 97; y <= 102; y++)
+                        check(world.getBlockAt(cx - width/2 + roomX + dx, y, 1024 - length/2 + z + dz).getType().isAir(), "cage removed " + id);
                     for (int member = 0; member < 49; member++) {
                         Location team = (Location) stat("PartyBattles", "teamSpawn", new Class<?>[]{arena.getClass(), int.class, boolean.class, int.class}, arena, id, first, member);
                         check(team.clone().add(0, -1, 0).getBlock().getType().isSolid(), "team floor " + id + ":" + first + ":" + member);
@@ -151,12 +171,12 @@ public final class NativeBuildCheck extends JavaPlugin {
         Object gates = field(arena, "gates");
         var occupied = (Set<Integer>) field(arena, "occupied");
         occupied.add(100);
-        call(gates, "close", new Class<?>[]{int.class}, 100);
+        call(gates, "prepare", new Class<?>[]{int.class}, 100);
         var map = stat("BattleMaps", "get", new Class<?>[]{int.class}, 100);
         var b = data.getFirst();
         Object entry = call(b, "a", new Class<?>[]{});
         int gx = (int) call(map, "cx", new Class<?>[]{}) - (int) call(map, "width", new Class<?>[]{}) / 2 + (int) call(entry, "gate", new Class<?>[]{}), gz = 1024 - (int) call(map, "length", new Class<?>[]{}) / 2 + (int) call(entry, "z", new Class<?>[]{});
-        check(world.getBlockAt(gx, 98, gz).getType() == Material.IRON_BARS, "unused rooms stay closed at GO");
+        check(world.getBlockAt(gx, 98, gz).getType() == Material.AIR, "unused cages removed");
         Object global = Class.forName("io.papermc.paper.configuration.GlobalConfiguration").getMethod("get").invoke(null);
         Object unsupported = global.getClass().getField("unsupportedSettings").get(global);
         check(!unsupported.getClass().getField("updateEquipmentOnPlayerActions").getBoolean(unsupported), "attribute swapping enabled in live Paper");
@@ -165,9 +185,33 @@ public final class NativeBuildCheck extends JavaPlugin {
         for (Object item : kit) if (item instanceof org.bukkit.inventory.ItemStack stack && stack.getType().name().endsWith("_SPEAR"))
             lunge = stack.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.LUNGE) == 3;
         check(lunge, "native Lunge III kit");
+        var botType = Class.forName("community.pvp.arena.PracticeBots$Session", true, loader);
+        var ctor = botType.getDeclaredConstructor(); ctor.setAccessible(true);
+        Object combat = ctor.newInstance();
+        var equipment = stat("ReferenceLoadouts", "create", new Class<?>[]{String.class}, "sword");
+        set(combat, "equipment", equipment); set(combat, "map", 100); set(combat, "moving", true); set(combat, "ticks", 2);
+        var opponent = (org.bukkit.entity.Zombie) call(bots, "spawn", new Class<?>[]{botType}, combat);
+        var dummy = world.spawn(opponent.getLocation().clone().add(-2, 0, 0), org.bukkit.entity.Mannequin.class);
+        dummy.setInvulnerable(false);
+        double health = dummy.getHealth();
+        stat("BotCombat", "tick", new Class<?>[]{org.bukkit.entity.LivingEntity.class, org.bukkit.entity.Zombie.class, botType}, dummy, opponent, combat);
+        check(dummy.getHealth() < health, "bot deals real native melee damage");
+        check((int) field(combat, "nextAttack") == 15, "bot native sword cadence");
+        check(opponent.hasAI(), "fighting bot AI enabled");
+        check(opponent.getEquipment().getItemInMainHand().getType() == Material.DIAMOND_SWORD, "bot chosen kit weapon");
+        dummy.teleport(opponent.getLocation().clone().add(-6, 0, 0));
+        opponent.setHealth(5);
+        set(combat, "eating", 2); set(combat, "healing", 1);
+        for (int tick = 4; tick <= 32; tick += 2) {
+            set(combat, "ticks", tick);
+            stat("BotCombat", "tick", new Class<?>[]{org.bukkit.entity.LivingEntity.class, org.bukkit.entity.Zombie.class, botType}, dummy, opponent, combat);
+        }
+        check(opponent.getHealth() > 5, "finite NPC healing restores real health");
+        check((int) field(combat, "healing") == 0, "NPC healing supply consumed");
+        opponent.remove(); dummy.remove();
         Bukkit.getScheduler().runTaskLater(this, () -> {
             try {
-                check(world.getBlockAt(gx, 98, gz).getType() == Material.IRON_BARS, "gate reclosed");
+                check(world.getBlockAt(gx, 98, gz).getType() == Material.AIR, "cages stay removed");
                 occupied.remove(100);
                 getLogger().info("NATIVE_CHECK_PASSED: " + checks + " checks across 27 copies and imported lobby; all native palettes loaded.");
             } catch (Throwable ex) {

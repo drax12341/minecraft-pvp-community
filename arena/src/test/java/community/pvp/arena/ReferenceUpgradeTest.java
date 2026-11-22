@@ -16,15 +16,14 @@ import org.mockbukkit.mockbukkit.entity.PlayerMock;
 
 class ReferenceUpgradeTest {
     @Test
-    void movingBotCircuitCannotIntersectNewGateways() {
-        for (var map : BattleMaps.all())
-            for (int tick = 0; tick < 120; tick += 2) {
-                var l = PracticeBots.motionLocation(p, map.id(), tick);
-                assertTrue(map.inside(l, p.world, 1));
-                var blocks = column(map, l.getBlockX() - map.cx(), l.getBlockZ() - 1024);
-                for (int y = 65; y <= 66; y++)
-                    assertTrue(!blocks.containsKey(y) || blocks.get(y) == Material.AIR, map.name() + " bot collided at " + l);
-            }
+    void botSpawnsHaveClearLegacyFooting() {
+        for (var map : BattleMaps.all()) {
+            var l = BattleMaps.spawn(p, map.id(), false);
+            assertTrue(map.inside(l, p.world, 1));
+            var blocks = column(map, l.getBlockX() - map.cx(), l.getBlockZ() - 1024);
+            for (int y = 65; y <= 66; y++)
+                assertTrue(!blocks.containsKey(y) || blocks.get(y) == Material.AIR, map.name());
+        }
     }
 
     @Test
