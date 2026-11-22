@@ -110,7 +110,7 @@ class RoundLifecycleTest {
     }
 
     @Test
-    void gateReadyOnlyAcceptsHitsOnThePlayersOwnArenaGate() {
+    void hittingUnusedGateDoesNotSkipBattlefieldCountdown() {
         var a = server.addPlayer("A");
         var b = server.addPlayer("B");
         p.start(a, b, "sword", 1, false, null, new DuelRules(100, false, false, true, false, false));
@@ -120,6 +120,6 @@ class RoundLifecycleTest {
         a.teleport(gate.getLocation().clone().add(-2, 0, 0));
         var e = new PlayerInteractEvent(a, org.bukkit.event.block.Action.LEFT_CLICK_BLOCK, null, gate, org.bukkit.block.BlockFace.WEST);
         server.getPluginManager().callEvent(e);
-        assertTrue(p.matches.get(a.getUniqueId()).readied.contains(a.getUniqueId()));
+        assertFalse(p.matches.get(a.getUniqueId()).readied.contains(a.getUniqueId()));
     }
 }

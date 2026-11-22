@@ -119,46 +119,66 @@ final class PracticeMenus {
     }
 
     void settings(Player player) {
-        Inventory inv = frame(45, "Community | Settings");
-        String[] flags = {
-                "scoreboard",
-                "invites",
-                "hitsounds",
-                "spectators",
-                "nametags",
-                "health",
-                "chat",
-                "victory",
-                "animations"
-        };
-        int i = 0;
-        for (String flag : flags) {
-            int slot = 10 + i + i / 7 * 2;
-            inv.setItem(
-                    slot,
-                    p.item(
-                            p.flag(player, flag, true) ? Material.LIME_DYE : Material.GRAY_DYE,
-                            flag + ": " + (p.flag(player, flag, true) ? "ON" : "OFF"),
-                            "setting:" + flag,
-                            "Click to toggle; saved between sessions"));
-            i++;
-        }
-        inv.setItem(
-                24,
-                p.item(
-                        Material.CLOCK,
-                        "Personal time: " + p.reference.pref(player, "time", "server"),
-                        "time-cycle",
-                        "Left: next | Right: previous | Shift: reset"));
-        inv.setItem(36, p.item(Material.ARROW, "Navigation", "navigation"));
-        inv.setItem(
-                40,
-                p.item(
-                        Material.OAK_DOOR,
-                        "Exit practice",
-                        "exit",
-                        "Restore your original inventory and location"));
+        Inventory inv = frame(27, "Community | Settings");
+        inv.setItem(4, p.item(Material.PLAYER_HEAD, "Â§eYour preferences", "profile-details", "Saved to your player profile"));
+        inv.setItem(10, p.item(Material.LEVER, "Â§eDisplay & effects", "settings-page:display", "Sidebar, health, animations and victory effects"));
+        inv.setItem(11, p.item(Material.OAK_SIGN, "Â§eSocial settings", "settings-page:social", "Duel invitations, friend requests and match chat"));
+        inv.setItem(12, p.item(Material.BELL, "Â§eNotifications", "inbox", "Unread: " + p.inbox.unread(player.getUniqueId())));
+        inv.setItem(13, p.item(Material.CLOCK, "Â§eTime of day: " + p.reference.pref(player, "time", "server"), "time-cycle",
+                "Server / Day / Afternoon / Night / Midnight", "Left: next | Right: previous | Shift: reset"));
+        inv.setItem(14, p.item(Material.NAME_TAG, "Â§eNameplates & health", "settings-page:display", "Colored server divisions and fighter health"));
+        inv.setItem(15, p.item(Material.NETHERITE_CHESTPLATE, "Â§eCombat settings", "settings-page:combat", "Hit feedback, spectator privacy and combat controls"));
+        inv.setItem(16, p.item(Material.DIAMOND, "Â§eDuel statistics", "statistics", "Per-kit casual and ranked records"));
+        inv.setItem(18, p.item(Material.ARROW, "Navigation", "navigation"));
+        inv.setItem(26, p.item(Material.OAK_DOOR, "Exit practice", "exit", "Restore your original inventory and location"));
         player.openInventory(inv);
+    }
+
+    static String settingsCategory(String flag) {
+        return switch (flag) {
+            case "invites", "friendrequests", "chat" -> "social";
+            case "hitsounds", "spectators" -> "combat";
+            default -> "display";
+        };
+    }
+
+    void settings(Player player, String category) {
+        if (!Set.of("display", "social", "combat").contains(category)) return;
+        Inventory inv = frame(27, "Settings | " + category);
+        String[] flags = {"scoreboard", "invites", "hitsounds", "spectators", "nametags", "health", "chat", "victory", "animations", "friendrequests"};
+        String[] labels = {"Sidebar", "Duel requests", "Hit sounds", "Allow spectators", "Division nameplates", "Fighter health", "Match chat", "Victory effects", "Menu animations", "Friend requests"};
+        String[] descriptions = {"Show your rating, queue and match score", "Allow players to challenge you", "Play a sound for accepted combat hits", "Allow viewers into your duels", "Show colored rating labels above players", "Show health beneath fighter names", "Receive chat from your current room", "Show celebration effects after a result", "Animate menus, rewards and countdown sounds", "Allow players to send friend requests"};
+        int slot = 10;
+        for (int i = 0; i < flags.length; i++) {
+            String flag = flags[i];
+            if (!settingsCategory(flag).equals(category)) continue;
+            boolean enabled = p.flag(player, flag, true);
+            inv.setItem(slot++, p.item(enabled ? Material.LIME_DYE : Material.GRAY_DYE,
+                    "Â§e" + labels[i] + ": " + (enabled ? "Â§aON" : "Â§cOFF"), "setting:" + flag,
+                    descriptions[i], "Left: toggle | Shift: reset to ON", "Saved between sessions"));
+        }
+        if (category.equals("combat"))
+            inv.setItem(15, p.item(Material.NETHERITE_SPEAR, "Â§eWeapon swaps & Lunge III", "combat-info", "View combat controls and server compatibility"));
+        inv.setItem(18, p.item(Material.ARROW, "Settings", "settings"));
+        player.openInventory(inv);
+    }
+
+    void combat(Player player) {
+            var inv = frame(27, "Community | Combat Mechanics");
+            inv.setItem(11, p.item(Material.MACE, "Attribute swaps", null,
+                    "Switch weapon slots to use native item attributes",
+                    "Paper compatibility: " + CombatCompatibility.status,
+                    "Same server rules for every ranked player"));
+            inv.setItem(13, p.item(Material.NETHERITE_SPEAR, "Spear Lunge III", null,
+                    "Spear Mace includes Lunge III",
+                    "Use the native spear attack to lunge",
+                    "Native hunger and durability costs apply"));
+            inv.setItem(15, p.item(Material.WIND_CHARGE, "Movement and defense", null,
+                    "Wind charges, elytra, shield and pearls",
+                    "Weapon cooldowns remain native",
+                    "Left Shift during countdown votes to skip"));
+            inv.setItem(18, p.item(Material.ARROW, "Settings", "settings"));
+            player.openInventory(inv);
     }
 
     void leaderboard(Player player, String stat) {

@@ -89,9 +89,9 @@ class VideoPracticeTest {
     var m = p.new Match(a, b, "axe", 1, 1);
     m.ranked = true;
     p.progression.result(m, a.getUniqueId());
-    assertEquals(616, p.progression.elo(a.getUniqueId(), "axe"));
-    assertEquals(600, p.progression.elo(a.getUniqueId(), "sword"));
-    assertEquals(584, p.progression.elo(b.getUniqueId(), "axe"));
+    assertEquals(1016, p.progression.elo(a.getUniqueId(), "axe"));
+    assertEquals(1000, p.progression.elo(a.getUniqueId(), "sword"));
+    assertEquals(984, p.progression.elo(b.getUniqueId(), "axe"));
   }
 
   @Test
@@ -335,7 +335,7 @@ class VideoPracticeTest {
   void unknownSettingsCannotWriteArbitraryProfileFields() {
     var a = server.addPlayer();
     p.action(a, "setting:elo");
-    assertEquals(600, p.progression.elo(a.getUniqueId()));
+    assertEquals(1000, p.progression.elo(a.getUniqueId()));
   }
 
   @Test

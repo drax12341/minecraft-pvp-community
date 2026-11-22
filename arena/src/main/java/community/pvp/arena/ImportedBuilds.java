@@ -19,6 +19,7 @@ final class ImportedBuilds {
     static final List<BattleMaps.MapInfo> SLOTS = java.util.stream.IntStream.rangeClosed(FIRST, LAST).mapToObj(id -> new BattleMaps.MapInfo(id, (id - FIRST) / COPIES, SIZES[(id - FIRST) / COPIES])).toList();
     static final List<BattleMaps.MapInfo> TEMPLATES = SLOTS.stream().filter(m -> (m.id() - FIRST) % COPIES == 0).toList();
     static volatile List<Build> builds = List.of();
+    static final Map<Integer, List<org.bukkit.util.Vector>> teamLandings = new HashMap<>();
 
     record Run(int from, int to, int palette) {
     }
@@ -127,7 +128,46 @@ final class ImportedBuilds {
         var m = get(id);
         var b = build(id);
         var e = first ? b.a : b.b;
-        return new Location(p.world, m.cx() - m.width() / 2 + e.x + .5, 97, 1024 - m.length() / 2 + e.z + .5, first ? -90 : 90, 0);
+        return new Location(p.world, m.cx() - m.width() / 2 + e.gate + (first ? 2.5 : -1.5), 97, 1024 - m.length() / 2 + e.z + .5, first ? -90 : 90, 0);
+    }
+
+    static Material material(Build b, int x, int y, int z) {
+        if (x < 0 || z < 0 || x >= b.width || z >= b.length) return Material.AIR;
+        int localY = y - b.baseY();
+        for (Run run : b.columns[z * b.width + x])
+            if (localY >= run.from && localY < run.to) return b.palette[run.palette].getMaterial();
+        return Material.AIR;
+    }
+
+    static Location teamSpawn(CommunityArena p, int id, boolean first, int member) {
+        var map = get(id);
+        var b = build(id);
+        int key = (id - FIRST) / COPIES * 2 + (first ? 0 : 1);
+        var points = teamLandings.computeIfAbsent(key, unused -> {
+            var own = first ? b.a : b.b;
+            var other = first ? b.b : b.a;
+            double sx = own.gate + (first ? 2.5 : -1.5), sz = own.z + .5;
+            double ox = other.gate + (first ? -1.5 : 2.5), oz = other.z + .5;
+            var result = new ArrayList<org.bukkit.util.Vector>();
+            for (int dx = -20; dx <= 20; dx++)
+                for (int dz = -20; dz <= 20; dz++) {
+                    int x = (int) Math.floor(sx) + dx, z = own.z + dz;
+                    if (x < 1 || z < 1 || x >= b.width - 1 || z >= b.length - 1) continue;
+                    double px = x + .5, pz = z + .5;
+                    if (Math.pow(px - sx, 2) + Math.pow(pz - sz, 2) >= Math.pow(px - ox, 2) + Math.pow(pz - oz, 2)) continue;
+                    if (Math.abs(px - b.a.x - .5) < 7 && Math.abs(pz - b.a.z - .5) < 10
+                            || Math.abs(px - b.b.x - .5) < 7 && Math.abs(pz - b.b.z - .5) < 10) continue;
+                    if (material(b, x, 96, z).isSolid() && material(b, x, 97, z).isAir() && material(b, x, 98, z).isAir())
+                        result.add(new org.bukkit.util.Vector(px, 97, pz));
+                }
+            result.sort(Comparator.<org.bukkit.util.Vector>comparingDouble(v -> Math.pow(v.getX() - sx, 2) + Math.pow(v.getZ() - sz, 2))
+                    .thenComparingDouble(org.bukkit.util.Vector::getX).thenComparingDouble(org.bukkit.util.Vector::getZ));
+            if (result.size() < 49) throw new IllegalStateException("Not enough safe team landings in " + map.name());
+            return List.copyOf(result.subList(0, 49));
+        });
+        var point = points.get(member);
+        return new Location(p.world, map.cx() - map.width() / 2 + point.getX(), 97,
+                1024 - map.length() / 2 + point.getZ(), first ? -90 : 90, 0);
     }
 
     static int available(CommunityArena p, int template, String kit) {

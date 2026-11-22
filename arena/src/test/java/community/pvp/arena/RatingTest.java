@@ -18,9 +18,9 @@ class RatingTest {
 
   @Test
   void ranksHaveStableBoundaries() {
-    assertEquals("Bronze", Rating.rank(0));
-    assertEquals("Iron", Rating.rank(800));
-    assertEquals("Netherite", Rating.rank(2000));
+    assertEquals("Copper", Rating.rank(0));
+    assertEquals("Iron", Rating.rank(1300));
+    assertEquals("Netherite", Rating.rank(2500));
   }
 
   @Test

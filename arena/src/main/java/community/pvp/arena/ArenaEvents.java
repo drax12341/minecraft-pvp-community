@@ -69,6 +69,13 @@ final class ArenaEvents implements Listener {
         Player p = e.getPlayer();
         Location to = e.getTo();
         if (!arena.managed(p) || to == null || !e.hasChangedPosition()) return;
+        if (arena.frozen.contains(p.getUniqueId()) && to.getY() >= 52) {
+            Location held = e.getFrom().clone();
+            held.setYaw(to.getYaw());
+            held.setPitch(to.getPitch());
+            e.setTo(held);
+            return;
+        }
         var watchedExtra = arena.social.extra.get(p.getUniqueId());
         if (watchedExtra != null) {
             if (!BattleMaps.contains(arena, watchedExtra.map(), to))
@@ -282,6 +289,7 @@ final class ArenaEvents implements Listener {
     @EventHandler
     public void interact(PlayerInteractEvent e) {
         Player p = e.getPlayer();
+        if (arena.visuals.clickHologram(e)) return;
         if (!arena.managed(p) || e.getItem() == null || !e.getAction().isRightClick()) return;
         ItemMeta meta = e.getItem().getItemMeta();
         String a =

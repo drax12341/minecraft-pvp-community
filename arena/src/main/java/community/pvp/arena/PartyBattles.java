@@ -111,33 +111,19 @@ final class PartyBattles implements Listener {
             p.frozen.add(e.getKey());
         }
         message(b, "Teams: Red " + b.red + " : " + b.blue + " Blue. First to " + b.target + ". Fight in 3 seconds!");
-        for (int i = 0; i < 3; i++) {
-            int left = 3 - i;
-            Bukkit.getScheduler().runTaskLater(p, () -> {
-                if (!b.ended) for (UUID id : b.teams.keySet()) {
-                    Player player = Bukkit.getPlayer(id);
-                    if (player != null) RoundEffects.count(p, player, left, "Teams | " + b.red + " : " + b.blue);
-                }
-            }, i * 20L);
-        }
-        Bukkit.getScheduler().runTaskLater(p, () -> {
-            if (b.ended) return;
-            p.gates.open(b.policy.arena);
+        var players = b.teams.keySet().stream().map(Bukkit::getPlayer).toList();
+        p.countdown.start(players, new HashSet<>(), () -> !b.ended && b.paused, () -> {
             b.paused = false;
             b.policy.paused = false;
-            for (UUID id : b.teams.keySet()) p.frozen.remove(id);
-            for (UUID id : b.teams.keySet()) {
-                Player player = Bukkit.getPlayer(id);
-                if (player != null) RoundEffects.go(p, player);
-            }
+            for (Player player : players) RoundEffects.go(p, player);
             message(b, "GO!");
-        }, 60);
+        }, "Teams | " + b.red + " : " + b.blue);
+
     }
 
     static Location teamSpawn(CommunityArena p, int map, boolean first, int member) {
         if (ImportedBuilds.is(map)) {
-            int[] order = {0, -1, 1, -2, 2, -3, 3};
-            return BattleMaps.spawn(p, map, first).add(order[member % 7] * 1.15, 0, order[member / 7] * 2);
+            return ImportedBuilds.teamSpawn(p, map, first, member);
         }
         return BattleMaps.spawn(p, map, first)
                 .add((first ? 1 : -1) * (member / 7) * 2, 0, (member % 7 - 3) * 2);

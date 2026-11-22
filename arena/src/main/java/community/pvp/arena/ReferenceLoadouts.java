@@ -165,6 +165,7 @@ final class ReferenceLoadouts {
                     if (spear == null)
                         throw new IllegalStateException("Spear Mace requires Paper 1.21.11 with native spears");
                     a[8] = weapon(spear, Enchantment.SHARPNESS, 5);
+                    enchant(a[8], Enchantment.LUNGE, 3);
                     put(a, 3, Material.WIND_CHARGE, 64);
                     put(a, 4, Material.FIREWORK_ROCKET, 64);
                     put(a, 5, Material.ENDER_PEARL, 16);

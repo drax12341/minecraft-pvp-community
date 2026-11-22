@@ -33,6 +33,7 @@ public class CommunityArena extends JavaPlugin {
     final Set<Integer> occupied = new HashSet<>();
     MapWarmup warmup;
     RoundGates gates;
+    RoundCountdown countdown;
     DuelMenus duels;
     PracticeBots bots;
     Parties parties;
@@ -106,7 +107,7 @@ public class CommunityArena extends JavaPlugin {
     void tell(Player p, String s) {
         p.sendMessage(
                 Component.text("Practice ", NamedTextColor.YELLOW)
-                        .append(Component.text("› " + s, NamedTextColor.GRAY)));
+                        .append(Component.text("â€º " + s, NamedTextColor.GRAY)));
     }
 
     boolean managed(Player p) {
@@ -187,6 +188,7 @@ public class CommunityArena extends JavaPlugin {
                     "Refusing to overwrite unreadable players.yml; restore a backup", ex);
         }
         getConfig().addDefault("join-lobby", true);
+        getConfig().addDefault("combat.attribute-swapping", true);
         getConfig().addDefault("maps.prewarm", true);
         getConfig().addDefault("ranked-rounds", 3);
         for (String kit : List.of("crystal", "smp", "nethop", "uhc"))
@@ -223,6 +225,8 @@ public class CommunityArena extends JavaPlugin {
         grove.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
         grove.setGameRule(GameRule.DO_FIRE_TICK, false);
         gates = new RoundGates(this);
+        countdown = new RoundCountdown(this);
+        CombatCompatibility.enable(this);
         terrain = new ArenaTerrain(this);
         terrain.recoverV7();
         terrain.recoverV6();
@@ -277,6 +281,7 @@ public class CommunityArena extends JavaPlugin {
             getCommand(cmd).setExecutor(commands);
             getCommand(cmd).setTabCompleter(commands);
         }
+        visuals.ensureRankInfo();
         ready = groveReady;
         getServer()
                 .getScheduler()
@@ -305,6 +310,7 @@ public class CommunityArena extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        CombatCompatibility.restore(this);
         if (partyBattles != null) partyBattles.close();
         if (bots != null) bots.close();
         for (Match m : new HashSet<>(matches.values())) finish(m, null, "Server restart");
@@ -484,7 +490,7 @@ public class CommunityArena extends JavaPlugin {
                 Arrays.stream(lore)
                         .map(
                                 v ->
-                                        PracticePresentation.ui("§7" + v)
+                                        PracticePresentation.ui("Â§7" + v)
                                                 .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false))
                         .toList());
         if (action != null)
@@ -548,7 +554,7 @@ public class CommunityArena extends JavaPlugin {
             return;
         }
         if (a.equals("leaderboard")) {
-            visuals.leaderboard(p, "elo");
+            menus.leaderboard(p, "elo");
             return;
         }
         if (a.equals("menu")) {
@@ -590,17 +596,34 @@ public class CommunityArena extends JavaPlugin {
                             "health",
                             "chat",
                             "victory",
-                            "animations")
+                            "animations", "friendrequests")
                     .contains(key)) return;
             data.set("players." + p.getUniqueId() + "." + key, !flag(p, key, true));
             save();
-            settings(p);
+            menus.settings(p, PracticeMenus.settingsCategory(key));
         }
     }
 
     void handleMenuClick(Player player, String action, boolean reverse, boolean reset) {
         if (!managed(player)) enter(player);
         if (!managed(player) || busy(player)) return;
+        if (action != null && action.startsWith("settings-page:")) {
+            menus.settings(player, action.substring(14));
+            return;
+        }
+        if ("combat-info".equals(action)) {
+            menus.combat(player);
+            return;
+        }
+        if (reset && action != null && action.startsWith("setting:")) {
+            String field = action.substring(8);
+            if (Set.of("scoreboard", "invites", "hitsounds", "spectators", "nametags", "health", "chat", "victory", "animations", "friendrequests").contains(field)) {
+                data.set("players." + player.getUniqueId() + "." + field, true);
+                save();
+                menus.settings(player, PracticeMenus.settingsCategory(field));
+            }
+            return;
+        }
         if (duels.handle(player, action, reverse)) return;
         if ("layout-picker".equals(action)) {
             layouts.picker(player);
@@ -865,29 +888,13 @@ public class CommunityArena extends JavaPlugin {
             m.announced = true;
             presentation.matchIntro(m);
         }
-        new BukkitRunnable() {
-            int left = 3;
-
-            public void run() {
-                if (m.ended) {
-                    cancel();
-                    return;
-                }
-                if (left > 0 && m.readied.size() < 2) {
-                    for (Player player : List.of(a, b))
-                        RoundEffects.count(CommunityArena.this, player, left, "Sneak to ready | " + m.sa + " : " + m.sb);
-                    left--;
-                } else {
-                    gates.open(m.arena);
+        countdown.start(List.of(a, b), m.readied, () -> !m.ended && m.paused,
+                () -> {
                     m.roundStarted = System.currentTimeMillis();
                     m.paused = false;
-                    frozen.remove(m.a);
-                    frozen.remove(m.b);
-                    for (Player player : List.of(a, b)) RoundEffects.go(CommunityArena.this, player);
-                    cancel();
-                }
-            }
-        }.runTaskTimer(this, 0, 20);
+                    for (Player player : List.of(a, b)) RoundEffects.go(this, player);
+                }, "Score " + m.sa + " : " + m.sb);
+
     }
 
     void lost(Player loser, String why) {
@@ -907,7 +914,7 @@ public class CommunityArena extends JavaPlugin {
             if (p != null) {
                 p.setInvulnerable(true);
                 frozen.add(id);
-                tell(p, "Round: " + m.sa + " : " + m.sb + " • " + why);
+                tell(p, "Round: " + m.sa + " : " + m.sb + " â€¢ " + why);
             }
         }
         if (Math.max(m.sa, m.sb) >= m.target) {
@@ -1009,7 +1016,7 @@ public class CommunityArena extends JavaPlugin {
         ffa.add(p.getUniqueId());
         p.teleport(loc(5, new Random().nextInt(51) - 25, new Random().nextInt(51) - 25, 0));
         p.setNoDamageTicks(60);
-        tell(p, "Sword FFA • /leave returns to the lobby. Three seconds of spawn protection.");
+        tell(p, "Sword FFA â€¢ /leave returns to the lobby. Three seconds of spawn protection.");
     }
 
     void board(Player p) {

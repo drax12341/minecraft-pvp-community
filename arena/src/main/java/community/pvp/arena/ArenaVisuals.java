@@ -16,6 +16,18 @@ final class ArenaVisuals {
         this.p = p;
     }
 
+    void ensureRankInfo() {
+        String key = "holograms.rankinfo-v9";
+        if (p.data.contains(key)) return;
+        p.data.set(key + ".location", p.setup.spawn().clone().add(12, 4, -9));
+        p.data.set(key + ".text", List.of("§e§lRANKED DIVISIONS", "§7Local server ratings",
+                "§dChampion §7(2800+ and #1)", "§5Netherite I–III §7(2500+)",
+                "§bDiamond I–III §7(2200–2499)", "§aEmerald I–III §7(1900–2199)",
+                "§eGold I–III §7(1600–1899)", "§fIron I–III §7(1300–1599)",
+                "§6Copper I–III §7(1000–1299)", "§7New players start at 1000",
+                "§7Historical ratings are preserved", "§7Community tiers require reviewed results"));
+    }
+
     List<UUID> leaders(String stat) {
         var section = p.data.getConfigurationSection("players");
         if (section == null) return List.of();
@@ -42,7 +54,8 @@ final class ArenaVisuals {
 
     List<String> lines(String stat) {
         List<String> text = new ArrayList<>();
-        text.add("§e§lCOMMUNITY §f§l" + stat.toUpperCase(Locale.ROOT));
+        text.add("§e§l" + (stat.equals("elo") ? "TOP RATING" : stat.toUpperCase(Locale.ROOT) + " TOP"));
+        text.add("§7Overall | All time");
         int n = 1;
         for (UUID id : leaders(stat))
             text.add(
@@ -52,7 +65,9 @@ final class ArenaVisuals {
                             + p.progression.name(id)
                             + " §e"
                             + (stat.equals("elo") ? p.progression.elo(id) : p.progression.number(id, stat)));
-        if (text.size() == 1) text.add("§7No completed matches yet");
+        if (text.size() == 2) text.add("§7No completed matches yet");
+        text.add(" ");
+        text.add("§eRight-click to browse kits and timeframes");
         return text;
     }
 
@@ -103,6 +118,32 @@ final class ArenaVisuals {
                                     : customLines));
             if (!text.equals(display.text())) display.text(text);
         }
+    }
+
+    boolean clickHologram(org.bukkit.event.player.PlayerInteractEvent e) {
+        Player player = e.getPlayer();
+        if (!e.getAction().isRightClick() || e.getHand() != EquipmentSlot.HAND
+                || !p.managed(player) || p.busy(player) || p.ffa.contains(player.getUniqueId())) return false;
+        Location eye = player.getEyeLocation();
+        String target = null;
+        double nearest = 64;
+        for (String id : holograms.keySet()) {
+            if (!p.data.getStringList("holograms." + id + ".text").isEmpty()) continue;
+            Location at = p.data.getLocation("holograms." + id + ".location");
+            if (at == null || !at.getWorld().equals(eye.getWorld())) continue;
+            var offset = at.toVector().subtract(eye.toVector());
+            double distance = offset.lengthSquared();
+            if (distance < nearest && distance > 0 && eye.getDirection().dot(offset.normalize()) > .92) {
+                target = id;
+                nearest = distance;
+            }
+        }
+        if (target != null) {
+            e.setCancelled(true);
+            p.reference.board(player, p.data.getString("holograms." + target + ".stat", "elo"), 0, false);
+            return true;
+        }
+        return false;
     }
 
     void board(Player player) {

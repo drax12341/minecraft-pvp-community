@@ -198,7 +198,7 @@ class ScreenshotExperienceTest {
     equipment[0].setType(Material.DIRT);
     assertEquals(Material.DIAMOND_AXE, m.customEquipment[0].getType());
     p.finish(m, a.getUniqueId(), "test");
-    assertEquals(600, p.progression.elo(a.getUniqueId()));
+    assertEquals(1000, p.progression.elo(a.getUniqueId()));
     assertEquals(0, p.progression.number(a.getUniqueId(), "rankedGames"));
   }
 

@@ -50,20 +50,20 @@ class ArenaTest {
     var b = server.addPlayer();
     var m = p.new Match(a, b, "sword", 1, 1);
     p.progression.result(m, a.getUniqueId());
-    assertEquals(600, p.progression.elo(a.getUniqueId()));
+    assertEquals(1000, p.progression.elo(a.getUniqueId()));
     assertEquals(1, p.progression.number(a.getUniqueId(), "wins"));
   }
 
   @Test
-  void rankedWinTransfersPointsAndCreatesChampion() {
+  void rankedWinTransfersPointsWithoutPrematureChampion() {
     var a = server.addPlayer();
     var b = server.addPlayer();
     var m = p.new Match(a, b, "sword", 1, 1);
     m.ranked = true;
     p.progression.result(m, a.getUniqueId());
-    assertEquals(616, p.progression.elo(a.getUniqueId()));
-    assertEquals(584, p.progression.elo(b.getUniqueId()));
-    assertEquals("#1 Champion", p.progression.rank(a.getUniqueId()));
+    assertEquals(1016, p.progression.elo(a.getUniqueId()));
+    assertEquals(984, p.progression.elo(b.getUniqueId()));
+    assertEquals("Copper", p.progression.rank(a.getUniqueId()));
   }
 
   @Test

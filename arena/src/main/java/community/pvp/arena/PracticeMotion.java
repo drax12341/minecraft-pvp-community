@@ -38,11 +38,7 @@ final class PracticeMotion {
     }
 
     static float progress(double elo) {
-        int[] floors = {0, 800, 1000, 1200, 1450, 1700, 2000, 2300};
-        for (int i = 0; i < floors.length - 1; i++)
-            if (elo < floors[i + 1])
-                return (float) Math.max(0, Math.min(1, (elo - floors[i]) / (floors[i + 1] - floors[i])));
-        return 1;
+        return Rating.progress(elo);
     }
 
     static List<org.bukkit.util.Vector> ring(double radius, int count, double phase) {

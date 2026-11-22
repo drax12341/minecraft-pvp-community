@@ -95,22 +95,14 @@ final class PracticeBots implements Listener {
         s.policy.paused = true;
         p.frozen.add(player.getUniqueId());
         p.gates.close(s.map);
-        for (int second = 0; second < 3; second++) {
-            int left = 3 - second;
-            Bukkit.getScheduler().runTaskLater(p, () -> {
-                if (sessions.get(player.getUniqueId()) == s)
-                    RoundEffects.count(p, player, left, "Practice target | Sneak to prepare");
-            }, second * 20L);
-        }
-        Bukkit.getScheduler().runTaskLater(p, () -> {
-            if (sessions.get(player.getUniqueId()) != s) return;
-            s.paused = false;
-            s.policy.paused = false;
-            p.frozen.remove(player.getUniqueId());
-            p.gates.open(s.map);
-            RoundEffects.go(p, player);
-            p.tell(player, "GO!");
-        }, 60);
+        p.countdown.start(List.of(player), new HashSet<>(),
+                () -> sessions.get(player.getUniqueId()) == s && s.paused, () -> {
+                    s.paused = false;
+                    s.policy.paused = false;
+                    RoundEffects.go(p, player);
+                    p.tell(player, "GO!");
+                }, "Practice target");
+
     }
 
     Zombie spawn(Session s) {

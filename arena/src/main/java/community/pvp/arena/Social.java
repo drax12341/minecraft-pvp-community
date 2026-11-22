@@ -157,6 +157,10 @@ final class Social implements Listener {
         var theirs = new ArrayList<>(friends(tid));
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "add" -> {
+                if (!p.flag(target, "friendrequests", true)) {
+                    p.tell(player, "That player has disabled friend requests.");
+                    return;
+                }
                 if (own.contains(tid.toString()) || own.size() >= 100 || theirs.size() >= 100) {
                     p.tell(player, "Already friends or friend limit reached (100).");
                     return;

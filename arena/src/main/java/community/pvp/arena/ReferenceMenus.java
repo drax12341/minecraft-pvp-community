@@ -31,6 +31,15 @@ final class ReferenceMenus {
 
     boolean handle(Player player, String action, boolean reverse, boolean reset) {
         if (action == null) return false;
+        if (action.equals("board-kit") || action.equals("board-period")) {
+            boolean kit = action.equals("board-kit");
+            var choices = new ArrayList<String>(kit ? List.of("global") : List.of("all", "day", "week"));
+            if (kit) choices.addAll(Arrays.asList(CommunityArena.KITS));
+            String field = kit ? "boardKit" : "boardPeriod";
+            setPref(player, field, cycle(pref(player, field, choices.getFirst()), choices, reverse, reset));
+            board(player, pref(player, "boardStat", "elo"), 0, false);
+            return true;
+        }
         if (action.equals("queue-filter")) {
             String next =
                     cycle(pref(player, "queue", "both"), List.of("both", "casual", "ranked"), reverse, reset);
@@ -231,7 +240,7 @@ final class ReferenceMenus {
         var section = p.data.getConfigurationSection("players");
         if (section == null) return List.of();
         return section.getKeys(false).stream()
-                .filter(s -> s.matches("[a-f0-9-]{36}"))
+                .filter(s -> s.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"))
                 .map(UUID::fromString)
                 .filter(id -> p.data.contains("players." + id + ".kits." + kit + ".elo"))
                 .sorted(
@@ -376,7 +385,7 @@ final class ReferenceMenus {
         var section = p.data.getConfigurationSection("players");
         if (section == null) return List.of();
         return section.getKeys(false).stream()
-                .filter(s -> s.matches("[a-f0-9-]{36}"))
+                .filter(s -> s.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"))
                 .map(UUID::fromString)
                 .filter(
                         id ->
@@ -395,13 +404,48 @@ final class ReferenceMenus {
                 .toList();
     }
 
+    int score(UUID id, String stat, String kit, String period) {
+        if (stat.equals("elo")) return kit.equals("global") ? p.progression.elo(id) : p.progression.elo(id, kit);
+        var record = p.insights.view(id, "both", period, kit);
+        return switch (stat) {
+            case "wins" -> record.wins();
+            case "kills" -> record.kills();
+            case "deaths" -> record.deaths();
+            case "streak" -> record.streak();
+            case "bestStreak" -> record.best();
+            default -> record.games();
+        };
+    }
+
+    List<UUID> standings(String stat, String kit, String period) {
+        if (kit.equals("global") && period.equals("all")) return standings(stat);
+        var section = p.data.getConfigurationSection("players");
+        if (section == null) return List.of();
+        return section.getKeys(false).stream()
+                .filter(s -> s.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"))
+                .map(UUID::fromString)
+                .filter(id -> stat.equals("elo")
+                        ? p.insights.view(id, "ranked", "all", kit).games() > 0
+                        : p.insights.view(id, "both", period, kit).games() > 0)
+                .sorted(Comparator.<UUID>comparingInt(id -> score(id, stat, kit, period)).reversed().thenComparing(UUID::toString))
+                .toList();
+    }
+
     void board(Player player, String stat, int page, boolean elite) {
         if (!Set.of("elo", "wins", "kills", "deaths", "streak", "bestStreak", "games").contains(stat))
             return;
-        List<UUID> all = standings(stat);
+        String kit = pref(player, "boardKit", "global");
+        if (!kit.equals("global") && !p.kit(kit)) kit = "global";
+        String period = pref(player, "boardPeriod", "all");
+        if (!Set.of("all", "day", "week").contains(period)) period = "all";
+        if (stat.equals("elo")) period = "all"; // Elo is a current rating, not a period total.
+        p.data.set("players." + player.getUniqueId() + ".ui.boardStat", stat);
+        final String selectedKit = kit, selectedPeriod = period;
+        List<UUID> all = standings(stat, kit, period);
+
         List<UUID> list = elite ? all.stream().limit(16).toList() : all;
         page = Math.max(0, Math.min(page, Math.max(0, (list.size() - 1) / 21)));
-        var inv = p.menus.frame(54, "Standings | " + stat + " | " + (page + 1));
+        var inv = p.menus.frame(54, "Standings | " + (kit.equals("global") ? "Overall" : Loadouts.name(kit)) + " | " + period);
         String[] fields = {"elo", "wins", "kills", "deaths", "streak", "bestStreak", "games"};
         for (int i = 0; i < fields.length; i++)
             inv.setItem(
@@ -421,10 +465,18 @@ final class ReferenceMenus {
                             null,
                             stat
                                     + ": "
-                                    + (stat.equals("elo") ? p.progression.elo(id) : p.progression.number(id, stat)),
+                                    + score(id, stat, selectedKit, selectedPeriod),
                             position < 16 ? "Top 16 contender" : "Climb into the top 16",
                             "Find a player: /findplayer <name>"));
         }
+        inv.setItem(46, p.item(Material.CLOCK, stat.equals("elo") ? "Current rating | All time" : "Timeframe: " + period,
+                stat.equals("elo") ? null : "board-period", "All time / UTC daily / ISO weekly", "Left: next | Right: previous | Shift: reset"));
+        inv.setItem(47, p.item(Material.CHEST, "Kit: " + (kit.equals("global") ? "Overall" : Loadouts.name(kit)),
+                "board-kit", "Left: next | Right: previous | Shift: reset"));
+        int own = all.indexOf(player.getUniqueId());
+        inv.setItem(51, p.item(Material.PAPER, own < 0 ? "Your standing: unranked" : "Your standing: #" + (own + 1), null,
+                "Recorded " + stat + ": " + score(player.getUniqueId(), stat, kit, period),
+                "Historical filtered data is shown only when recorded"));
         if (list.isEmpty()) inv.setItem(22, p.item(Material.PAPER, "No genuine records yet", null));
         inv.setItem(
                 45,
@@ -461,7 +513,7 @@ final class ReferenceMenus {
         }
         UUID id =
                 section.getKeys(false).stream()
-                        .filter(s -> s.matches("[a-f0-9-]{36}"))
+                        .filter(s -> s.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"))
                         .map(UUID::fromString)
                         .filter(key -> p.progression.name(key).equalsIgnoreCase(name))
                         .findFirst()

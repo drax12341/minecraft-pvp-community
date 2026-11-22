@@ -21,7 +21,7 @@ final class RoundEffects {
     static void go(CommunityArena p, Player a) {
         a.setFallDistance(0);
         a.setVelocity(new org.bukkit.util.Vector());
-        a.showTitle(Title.title(Component.text("FIGHT!", NamedTextColor.GOLD), Component.text("Gates open", NamedTextColor.GRAY), Title.Times.times(Duration.ZERO, Duration.ofMillis(700), Duration.ofMillis(200))));
+        a.showTitle(Title.title(Component.text("FIGHT!", NamedTextColor.GOLD), Component.text("Good luck", NamedTextColor.GRAY), Title.Times.times(Duration.ZERO, Duration.ofMillis(700), Duration.ofMillis(200))));
         if (p.motion.enabled(a)) {
             a.playSound(a.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, .8f, 1.5f);
             a.spawnParticle(Particle.END_ROD, a.getLocation().add(0, 1, 0), 16, .6, .8, .6, .02);

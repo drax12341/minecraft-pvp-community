@@ -324,7 +324,7 @@ class DuelUpgradeTest {
         assertFalse(match.rules.spectators());
         assertTrue(BattleMaps.contains(p, 6, a.getLocation()));
         p.finish(match, a.getUniqueId(), "test");
-        assertEquals(600, p.progression.elo(a.getUniqueId()));
+        assertEquals(1000, p.progression.elo(a.getUniqueId()));
     }
 
     @Test

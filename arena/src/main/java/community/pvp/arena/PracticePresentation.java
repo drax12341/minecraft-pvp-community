@@ -72,11 +72,7 @@ final class PracticePresentation implements Listener {
     }
 
     static String color(int elo) {
-        return elo < 800
-                ? "§6"
-                : elo < 1000
-                ? "§f"
-                : elo < 1200 ? "§e" : elo < 1450 ? "§a" : elo < 1700 ? "§b" : elo < 2000 ? "§5" : "§d";
+        return new String[]{"§6", "§f", "§e", "§a", "§b", "§5"}[Rating.band(elo)];
     }
 
     CommunityArena.Match match(UUID id) {
@@ -206,7 +202,7 @@ final class PracticePresentation implements Listener {
                             : "§eQueue §f" + Loadouts.name(q.replace("ranked:", "")));
         } else {
             rows.add("§7Kit §e" + Loadouts.name(m.kit));
-            rows.add("§7Duration §f" + time(System.currentTimeMillis() - m.roundStarted));
+            rows.add("§7Duration §f" + time(m.paused ? 0 : System.currentTimeMillis() - m.roundStarted));
             rows.add("§7Round §f" + (m.sa + m.sb + 1) + " §8(FT" + m.target + ")");
             rows.add(" ");
             rows.add("§9" + p.progression.name(m.a) + " §f" + m.sa);
@@ -528,11 +524,7 @@ final class PracticePresentation implements Listener {
 
             tick();
         }
-        var m = p.matches.get(e.getPlayer().getUniqueId());
-        if (m != null && !m.ended && m.paused && e.isSneaking()) {
-            m.readied.add(e.getPlayer().getUniqueId());
-            e.getPlayer().sendActionBar(ui("§aReady §8│ §f" + m.readied.size() + "/2"));
-        }
+
     }
 
     void close() {

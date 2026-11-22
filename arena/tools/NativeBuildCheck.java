@@ -12,6 +12,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class NativeBuildCheck extends JavaPlugin {
     Object arena;
     ClassLoader loader;
+    int checks;
 
     Object field(Object o, String n) throws Exception {
         var f = o.getClass().getDeclaredField(n);
@@ -33,6 +34,7 @@ public final class NativeBuildCheck extends JavaPlugin {
     }
 
     void check(boolean b, String message) {
+        checks++;
         if (!b) throw new AssertionError(message);
     }
 
@@ -106,7 +108,6 @@ public final class NativeBuildCheck extends JavaPlugin {
         var list = builds.getDeclaredField("builds");
         list.setAccessible(true);
         var data = (List<?>) list.get(null);
-        int points = 0;
         for (int i = 0; i < 9; i++)
             for (int copy = 0; copy < 3; copy++) {
                 int id = 100 + i * 3 + copy;
@@ -115,19 +116,23 @@ public final class NativeBuildCheck extends JavaPlugin {
                 var build = data.get(i);
                 for (boolean first : List.of(true, false)) {
                     var spawn = (Location) stat("BattleMaps", "spawn", new Class<?>[]{arena.getClass(), int.class, boolean.class}, arena, id, first);
+                    check(!(boolean) stat("ImportedBuilds", "protectedRoom", new Class<?>[]{int.class, Location.class}, id, spawn), "outside room " + id);
                     check(spawn.clone().add(0, -1, 0).getBlock().getType().isSolid(), "solid spawn " + id);
                     check(spawn.getBlock().isPassable() && spawn.clone().add(0, 1, 0).getBlock().isPassable(), "clear spawn " + id);
                     Object e = call(build, first ? "a" : "b", new Class<?>[]{});
                     int gate = (int) call(e, "gate", new Class<?>[]{}), z = (int) call(e, "z", new Class<?>[]{});
                     check(world.getBlockAt(cx - width / 2 + gate, 98, 1024 - length / 2 + z).getType() == Material.IRON_BARS, "generated gate " + id);
-                    points += 4;
+                    for (int member = 0; member < 49; member++) {
+                        Location team = (Location) stat("PartyBattles", "teamSpawn", new Class<?>[]{arena.getClass(), int.class, boolean.class, int.class}, arena, id, first, member);
+                        check(team.clone().add(0, -1, 0).getBlock().getType().isSolid(), "team floor " + id + ":" + first + ":" + member);
+                        check(team.getBlock().isPassable() && team.clone().add(0, 1, 0).getBlock().isPassable(), "team headroom " + id + ":" + first + ":" + member);
+                    }
                 }
                 check(world.getBlockAt(cx - width / 2, 80, 1024).getType() == Material.BARRIER, "boundary " + id);
                 check(world.getBlockAt(cx, 48, 1024).getType() == Material.BARRIER, "void catch " + id);
                 check(world.getBlockAt(cx, ceiling - 1, 1024).getType() == Material.BARRIER, "ceiling " + id);
                 check(world.getBlockAt(cx, 0, 1024).getType().isAir(), "pure void below " + id);
                 check(world.getBlockAt(cx + width, 96, 1024).getType().isAir(), "void between instances " + id);
-                points += 5;
             }
         var spawn = (Location) stat("ImportedLobby", "spawn", new Class<?>[]{arena.getClass()}, arena);
         check(spawn.clone().add(0, -1, 0).getBlock().getType().isSolid(), "lobby floor");
@@ -143,23 +148,28 @@ public final class NativeBuildCheck extends JavaPlugin {
         check(targetLocation.getChunk().getPluginChunkTickets().contains((JavaPlugin) arena), "target chunk pinned");
         call(bots, "unpin", new Class<?>[]{sessionType}, session);
         check(!targetLocation.getChunk().getPluginChunkTickets().contains((JavaPlugin) arena), "target chunk ticket released");
-        points += 2;
         Object gates = field(arena, "gates");
         var occupied = (Set<Integer>) field(arena, "occupied");
         occupied.add(100);
         call(gates, "close", new Class<?>[]{int.class}, 100);
-        call(gates, "open", new Class<?>[]{int.class}, 100);
         var map = stat("BattleMaps", "get", new Class<?>[]{int.class}, 100);
         var b = data.getFirst();
         Object entry = call(b, "a", new Class<?>[]{});
         int gx = (int) call(map, "cx", new Class<?>[]{}) - (int) call(map, "width", new Class<?>[]{}) / 2 + (int) call(entry, "gate", new Class<?>[]{}), gz = 1024 - (int) call(map, "length", new Class<?>[]{}) / 2 + (int) call(entry, "z", new Class<?>[]{});
-        check(world.getBlockAt(gx, 98, gz).getType().isAir(), "gate opened");
-        int total = points + 4;
+        check(world.getBlockAt(gx, 98, gz).getType() == Material.IRON_BARS, "unused rooms stay closed at GO");
+        Object global = Class.forName("io.papermc.paper.configuration.GlobalConfiguration").getMethod("get").invoke(null);
+        Object unsupported = global.getClass().getField("unsupportedSettings").get(global);
+        check(!unsupported.getClass().getField("updateEquipmentOnPlayerActions").getBoolean(unsupported), "attribute swapping enabled in live Paper");
+        Object[] kit = (Object[]) stat("ReferenceLoadouts", "create", new Class<?>[]{String.class}, "mace_spear");
+        boolean lunge = false;
+        for (Object item : kit) if (item instanceof org.bukkit.inventory.ItemStack stack && stack.getType().name().endsWith("_SPEAR"))
+            lunge = stack.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.LUNGE) == 3;
+        check(lunge, "native Lunge III kit");
         Bukkit.getScheduler().runTaskLater(this, () -> {
             try {
                 check(world.getBlockAt(gx, 98, gz).getType() == Material.IRON_BARS, "gate reclosed");
                 occupied.remove(100);
-                getLogger().info("NATIVE_CHECK_PASSED: " + (total + 1) + " checks across 27 copies and imported lobby; all native palettes loaded.");
+                getLogger().info("NATIVE_CHECK_PASSED: " + checks + " checks across 27 copies and imported lobby; all native palettes loaded.");
             } catch (Throwable ex) {
                 getLogger().log(java.util.logging.Level.SEVERE, "NATIVE_CHECK_FAILED", ex);
             } finally {

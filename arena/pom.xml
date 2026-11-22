@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>community.pvp</groupId>
     <artifactId>CommunityArena</artifactId>
-    <version>8.0.2</version>
+    <version>9.0.0</version>
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -47,7 +47,7 @@
                     <include>CHANGELOG-V8.md</include>
                     <include>CHANGELOG-V8.0.1.md</include>
                     <include>CHANGELOG-V8.0.2.md</include>
-                    <include>BUILDS-V8.md</include>
+                    <include>BUILDS-V8.md</include><include>INSTALL-V9.md</include><include>CHANGELOG-V9.md</include><include>MEDAL-REFERENCE.md</include>
                 </includes>
             </resource>
         </resources>

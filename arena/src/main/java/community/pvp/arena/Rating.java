@@ -17,21 +17,20 @@ final class Rating {
   }
 
   static String rank(int elo) {
-    if (elo < 800) return "Bronze";
-    if (elo < 1000) return "Iron";
-    if (elo < 1200) return "Gold";
-    if (elo < 1450) return "Emerald";
-    if (elo < 1700) return "Diamond";
-    if (elo < 2000) return "Obsidian";
-    return "Netherite";
+    return new String[]{"Copper", "Iron", "Gold", "Emerald", "Diamond", "Netherite"}[band(elo)];
+  }
+
+  static int band(int elo) {
+    return Math.min(5, Math.max(0, (elo - 1000) / 300));
+  }
+
+  static float progress(double elo) {
+    int floor = 1000 + band((int) elo) * 300;
+    return (float) Math.max(0, Math.min(1, (elo - floor) / 300));
   }
 
   static String division(int elo) {
-    int[] starts = {0, 800, 1000, 1200, 1450, 1700, 2000};
-    int index = 0;
-    for (int i = 0; i < starts.length; i++) if (elo >= starts[i]) index = i;
-    int end = index + 1 < starts.length ? starts[index + 1] : 2300;
-    int part = Math.min(2, Math.max(0, (elo - starts[index]) * 3 / (end - starts[index])));
+    int part = Math.min(2, Math.max(0, (elo - (1000 + band(elo) * 300)) / 100));
     return rank(elo) + " " + new String[] {"I", "II", "III"}[part];
   }
 }

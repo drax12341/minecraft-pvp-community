@@ -8,11 +8,10 @@ import org.bukkit.event.*;
 import org.bukkit.event.player.*;
 
 /**
- * Gate state belongs to an arena lease; generation tokens cancel delayed work after reuse.
+ * Keeps unused entry rooms closed and contains fighters on the battlefield.
  */
 final class RoundGates implements Listener {
     final CommunityArena p;
-    final Map<Integer, Integer> generations = new HashMap<>();
     final Set<Integer> sealed = new HashSet<>();
 
     RoundGates(CommunityArena p) {
@@ -31,26 +30,8 @@ final class RoundGates implements Listener {
     }
 
     void close(int id) {
-        generations.merge(id, 1, Integer::sum);
-        sealed.remove(id);
+        sealed.add(id);
         gate(id, Material.IRON_BARS);
-    }
-
-    void open(int id) {
-        if (!ImportedBuilds.is(id)) return;
-        int generation = generations.getOrDefault(id, 0);
-        gate(id, Material.AIR);
-        Bukkit.getScheduler().runTaskLater(p, () -> {
-            if (!p.occupied.contains(id) || generations.getOrDefault(id, 0) != generation) return;
-            // Move any stragglers (and a stationary bot) onto the open landing before closing.
-            for (var entity : p.world.getNearbyEntities(p.loc(id, 0, 0, 0), BattleMaps.get(id).width(), 240, BattleMaps.get(id).length())) {
-                if (!(entity instanceof Player) && p.bots.session(entity) == null) continue;
-                if (ImportedBuilds.protectedRoom(id, entity.getLocation()))
-                    entity.teleport(exit(id, entity.getLocation()));
-            }
-            sealed.add(id);
-            gate(id, Material.IRON_BARS);
-        }, 100);
     }
 
     Location exit(int id, Location here) {
@@ -69,23 +50,6 @@ final class RoundGates implements Listener {
         if (b != null) return b.map;
         var team = p.partyBattles.sessions.get(a.getUniqueId());
         return team == null ? 0 : team.policy.arena;
-    }
-
-    @EventHandler(ignoreCancelled = false)
-    public void ready(PlayerInteractEvent e) {
-        if (e.getAction() != org.bukkit.event.block.Action.LEFT_CLICK_BLOCK || e.getClickedBlock() == null) return;
-        var m = p.matches.get(e.getPlayer().getUniqueId());
-        if (m == null || m.ended || !m.paused || !ImportedBuilds.is(m.arena)) return;
-        var map = BattleMaps.get(m.arena);
-        var build = ImportedBuilds.build(m.arena);
-        var block = e.getClickedBlock();
-        for (var entry : List.of(build.a(), build.b()))
-            if (block.getWorld().equals(p.world) && block.getX() == map.cx() - map.width() / 2 + entry.gate() && Math.abs(block.getZ() - (1024 - map.length() / 2 + entry.z())) <= 8 && block.getY() >= 97 && block.getY() <= 101 && e.getPlayer().getLocation().distanceSquared(block.getLocation()) <= 36) {
-                m.readied.add(e.getPlayer().getUniqueId());
-                e.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text("Ready | " + m.readied.size() + "/2"));
-                e.setCancelled(true);
-                return;
-            }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)

@@ -27,11 +27,11 @@ final class Progression {
     }
 
     int elo(UUID id) {
-        return plugin.data.getInt(key(id) + "elo", 600);
+        return plugin.data.getInt(key(id) + "elo", 1000);
     }
 
     int elo(UUID id, String kit) {
-        return plugin.data.getInt(key(id) + "kits." + kit + ".elo", 600);
+        return plugin.data.getInt(key(id) + "kits." + kit + ".elo", 1000);
     }
 
     int kitNumber(UUID id, String kit, String field) {
@@ -58,7 +58,7 @@ final class Progression {
         }
         ranked =
                 section.getKeys(false).stream()
-                        .filter(s -> s.matches("[0-9a-f-]{36}"))
+                        .filter(s -> s.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))
                         .map(UUID::fromString)
                         .filter(id -> number(id, "rankedGames") > 0)
                         .sorted(
@@ -67,7 +67,7 @@ final class Progression {
     }
 
     String rank(UUID id) {
-        return !ranked.isEmpty() && ranked.getFirst().equals(id) ? "#1 Champion" : Rating.rank(elo(id));
+        return elo(id) >= 2800 && !ranked.isEmpty() && ranked.getFirst().equals(id) ? "#1 Champion" : Rating.rank(elo(id));
     }
 
     void result(CommunityArena.Match m, UUID winner) {
@@ -135,7 +135,7 @@ final class Progression {
         plugin.queues.put(p.getUniqueId(), "ranked:" + kit);
         RoundEffects.queued(plugin,p,kit);
         p.closeInventory();
-        plugin.tell(p, "Ranked " + kit + " queued. Elo " + elo(p.getUniqueId()) + " | /leave cancels.");
+        plugin.tell(p, "Ranked " + kit + " queued. Kit Elo " + elo(p.getUniqueId(), kit) + " | /leave cancels.");
     }
 
     void match() {
@@ -148,18 +148,22 @@ final class Progression {
                             .toList();
             for (UUID a : ids) {
                 if (!plugin.queues.containsKey(a)) continue;
-                for (UUID b : ids) {
+                for (UUID b : ids.stream()
+                        .sorted(Comparator.comparingInt(id -> Math.abs(elo(a, kit) - elo(id, kit))))
+                        .toList()) {
                     if (a.equals(b) || !plugin.queues.containsKey(b) || !eligible(a, b, kit)) continue;
+                    Player first = Bukkit.getPlayer(a), second = Bukkit.getPlayer(b);
+                    if (first == null || second == null || !first.isOnline() || !second.isOnline()) continue;
                     long age =
                             (System.currentTimeMillis()
-                                    - Math.min(
+                                    - Math.max(
                                     queuedAt.getOrDefault(a, System.currentTimeMillis()),
                                     queuedAt.getOrDefault(b, System.currentTimeMillis())))
                                     / 1000;
                     if (Math.abs(elo(a, kit) - elo(b, kit)) > Rating.window(age)) continue;
-                    if (plugin.freeArena(kit) == 0) return;
+                    if (plugin.freeArena(kit) == 0) break;
                     plugin.start(
-                            Bukkit.getPlayer(a), Bukkit.getPlayer(b), kit, plugin.rankedRounds(kit), true);
+                            first, second, kit, plugin.rankedRounds(kit), true);
                     break;
                 }
             }

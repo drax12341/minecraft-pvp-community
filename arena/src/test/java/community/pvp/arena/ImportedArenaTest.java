@@ -46,13 +46,13 @@ class ImportedArenaTest {
     }
 
     @Test
-    void partySpawnsFitBothEntryRoomsWithoutStackingPlayers() {
+    void partySpawnsFitBattlefieldWithoutStackingPlayers() {
         for (var map : ImportedBuilds.TEMPLATES)
             for (boolean first : List.of(true, false)) {
                 Set<Location> spawns = new HashSet<>();
                 for (int member = 0; member < 49; member++) {
                     Location l = PartyBattles.teamSpawn(p, map.id(), first, member);
-                    assertTrue(ImportedBuilds.protectedRoom(map.id(), l));
+                    assertFalse(ImportedBuilds.protectedRoom(map.id(), l));
                     assertTrue(BattleMaps.contains(p, map.id(), l));
                     assertTrue(spawns.add(l));
                 }
@@ -198,7 +198,7 @@ class ImportedArenaTest {
     }
 
     @Test
-    void gatesOpenAtGoThenSealAndDenyPearlEntry() {
+    void fightersStartOutsideClosedRoomsAndCannotPearlInside() {
         var a = server.addPlayer("A");
         var b = server.addPlayer("B");
         p.start(a, b, "sword", 1, false, null, new DuelRules(100, true, false, true, false, false));
@@ -207,33 +207,34 @@ class ImportedArenaTest {
         int gate = m.cx() - m.width() / 2 + build.a().gate(), z = 1024 - m.length() / 2 + build.a().z();
         assertEquals(Material.IRON_BARS, p.world.getBlockAt(gate, 98, z).getType());
         server.getScheduler().performTicks(61);
-        assertEquals(Material.AIR, p.world.getBlockAt(gate, 98, z).getType());
+        assertEquals(Material.IRON_BARS, p.world.getBlockAt(gate, 98, z).getType());
         server.getScheduler().performTicks(101);
         assertEquals(Material.IRON_BARS, p.world.getBlockAt(gate, 98, z).getType());
         assertTrue(p.gates.sealed.contains(100));
         assertFalse(ImportedBuilds.protectedRoom(100, a.getLocation()));
-        var event = new PlayerTeleportEvent(a, a.getLocation(), BattleMaps.spawn(p, 100, true), PlayerTeleportEvent.TeleportCause.ENDER_PEARL);
+        var room = new Location(p.world, m.cx() - m.width() / 2 + build.a().x() + .5, 97, z + .5);
+        var event = new PlayerTeleportEvent(a, a.getLocation(), room, PlayerTeleportEvent.TeleportCause.ENDER_PEARL);
         server.getPluginManager().callEvent(event);
         assertTrue(event.isCancelled());
     }
 
     @Test
-    void staleGateTimerCannotCloseAReusedRound() {
+    void roundReuseNeverOpensTheUnusedEntryRooms() {
         p.occupied.add(100);
         p.gates.close(100);
-        p.gates.open(100);
         server.getScheduler().performTicks(50);
         p.gates.close(100);
-        p.gates.open(100);
         server.getScheduler().performTicks(51);
-        assertFalse(p.gates.sealed.contains(100));
+        assertTrue(p.gates.sealed.contains(100));
         server.getScheduler().performTicks(50);
         assertTrue(p.gates.sealed.contains(100));
     }
 
     @Test
     void entryRoomsAndBarrierShellCannotBeJournaledOrDestroyed() {
-        var spawn = BattleMaps.spawn(p, 100, true);
+        var map = BattleMaps.get(100);
+        var build = ImportedBuilds.build(100);
+        var spawn = new Location(p.world, map.cx() - map.width() / 2 + build.a().x() + .5, 97, 1024 - map.length() / 2 + build.a().z() + .5);
         spawn.getBlock().setType(Material.IRON_BARS);
         assertFalse(p.terrain.record(100, spawn.getBlock()));
         var point = spawn.clone().add(12, 0, 0).getBlock();
